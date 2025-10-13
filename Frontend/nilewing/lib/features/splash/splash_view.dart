@@ -65,17 +65,7 @@ class _SplashViewState extends ConsumerState<SplashView>
         body: Container(
           width: double.infinity,
           height: double.infinity,
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color(0xFF38BDF8), // sky-400
-                Colors.white,
-                Color(0xFF0F172A), // slate-900
-              ],
-            ),
-          ),
+          decoration: const BoxDecoration(color: Color(0xFF38BDF8)),
           child: Stack(
             children: [
               // Animated background circles
@@ -98,7 +88,7 @@ class _SplashViewState extends ConsumerState<SplashView>
               // Main content
               Center(
                 child: Container(
-                  constraints: const BoxConstraints(maxWidth: 320), // max-w-xs
+                  constraints: const BoxConstraints(maxWidth: 320),
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -109,7 +99,7 @@ class _SplashViewState extends ConsumerState<SplashView>
                         children: [
                           // Glow effect
                           Container(
-                            width: 144, // scale-150 of 96
+                            width: 144,
                             height: 144,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
@@ -141,31 +131,31 @@ class _SplashViewState extends ConsumerState<SplashView>
                               ],
                             ),
                             child: Image.asset(
-                              'assets/nile_wing_logo.png', // Replace with your logo
-                              width: 64, // w-16
-                              height: 64, // h-16
+                              'assets/nile_wing_logo.png',
+                              width: 64,
+                              height: 64,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 16),
 
                       // Brand name with gradient
                       ShaderMask(
                         shaderCallback: (bounds) => const LinearGradient(
                           colors: [
-                            Color(0xFF0F172A), // slate-900
-                            Color(0xFF075985), // sky-700
+                            Color(0xFF0F172A),
+                            Color(0xFF075985),
                             Color(0xFF0F172A),
                           ],
                         ).createShader(bounds),
                         child: const Text(
                           'NILE WING',
                           style: TextStyle(
-                            fontSize: 30, // text-3xl
+                            fontSize: 30,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
-                            letterSpacing: 1.5, // tracking-wider
+                            letterSpacing: 1.5,
                           ),
                         ),
                       ),
@@ -181,88 +171,23 @@ class _SplashViewState extends ConsumerState<SplashView>
                           borderRadius: BorderRadius.all(Radius.circular(999)),
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 8),
 
                       // Tagline
                       const Text(
                         'Connect During Layovers',
                         style: TextStyle(
-                          fontSize: 18, // text-lg
-                          fontWeight: FontWeight.w500, // font-medium
-                          color: Color(0xFF1E293B), // slate-800
-                          letterSpacing: 0.5, // tracking-wide
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'Turn waiting time into meaningful connections with fellow travelers',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 14, // text-sm
-                          color: Color(0xFF475569), // slate-600
-                          height: 1.5, // leading-relaxed
+                          fontSize: 18,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF1E293B),
+                          letterSpacing: 0.5,
                         ),
                       ),
                       const SizedBox(height: 32),
 
                       // Loading indicator
                       _buildLoadingIndicator(),
-                      const SizedBox(height: 12),
-                      AnimatedBuilder(
-                        animation: _pulseController,
-                        builder: (context, child) => Opacity(
-                          opacity: _pulseAnimation.value,
-                          child: child,
-                        ),
-                        child: const Text(
-                          'Loading your journey...',
-                          style: TextStyle(
-                            fontSize: 12, // text-xs
-                            color: Color(0xFF64748B), // slate-500
-                          ),
-                        ),
-                      ),
                     ],
-                  ),
-                ),
-              ),
-
-              // Animated airplane
-              AnimatedBuilder(
-                animation: _planeAnimation,
-                builder: (context, child) => Positioned(
-                  top: MediaQuery.of(context).size.height / 5,
-                  right: 16,
-                  child: Transform.translate(
-                    offset: Offset(0, _planeAnimation.value),
-                    child: Opacity(
-                      opacity: 0.2,
-                      child: const Icon(
-                        Icons.flight,
-                        size: 48,
-                        color: Color(0xFF334155), // slate-700
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-
-              // Tap hint
-              Positioned(
-                bottom: 32,
-                left: 0,
-                right: 0,
-                child: AnimatedBuilder(
-                  animation: _pulseController,
-                  builder: (context, child) =>
-                      Opacity(opacity: _pulseAnimation.value, child: child),
-                  child: const Text(
-                    'Tap anywhere to continue',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 12, // text-xs
-                      color: Color(0xFF94A3B8), // slate-400
-                    ),
                   ),
                 ),
               ),
