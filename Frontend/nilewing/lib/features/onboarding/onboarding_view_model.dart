@@ -671,7 +671,7 @@ class OnboardingViewModel extends StateNotifier<OnboardingState> {
   }
 
   void complete(BuildContext context) {
-    context.go('/auth');
+    context.go('/registration');
   }
 
   @override
