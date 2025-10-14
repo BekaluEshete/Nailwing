@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:nilewing/features/auth/view/login_screen.dart';
 import 'package:nilewing/features/auth/view/registration_screen.dart';
 import 'package:nilewing/features/onboarding/onboarding_view.dart';
 import 'package:nilewing/features/splash/splash_view.dart';
@@ -30,6 +31,11 @@ class AppRouter {
         path: '/registration',
         name: 'registration',
         builder: (context, state) => const RegistrationScreen(),
+      ),
+      GoRoute(
+        path: '/login',
+        name: 'login',
+        builder: (context, state) => const LoginScreen(),
       ),
     ],
 

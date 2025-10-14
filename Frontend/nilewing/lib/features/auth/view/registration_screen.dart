@@ -2,6 +2,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:nilewing/core/theme/app_colors.dart';
 import '../viewmodel/registration_view_model.dart';
 
 class RegistrationScreen extends ConsumerStatefulWidget {
@@ -107,7 +109,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: Color(0xFF1E40AF),
+              color: AppColors.primary,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(Icons.flight, color: Colors.white, size: 32),
@@ -121,7 +123,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF1E40AF),
+                  color: AppColors.primary,
                 ),
               ),
               Text(
@@ -162,7 +164,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     padding: const EdgeInsets.all(16),
     decoration: const BoxDecoration(
       gradient: LinearGradient(
-        colors: [Color(0xFF1E40AF), Color(0xFF3B82F6)],
+        colors: [AppColors.primary, AppColors.primary],
         begin: Alignment.centerLeft,
         end: Alignment.centerRight,
       ),
@@ -615,7 +617,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
             ? null
             : () => _handleRegistration(viewModel),
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF1E40AF),
+          backgroundColor: AppColors.primary,
           foregroundColor: Colors.white,
           elevation: 4,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -660,12 +662,12 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
             style: TextStyle(fontSize: 14, color: Colors.grey[600]),
           ),
           GestureDetector(
-            onTap: widget.onSwitchToLogin,
+            onTap: () => context.go('/login'),
             child: const Text(
               'Sign In',
               style: TextStyle(
                 fontSize: 14,
-                color: Color(0xFF1E40AF),
+                color: AppColors.primary,
                 fontWeight: FontWeight.w600,
               ),
             ),
