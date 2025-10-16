@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nilewing/features/home/view/home_view';
+import 'package:nilewing/features/myapp/view/home_view.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized(); // Required for async operations

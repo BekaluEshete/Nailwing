@@ -631,9 +631,14 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                   valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                 ),
               )
-            : const Text(
-                'Create Nile Wing Account',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            : GestureDetector(
+                onTap: () {
+                  context.go('/home');
+                },
+                child: Text(
+                  'Create Nile Wing Account',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
               ),
       ),
     );
