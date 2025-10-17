@@ -1,121 +1,116 @@
-// models/home_model.dart
-import 'package:flutter/material.dart';
+// features/home/model/home_model.dart
+import 'dart:ui';
 
 class User {
   final String name;
   final String? profileImage;
+  final String email;
   final String nationality;
-  final List<String> languages;
-  final String currentFlight;
-  final String flightStatus;
-  final String currentLocation;
-  final String nextFlight;
 
   User({
     required this.name,
     this.profileImage,
+    required this.email,
     required this.nationality,
-    required this.languages,
-    required this.currentFlight,
-    required this.flightStatus,
-    required this.currentLocation,
-    required this.nextFlight,
   });
+}
 
-  factory User.fromJson(Map<String, dynamic> json) {
-    return User(
-      name: json['name'] ?? '',
-      profileImage: json['profileImage'],
-      nationality: json['nationality'] ?? '',
-      languages: List<String>.from(json['languages'] ?? []),
-      currentFlight: json['currentFlight'] ?? '',
-      flightStatus: json['flightStatus'] ?? '',
-      currentLocation: json['currentLocation'] ?? '',
-      nextFlight: json['nextFlight'] ?? '',
-    );
-  }
+class Flight {
+  final String flightNumber;
+  final String airline;
+  final String route;
+  final FlightLeg departure;
+  final FlightLeg arrival;
+  final String duration;
+  final String aircraft;
+  final String seat;
+  final String gate;
+  final String status;
+  final String checkInTime;
+  final String boardingTime;
+  final String timeUntilDeparture;
 
-  Map<String, dynamic> toJson() {
-    return {
-      'name': name,
-      'profileImage': profileImage,
-      'nationality': nationality,
-      'languages': languages,
-      'currentFlight': currentFlight,
-      'flightStatus': flightStatus,
-      'currentLocation': currentLocation,
-      'nextFlight': nextFlight,
-    };
-  }
+  Flight({
+    required this.flightNumber,
+    required this.airline,
+    required this.route,
+    required this.departure,
+    required this.arrival,
+    required this.duration,
+    required this.aircraft,
+    required this.seat,
+    required this.gate,
+    required this.status,
+    required this.checkInTime,
+    required this.boardingTime,
+    required this.timeUntilDeparture,
+  });
+}
+
+class FlightLeg {
+  final String airport;
+  final String city;
+  final String time;
+  final String date;
+  final String terminal;
+
+  FlightLeg({
+    required this.airport,
+    required this.city,
+    required this.time,
+    required this.date,
+    required this.terminal,
+  });
 }
 
 class FlightPost {
-  final int id;
-  final String user;
-  final String? avatar;
-  final String flight;
-  final String route;
-  final String time;
-  final int likes;
-  final String title;
-  final String preview;
+  final String id;
+  final PostUser user;
+  final PostFlight flight;
+  final PostContent post;
 
   FlightPost({
     required this.id,
     required this.user,
-    this.avatar,
     required this.flight,
-    required this.route,
-    required this.time,
-    required this.likes,
-    required this.title,
-    required this.preview,
+    required this.post,
   });
-
-  factory FlightPost.fromJson(Map<String, dynamic> json) {
-    return FlightPost(
-      id: json['id'] ?? 0,
-      user: json['user'] ?? '',
-      avatar: json['avatar'],
-      flight: json['flight'] ?? '',
-      route: json['route'] ?? '',
-      time: json['time'] ?? '',
-      likes: json['likes'] ?? 0,
-      title: json['title'] ?? '',
-      preview: json['preview'] ?? '',
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'user': user,
-      'avatar': avatar,
-      'flight': flight,
-      'route': route,
-      'time': time,
-      'likes': likes,
-      'title': title,
-      'preview': preview,
-    };
-  }
 }
 
-class QuickAction {
-  final int id;
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final List<Color> gradientColors;
-  final VoidCallback action;
+class PostUser {
+  final String name;
+  final String? avatar;
+  final String nationality;
 
-  QuickAction({
-    required this.id,
+  PostUser({required this.name, this.avatar, required this.nationality});
+}
+
+class PostFlight {
+  final String number;
+  final String route;
+
+  PostFlight({required this.number, required this.route});
+}
+
+class PostContent {
+  final String title;
+  final String content;
+  final String? fullContent;
+  final String timestamp;
+  final int likes;
+  final int comments;
+  final bool isLiked;
+  final int rating;
+
+  PostContent({
     required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.gradientColors,
-    required this.action,
+    required this.content,
+    this.fullContent,
+    required this.timestamp,
+    required this.likes,
+    required this.comments,
+    required this.isLiked,
+    required this.rating,
   });
 }
 
@@ -135,132 +130,8 @@ class BottomNavItem {
   });
 }
 
-// New models for services
-class Flight {
-  final String id;
-  final String airline;
-  final String flightNumber;
-  final FlightLeg departure;
-  final FlightLeg arrival;
-  final String seat;
-  final String seatType;
-  final String status;
-  final String departureIn;
-
-  Flight({
-    required this.id,
-    required this.airline,
-    required this.flightNumber,
-    required this.departure,
-    required this.arrival,
-    required this.seat,
-    required this.seatType,
-    required this.status,
-    required this.departureIn,
-  });
-
-  factory Flight.fromJson(Map<String, dynamic> json) {
-    return Flight(
-      id: json['id'] ?? '',
-      airline: json['airline'] ?? '',
-      flightNumber: json['flightNumber'] ?? '',
-      departure: FlightLeg.fromJson(json['departure'] ?? {}),
-      arrival: FlightLeg.fromJson(json['arrival'] ?? {}),
-      seat: json['seat'] ?? '',
-      seatType: json['seatType'] ?? '',
-      status: json['status'] ?? '',
-      departureIn: json['departureIn'] ?? '',
-    );
-  }
-}
-
-class FlightLeg {
-  final String airport;
-  final String city;
-  final String time;
-  final String date;
-  final String? terminal;
-  final String? gate;
-
-  FlightLeg({
-    required this.airport,
-    required this.city,
-    required this.time,
-    required this.date,
-    this.terminal,
-    this.gate,
-  });
-
-  factory FlightLeg.fromJson(Map<String, dynamic> json) {
-    return FlightLeg(
-      airport: json['airport'] ?? '',
-      city: json['city'] ?? '',
-      time: json['time'] ?? '',
-      date: json['date'] ?? '',
-      terminal: json['terminal'],
-      gate: json['gate'],
-    );
-  }
-}
-
-class FlightRecommendation {
-  final int id;
-  final String type;
-  final String title;
-  final String subtitle;
-  final String? imageUrl;
-  final int matchScore;
-  final String reason;
-
-  FlightRecommendation({
-    required this.id,
-    required this.type,
-    required this.title,
-    required this.subtitle,
-    this.imageUrl,
-    required this.matchScore,
-    required this.reason,
-  });
-
-  factory FlightRecommendation.fromJson(Map<String, dynamic> json) {
-    return FlightRecommendation(
-      id: json['id'] ?? 0,
-      type: json['type'] ?? '',
-      title: json['title'] ?? '',
-      subtitle: json['subtitle'] ?? '',
-      imageUrl: json['imageUrl'],
-      matchScore: json['matchScore'] ?? 0,
-      reason: json['reason'] ?? '',
-    );
-  }
-}
-
-class UserFlightStats {
-  final int totalFlights;
-  final int countriesVisited;
-  final int storiesPosted;
-  final int milesFlown;
-  final List<String> favoriteAirlines;
-
-  UserFlightStats({
-    required this.totalFlights,
-    required this.countriesVisited,
-    required this.storiesPosted,
-    required this.milesFlown,
-    required this.favoriteAirlines,
-  });
-
-  factory UserFlightStats.fromJson(Map<String, dynamic> json) {
-    return UserFlightStats(
-      totalFlights: json['totalFlights'] ?? 0,
-      countriesVisited: json['countriesVisited'] ?? 0,
-      storiesPosted: json['storiesPosted'] ?? 0,
-      milesFlown: json['milesFlown'] ?? 0,
-      favoriteAirlines: List<String>.from(json['favoriteAirlines'] ?? []),
-    );
-  }
-}
-
+// features/home/model/home_model.dart
+// Add this class to your existing home_model.dart
 class Notification {
   final String id;
   final String title;
@@ -277,17 +148,4 @@ class Notification {
     required this.isRead,
     required this.timestamp,
   });
-
-  factory Notification.fromJson(Map<String, dynamic> json) {
-    return Notification(
-      id: json['id'] ?? '',
-      title: json['title'] ?? '',
-      message: json['message'] ?? '',
-      type: json['type'] ?? '',
-      isRead: json['isRead'] ?? false,
-      timestamp: DateTime.parse(
-        json['timestamp'] ?? DateTime.now().toIso8601String(),
-      ),
-    );
-  }
 }

@@ -1,8 +1,9 @@
-// viewmodels/home_view_model.dart
+// features/home/viewmodels/home_view_model.dart
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nilewing/features/home/model/home_model.dart';
-
+import '../model/home_model.dart';
 import '../services/flight_service.dart';
 import '../services/user_service.dart';
 
@@ -15,144 +16,165 @@ class HomeViewModel with ChangeNotifier {
   final UserService _userService = UserService();
 
   String _activeTab = 'home';
-  int _notificationCount = 5;
+  int _notificationCount = 0;
   bool _isLoading = false;
+  bool _isOnline = true;
+  double _batteryLevel = 78.0;
+  final Set<String> _expandedPosts = {};
+  List<FlightPost> _flightPosts = [];
+  Flight? _userFlight;
   User? _user;
-  List<FlightPost> _recentPosts = [];
-  List<Flight> _upcomingFlights = [];
-  UserFlightStats? _userStats;
+  Map<String, dynamic>? _preFlightMatches;
+  DateTime _currentTime = DateTime.now();
 
   String get activeTab => _activeTab;
   int get notificationCount => _notificationCount;
   bool get isLoading => _isLoading;
-  User get user => _user ?? _userService.getMockUser();
-  List<FlightPost> get recentPosts => _recentPosts;
-  List<Flight> get upcomingFlights => _upcomingFlights;
-  UserFlightStats? get userStats => _userStats;
+  bool get isOnline => _isOnline;
+  double get batteryLevel => _batteryLevel;
+  Set<String> get expandedPosts => _expandedPosts;
+  List<FlightPost> get flightPosts => _flightPosts;
+  Flight? get userFlight => _userFlight;
+  User? get user => _user;
+  Map<String, dynamic>? get preFlightMatches => _preFlightMatches;
+  DateTime get currentTime => _currentTime;
 
-  // Initialize data
-  Future<void> initializeData(String userId) async {
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Timer? _timer;
+
+  Future<void> initializeData() async {
     _isLoading = true;
     notifyListeners();
 
     try {
-      // Load data in parallel
+      // Load all data in parallel
       await Future.wait([
-        _loadUserProfile(userId),
-        _loadRecentPosts(),
-        _loadUpcomingFlights(userId),
-        _loadUserStats(userId),
+        _loadUserProfile(),
+        _loadUserFlight(),
+        _loadFlightPosts(),
+        _loadPreFlightMatches(),
+        _loadNotificationCount(),
       ]);
     } catch (e) {
       print('Error initializing home data: $e');
+      // You could set default/fallback data here
     } finally {
       _isLoading = false;
       notifyListeners();
+      _startRealTimeUpdates();
     }
   }
 
-  Future<void> _loadUserProfile(String userId) async {
+  Future<void> _loadUserProfile() async {
     try {
-      _user = await _userService.getUserProfile(userId);
+      _user = await _userService.getUserProfile("current_user_id");
     } catch (e) {
       print('Error loading user profile: $e');
-      _user = _userService.getMockUser();
+      // Fallback user data
+      _user = User(
+        name: "Markos Tesfaye",
+        profileImage: null,
+        email: "markos.tesfaye@email.com",
+        nationality: "Ethiopian",
+      );
     }
   }
 
-  Future<void> _loadRecentPosts() async {
+  Future<void> _loadUserFlight() async {
     try {
-      _recentPosts = await _flightService.getFlightPosts();
+      _userFlight = await _flightService.getUserUpcomingFlight(
+        "current_user_id",
+      );
     } catch (e) {
-      print('Error loading recent posts: $e');
-      _recentPosts = _flightService.getMockFlightPosts();
+      print('Error loading user flight: $e');
+      // Fallback flight data
+      _userFlight = Flight(
+        flightNumber: "ET302",
+        airline: "Ethiopian Airlines",
+        route: "ADD → CDG",
+        departure: FlightLeg(
+          airport: "ADD",
+          city: "Addis Ababa",
+          time: "23:35",
+          date: "Today",
+          terminal: "T2",
+        ),
+        arrival: FlightLeg(
+          airport: "CDG",
+          city: "Paris",
+          time: "06:50+1",
+          date: "Tomorrow",
+          terminal: "2E",
+        ),
+        duration: "7h 15m",
+        aircraft: "Boeing 787-9",
+        seat: "12A",
+        gate: "B7",
+        status: "On Time",
+        checkInTime: "21:35",
+        boardingTime: "23:00",
+        timeUntilDeparture: "5h 23m",
+      );
     }
   }
 
-  Future<void> _loadUpcomingFlights(String userId) async {
+  Future<void> _loadFlightPosts() async {
     try {
-      _upcomingFlights = await _flightService.getUpcomingFlights(userId);
+      _flightPosts = await _flightService.getFlightPosts();
     } catch (e) {
-      print('Error loading upcoming flights: $e');
-      _upcomingFlights = _flightService.getMockUpcomingFlights();
+      print('Error loading flight posts: $e');
+      _flightPosts = []; // Empty fallback
     }
   }
 
-  Future<void> _loadUserStats(String userId) async {
+  Future<void> _loadPreFlightMatches() async {
     try {
-      _userStats = await _flightService.getUserFlightStats(userId);
+      _preFlightMatches = await _flightService.getPreFlightMatches(
+        "current_user_id",
+      );
     } catch (e) {
-      print('Error loading user stats: $e');
-      _userStats = _flightService.getMockUserStats();
+      print('Error loading pre-flight matches: $e');
+      _preFlightMatches = {
+        'matchCount': 0,
+        'matches': [],
+        'commonRoute': 'No matches found',
+      };
     }
   }
 
-  // Refresh data
-  Future<void> refreshData(String userId) async {
-    await initializeData(userId);
-  }
-
-  // Add a new flight
-  Future<void> addFlight(Map<String, dynamic> flightData) async {
+  Future<void> _loadNotificationCount() async {
     try {
-      // In a real app, you would get userId from authentication
-      final userId = "current_user_id";
-      await _flightService.addFlight(userId, flightData);
-
-      // Refresh upcoming flights
-      await _loadUpcomingFlights(userId);
+      _notificationCount = await _userService.getNotificationCount(
+        "current_user_id",
+      );
     } catch (e) {
-      throw Exception('Failed to add flight: $e');
+      print('Error loading notification count: $e');
+      _notificationCount = 3; // Fallback count
     }
   }
 
-  // Get notifications count
-  Future<void> loadNotificationCount(String userId) async {
-    try {
-      final notifications = await _userService.getUserNotifications(userId);
-      _notificationCount = notifications.where((n) => !n.isRead).length;
+  void _startRealTimeUpdates() {
+    _timer = Timer.periodic(Duration(seconds: 1), (timer) {
+      _currentTime = DateTime.now();
+
+      // Simulate real-time updates
+      if (DateTime.now().second % 10 == 0) {
+        _notificationCount++;
+        notifyListeners();
+      }
+
+      // Update battery level
+      _batteryLevel = (_batteryLevel - 0.02).clamp(0.0, 100.0);
       notifyListeners();
-    } catch (e) {
-      print('Error loading notifications: $e');
-    }
+    });
   }
 
-  List<QuickAction> get quickActions => [
-    QuickAction(
-      id: 1,
-      title: "Add Flight",
-      subtitle: "New journey",
-      icon: Icons.add,
-      gradientColors: [Color(0xFF10B981), Color(0xFF059669)],
-      action: () => print("Add flight"),
-    ),
-    QuickAction(
-      id: 2,
-      title: "Flight Status",
-      subtitle: "Track live",
-      icon: Icons.navigation,
-      gradientColors: [Color(0xFF3B82F6), Color(0xFF2563EB)],
-      action: () => print("Flight status"),
-    ),
-    QuickAction(
-      id: 3,
-      title: "View Flights",
-      subtitle: "Browse all",
-      icon: Icons.flight,
-      gradientColors: [Color(0xFF8B5CF6), Color(0xFF7C3AED)],
-      action: () => _onNavigateToFlightList?.call(),
-    ),
-    QuickAction(
-      id: 4,
-      title: "Flight Posts",
-      subtitle: "Community",
-      icon: Icons.remove_red_eye,
-      gradientColors: [Color(0xFFEC4899), Color(0xFFDB2777)],
-      action: () => _onNavigateToViewPosts?.call(),
-    ),
-  ];
-
-  // Updated bottomNavItems to be dynamic based on activeTab
+  // Rest of your existing methods remain the same...
   List<BottomNavItem> get bottomNavItems => [
     BottomNavItem(
       id: 'myflights',
@@ -187,7 +209,7 @@ class HomeViewModel with ChangeNotifier {
     BottomNavItem(
       id: 'recommendations',
       label: 'Recommendations',
-      icon: '🌟',
+      icon: '🎯',
       active: _activeTab == 'recommendations',
       action: () {
         setActiveTab('recommendations');
@@ -203,42 +225,110 @@ class HomeViewModel with ChangeNotifier {
     ),
   ];
 
+  void toggleLike(String postId) {
+    final index = _flightPosts.indexWhere((post) => post.id == postId);
+    if (index != -1) {
+      final post = _flightPosts[index];
+      final newLikes = post.post.isLiked
+          ? post.post.likes - 1
+          : post.post.likes + 1;
+
+      _flightPosts[index] = FlightPost(
+        id: post.id,
+        user: post.user,
+        flight: post.flight,
+        post: PostContent(
+          title: post.post.title,
+          content: post.post.content,
+          fullContent: post.post.fullContent,
+          timestamp: post.post.timestamp,
+          likes: newLikes,
+          comments: post.post.comments,
+          isLiked: !post.post.isLiked,
+          rating: post.post.rating,
+        ),
+      );
+      notifyListeners();
+    }
+  }
+
+  void toggleReadMore(String postId) {
+    if (_expandedPosts.contains(postId)) {
+      _expandedPosts.remove(postId);
+    } else {
+      _expandedPosts.add(postId);
+    }
+    notifyListeners();
+  }
+
+  // Service-based actions
+  Future<void> checkIn() async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final success = await _flightService.checkInForFlight(
+        _userFlight?.flightNumber ?? 'ET302',
+        "current_user_id",
+      );
+
+      if (success) {
+        // Handle successful check-in
+        print('Check-in successful!');
+      }
+    } catch (e) {
+      print('Check-in failed: $e');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> viewFlightDetails() async {
+    try {
+      final details = await _flightService.getFlightDetails(
+        _userFlight?.flightNumber ?? 'ET302',
+      );
+      print('Flight details: $details');
+      // Navigate to details screen or show dialog
+    } catch (e) {
+      print('Error loading flight details: $e');
+    }
+  }
+
   // Navigation callbacks
-  VoidCallback? _onNavigateToSettings;
   VoidCallback? _onNavigateToNotifications;
-  VoidCallback? _onNavigateToProfile;
   VoidCallback? _onNavigateToMyFlights;
-  VoidCallback? _onNavigateToFlightList;
-  VoidCallback? _onNavigateToViewPosts;
   VoidCallback? _onNavigateToMatch;
+  VoidCallback? _onNavigateToPreFlightMatching;
   VoidCallback? _onNavigateToChat;
   VoidCallback? _onNavigateToRecommendations;
+  VoidCallback? _onNavigateToProfile;
+  VoidCallback? _onNavigateToSettings;
 
   void setNavigationCallbacks({
-    VoidCallback? onNavigateToSettings,
     VoidCallback? onNavigateToNotifications,
-    VoidCallback? onNavigateToProfile,
     VoidCallback? onNavigateToMyFlights,
-    VoidCallback? onNavigateToFlightList,
-    VoidCallback? onNavigateToViewPosts,
     VoidCallback? onNavigateToMatch,
+    VoidCallback? onNavigateToPreFlightMatching,
     VoidCallback? onNavigateToChat,
     VoidCallback? onNavigateToRecommendations,
+    VoidCallback? onNavigateToProfile,
+    VoidCallback? onNavigateToSettings,
   }) {
-    _onNavigateToSettings = onNavigateToSettings;
     _onNavigateToNotifications = onNavigateToNotifications;
-    _onNavigateToProfile = onNavigateToProfile;
     _onNavigateToMyFlights = onNavigateToMyFlights;
-    _onNavigateToFlightList = onNavigateToFlightList;
-    _onNavigateToViewPosts = onNavigateToViewPosts;
     _onNavigateToMatch = onNavigateToMatch;
+    _onNavigateToPreFlightMatching = onNavigateToPreFlightMatching;
     _onNavigateToChat = onNavigateToChat;
     _onNavigateToRecommendations = onNavigateToRecommendations;
+    _onNavigateToProfile = onNavigateToProfile;
+    _onNavigateToSettings = onNavigateToSettings;
   }
 
   void setActiveTab(String tab) {
     _activeTab = tab;
-    notifyListeners(); // This will rebuild the UI with updated active states
+    notifyListeners();
   }
 
   void setNotificationCount(int count) {
