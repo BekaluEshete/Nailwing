@@ -174,56 +174,56 @@ class HomeViewModel with ChangeNotifier {
     });
   }
 
-  // Rest of your existing methods remain the same...
-  List<BottomNavItem> get bottomNavItems => [
-    BottomNavItem(
-      id: 'myflights',
-      label: 'My Flights',
-      icon: '✈️',
-      active: _activeTab == 'myflights',
-      action: () {
-        setActiveTab('myflights');
-        _onNavigateToMyFlights?.call();
-      },
-    ),
-    BottomNavItem(
-      id: 'match',
-      label: 'Match',
-      icon: '⚡',
-      active: _activeTab == 'match',
-      action: () {
-        setActiveTab('match');
-        _onNavigateToMatch?.call();
-      },
-    ),
-    BottomNavItem(
-      id: 'chat',
-      label: 'Chat',
-      icon: '💬',
-      active: _activeTab == 'chat',
-      action: () {
-        setActiveTab('chat');
-        _onNavigateToChat?.call();
-      },
-    ),
-    BottomNavItem(
-      id: 'recommendations',
-      label: 'Recommendations',
-      icon: '🎯',
-      active: _activeTab == 'recommendations',
-      action: () {
-        setActiveTab('recommendations');
-        _onNavigateToRecommendations?.call();
-      },
-    ),
-    BottomNavItem(
-      id: 'home',
-      label: 'Home',
-      icon: '🏠',
-      active: _activeTab == 'home',
-      action: () => setActiveTab('home'),
-    ),
-  ];
+  // // Rest of your existing methods remain the same...
+  // List<BottomNavItem> get bottomNavItems => [
+  //   BottomNavItem(
+  //     id: 'myflights',
+  //     label: 'My Flights',
+  //     icon: '✈️',
+  //     active: _activeTab == 'myflights',
+  //     action: () {
+  //       setActiveTab('myflights');
+  //       _onNavigateToMyFlights?.call();
+  //     },
+  //   ),
+  //   BottomNavItem(
+  //     id: 'match',
+  //     label: 'Match',
+  //     icon: '⚡',
+  //     active: _activeTab == 'match',
+  //     action: () {
+  //       setActiveTab('match');
+  //       _onNavigateToMatch?.call();
+  //     },
+  //   ),
+  //   BottomNavItem(
+  //     id: 'chat',
+  //     label: 'Chat',
+  //     icon: '💬',
+  //     active: _activeTab == 'chat',
+  //     action: () {
+  //       setActiveTab('chat');
+  //       _onNavigateToChat?.call();
+  //     },
+  //   ),
+  //   BottomNavItem(
+  //     id: 'recommendations',
+  //     label: 'Recommendations',
+  //     icon: '🎯',
+  //     active: _activeTab == 'recommendations',
+  //     action: () {
+  //       setActiveTab('recommendations');
+  //       _onNavigateToRecommendations?.call();
+  //     },
+  //   ),
+  //   BottomNavItem(
+  //     id: 'home',
+  //     label: 'Home',
+  //     icon: '🏠',
+  //     active: _activeTab == 'home',
+  //     action: () => setActiveTab('home'),
+  //   ),
+  // ];
 
   void toggleLike(String postId) {
     final index = _flightPosts.indexWhere((post) => post.id == postId);
@@ -298,33 +298,13 @@ class HomeViewModel with ChangeNotifier {
 
   // Navigation callbacks
   VoidCallback? _onNavigateToNotifications;
-  VoidCallback? _onNavigateToMyFlights;
+
   VoidCallback? _onNavigateToMatch;
   VoidCallback? _onNavigateToPreFlightMatching;
   VoidCallback? _onNavigateToChat;
   VoidCallback? _onNavigateToRecommendations;
   VoidCallback? _onNavigateToProfile;
   VoidCallback? _onNavigateToSettings;
-
-  void setNavigationCallbacks({
-    VoidCallback? onNavigateToNotifications,
-    VoidCallback? onNavigateToMyFlights,
-    VoidCallback? onNavigateToMatch,
-    VoidCallback? onNavigateToPreFlightMatching,
-    VoidCallback? onNavigateToChat,
-    VoidCallback? onNavigateToRecommendations,
-    VoidCallback? onNavigateToProfile,
-    VoidCallback? onNavigateToSettings,
-  }) {
-    _onNavigateToNotifications = onNavigateToNotifications;
-    _onNavigateToMyFlights = onNavigateToMyFlights;
-    _onNavigateToMatch = onNavigateToMatch;
-    _onNavigateToPreFlightMatching = onNavigateToPreFlightMatching;
-    _onNavigateToChat = onNavigateToChat;
-    _onNavigateToRecommendations = onNavigateToRecommendations;
-    _onNavigateToProfile = onNavigateToProfile;
-    _onNavigateToSettings = onNavigateToSettings;
-  }
 
   void setActiveTab(String tab) {
     _activeTab = tab;

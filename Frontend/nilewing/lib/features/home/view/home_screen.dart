@@ -37,16 +37,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final viewModel = ref.read(homeViewModelProvider);
-      viewModel.setNavigationCallbacks(
-        onNavigateToNotifications: widget.onNavigateToNotifications,
-        onNavigateToMyFlights: widget.onNavigateToMyFlights,
-        onNavigateToMatch: widget.onNavigateToMatch,
-        onNavigateToPreFlightMatching: widget.onNavigateToPreFlightMatching,
-        onNavigateToChat: widget.onNavigateToChat,
-        onNavigateToRecommendations: widget.onNavigateToRecommendations,
-        onNavigateToProfile: widget.onNavigateToProfile,
-        onNavigateToSettings: widget.onNavigateToSettings,
-      );
+
       viewModel.initializeData();
     });
   }
@@ -156,7 +147,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
 
             // Bottom Navigation
-            _buildBottomNavigation(viewModel),
+            //  _buildBottomNavigation(viewModel),
           ],
         ),
       ),
@@ -1334,87 +1325,88 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Widget _buildBottomNavigation(HomeViewModel viewModel) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.95),
-        border: Border(top: BorderSide(color: Colors.grey[300]!)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 8,
-            offset: Offset(0, -2),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: viewModel.bottomNavItems
-                .map((item) => _buildBottomNavItem(item, viewModel))
-                .toList(),
-          ),
-        ),
-      ),
-    );
-  }
+  //   Widget _buildBottomNavigation(HomeViewModel viewModel) {
+  //     return Container(
+  //       decoration: BoxDecoration(
+  //         color: Colors.white.withOpacity(0.95),
+  //         border: Border(top: BorderSide(color: Colors.grey[300]!)),
+  //         boxShadow: [
+  //           BoxShadow(
+  //             color: Colors.black12,
+  //             blurRadius: 8,
+  //             offset: Offset(0, -2),
+  //           ),
+  //         ],
+  //       ),
+  //       child: SafeArea(
+  //         top: false,
+  //         child: Padding(
+  //           padding: EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+  //           child: Row(
+  //             mainAxisAlignment: MainAxisAlignment.spaceAround,
+  //             children: viewModel.bottomNavItems
+  //                 .map((item) => _buildBottomNavItem(item, viewModel))
+  //                 .toList(),
+  //           ),
+  //         ),
+  //       ),
+  //     );
+  //   }
 
-  Widget _buildBottomNavItem(BottomNavItem item, HomeViewModel viewModel) {
-    final isActive = item.active;
+  //   Widget _buildBottomNavItem(BottomNavItem item, HomeViewModel viewModel) {
+  //     final isActive = item.active;
 
-    return GestureDetector(
-      onTap: item.action,
-      child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          gradient: isActive
-              ? LinearGradient(
-                  colors: [
-                    Color(0xFF1E40AF).withOpacity(0.2),
-                    Color(0xFF06B6D4).withOpacity(0.1),
-                  ],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                )
-              : null,
-          boxShadow: isActive
-              ? [
-                  BoxShadow(
-                    color: Color(0xFF1E40AF).withOpacity(0.2),
-                    blurRadius: 8,
-                    offset: Offset(0, 2),
-                  ),
-                ]
-              : null,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              item.icon,
-              style: TextStyle(
-                fontSize: 18,
-                color: isActive ? Color(0xFF1E40AF) : Colors.grey[600],
-              ),
-            ),
-            SizedBox(height: 4),
-            Text(
-              item.label,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
-                color: isActive ? Color(0xFF1E40AF) : Colors.grey[600],
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  //     return GestureDetector(
+  //       onTap: item.action,
+  //       child: Container(
+  //         padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+  //         decoration: BoxDecoration(
+  //           borderRadius: BorderRadius.circular(12),
+  //           gradient: isActive
+  //               ? LinearGradient(
+  //                   colors: [
+  //                     Color(0xFF1E40AF).withOpacity(0.2),
+  //                     Color(0xFF06B6D4).withOpacity(0.1),
+  //                   ],
+  //                   begin: Alignment.topCenter,
+  //                   end: Alignment.bottomCenter,
+  //                 )
+  //               : null,
+  //           boxShadow: isActive
+  //               ? [
+  //                   BoxShadow(
+  //                     color: Color(0xFF1E40AF).withOpacity(0.2),
+  //                     blurRadius: 8,
+  //                     offset: Offset(0, 2),
+  //                   ),
+  //                 ]
+  //               : null,
+  //         ),
+  //         child: Column(
+  //           mainAxisSize: MainAxisSize.min,
+  //           children: [
+  //             Text(
+  //               item.icon,
+  //               style: TextStyle(
+  //                 fontSize: 18,
+  //                 color: isActive ? Color(0xFF1E40AF) : Colors.grey[600],
+  //               ),
+  //             ),
+  //             SizedBox(height: 4),
+  //             Text(
+  //               item.label,
+  //               style: TextStyle(
+  //                 fontSize: 10,
+  //                 fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
+  //                 color: isActive ? Color(0xFF1E40AF) : Colors.grey[600],
+  //               ),
+  //               textAlign: TextAlign.center,
+  //               maxLines: 1,
+  //             ),
+  //           ],
+  //         ),
+  //       ),
+  //     );
+  //   }
+  //
 }
