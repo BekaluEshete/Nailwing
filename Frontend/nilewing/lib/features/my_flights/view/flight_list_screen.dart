@@ -1,6 +1,7 @@
 // features/my_flights/screens/my_flights_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nilewing/core/theme/app_colors.dart';
 import '../model/flight_model.dart';
 import '../viewmodel/flight_view_model.dart';
 
@@ -66,7 +67,7 @@ class _MyFlightsScreenState extends ConsumerState<MyFlightsScreen> {
               right: 24,
               child: FloatingActionButton(
                 onPressed: widget.onNavigateToAddFlight,
-                backgroundColor: Color(0xFF1E40AF),
+                backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
                 elevation: 8,
                 child: Icon(Icons.add, size: 28),
@@ -82,7 +83,7 @@ class _MyFlightsScreenState extends ConsumerState<MyFlightsScreen> {
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFF1E40AF), Color(0xFF3B82F6)],
+          colors: [AppColors.primary, AppColors.primary],
           begin: Alignment.centerLeft,
           end: Alignment.centerRight,
         ),

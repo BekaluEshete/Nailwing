@@ -397,7 +397,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
         child: GestureDetector(
-          onTap: () => context.go('/home'),
+          onTap: () {
+            context.go('/home');
+          },
           child: viewModel.isLoading
               ? SizedBox(
                   width: 20,
@@ -412,98 +414,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildDivider() {
-    return Stack(
-      children: [
-        Divider(color: Colors.grey[300], thickness: 1),
-        Center(
-          child: Container(
-            padding: EdgeInsets.symmetric(horizontal: 16),
-            color: Colors.white,
-            child: Text(
-              'or sign in with',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[600],
-                backgroundColor: Colors.white,
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildGoogleLoginButton(LoginViewModel viewModel) {
-    return SizedBox(
-      width: double.infinity,
-      height: 52,
-      child: OutlinedButton(
-        onPressed: viewModel.isLoading
-            ? null
-            : () async {
-                final success = await viewModel.loginWithGoogle();
-                if (success && widget.onLoginSuccess != null) {
-                  widget.onLoginSuccess!();
-                }
-              },
-        style: OutlinedButton.styleFrom(
-          side: BorderSide(color: Colors.grey[300]!),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          backgroundColor: Colors.transparent,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // Google Logo SVG as PNG representation
-            Container(
-              width: 20,
-              height: 20,
-              decoration: BoxDecoration(
-                image: DecorationImage(
-                  image: AssetImage(
-                    'assets/images/google_logo.png',
-                  ), // Add your Google logo asset
-                  fit: BoxFit.contain,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              'Continue with Google',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[700],
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDemoLink() {
-    return GestureDetector(
-      onTap: widget.onSwitchToPostFlight,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.airplanemode_active, size: 16, color: Color(0xFF3B82F6)),
-          const SizedBox(width: 8),
-          Text(
-            'Demo: Share Flight Story',
-            style: TextStyle(
-              fontSize: 14,
-              color: Color(0xFF3B82F6),
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
       ),
     );
   }
