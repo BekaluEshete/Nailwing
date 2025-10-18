@@ -72,6 +72,23 @@ class MyFlightsViewModel with ChangeNotifier {
     }
   }
 
+  // Add this method to your existing MyFlightsViewModel
+  Future<void> addFlight(Flight newFlight) async {
+    try {
+      // Add to local state immediately for better UX
+      _flights.insert(0, newFlight);
+      notifyListeners();
+
+      // TODO: Implement API call to save flight
+      // await _service.addFlight(newFlight);
+    } catch (e) {
+      // Remove from local state if API call fails
+      _flights.remove(newFlight);
+      notifyListeners();
+      rethrow;
+    }
+  }
+
   Future<void> updateFlightDelay(String flightId) async {
     try {
       final success = await _service.updateFlightDelay(flightId, _delayForm);

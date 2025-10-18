@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nilewing/core/theme/app_colors.dart';
+import 'package:nilewing/features/my_flights/view/add_flight_post_screen.dart';
 import '../model/flight_model.dart';
 import '../viewmodel/flight_view_model.dart';
 
@@ -66,11 +67,27 @@ class _MyFlightsScreenState extends ConsumerState<MyFlightsScreen> {
               bottom: 24,
               right: 24,
               child: FloatingActionButton(
-                onPressed: widget.onNavigateToAddFlight,
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => AddFlightPostScreen(
+                        onNavigateBack: () => Navigator.pop(context),
+                        onFlightAdded: (newFlight) {
+                          // Add to view model
+                          ref
+                              .read(myFlightsViewModelProvider)
+                              .addFlight(newFlight as Flight);
+                          Navigator.pop(context);
+                        },
+                      ),
+                    ),
+                  );
+                },
                 backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
                 elevation: 8,
-                child: Icon(Icons.add, size: 28),
+                child: const Icon(Icons.add, size: 28),
               ),
             ),
           ],
@@ -78,6 +95,10 @@ class _MyFlightsScreenState extends ConsumerState<MyFlightsScreen> {
       ),
     );
   }
+
+  // ... Rest of your existing methods remain exactly the same ...
+  // _buildHeader, _buildContent, _buildSectionHeader, _buildFlightCard, etc.
+  // All the helper methods and dialog classes remain unchanged
 
   Widget _buildHeader(MyFlightsViewModel viewModel) {
     return Container(
@@ -146,7 +167,7 @@ class _MyFlightsScreenState extends ConsumerState<MyFlightsScreen> {
           if (upcomingFlights.isNotEmpty) ...[
             _buildSectionHeader(
               'Upcoming Flights (${upcomingFlights.length})',
-              Color(0xFF1E40AF),
+              AppColors.primary,
             ),
             SizedBox(height: 12),
             ...upcomingFlights.map(
@@ -190,10 +211,7 @@ class _MyFlightsScreenState extends ConsumerState<MyFlightsScreen> {
                     height: 64,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [
-                          Color(0xFF1E40AF).withOpacity(0.1),
-                          Color(0xFF3B82F6).withOpacity(0.1),
-                        ],
+                        colors: [AppColors.primary, AppColors.primary],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
@@ -221,9 +239,24 @@ class _MyFlightsScreenState extends ConsumerState<MyFlightsScreen> {
                   ),
                   SizedBox(height: 16),
                   ElevatedButton(
-                    onPressed: widget.onNavigateToAddFlight,
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => AddFlightPostScreen(
+                            onNavigateBack: () => Navigator.pop(context),
+                            onFlightAdded: (newFlight) {
+                              ref
+                                  .read(myFlightsViewModelProvider)
+                                  .addFlight(newFlight as Flight);
+                              Navigator.pop(context);
+                            },
+                          ),
+                        ),
+                      );
+                    },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Color(0xFF1E40AF),
+                      backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
                     ),
                     child: Text('Add Flight'),
@@ -238,6 +271,10 @@ class _MyFlightsScreenState extends ConsumerState<MyFlightsScreen> {
       ),
     );
   }
+
+  // ... All other methods remain exactly the same as in your original code ...
+  // _buildSectionHeader, _buildSectionHeaderWithBadge, _buildFlightCard,
+  // _buildFlightActions, _showDelayDialog, _showCancelDialog, and all helper methods
 
   Widget _buildSectionHeader(String title, Color color) {
     return Row(
@@ -345,7 +382,7 @@ class _MyFlightsScreenState extends ConsumerState<MyFlightsScreen> {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: Color(0xFF1E40AF),
+                            color: AppColors.primary,
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
@@ -424,7 +461,7 @@ class _MyFlightsScreenState extends ConsumerState<MyFlightsScreen> {
                             flight.departure.time,
                             style: TextStyle(
                               fontSize: 14,
-                              color: Color(0xFF1E40AF),
+                              color: AppColors.primary,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -501,7 +538,7 @@ class _MyFlightsScreenState extends ConsumerState<MyFlightsScreen> {
                             flight.arrival.time,
                             style: TextStyle(
                               fontSize: 14,
-                              color: Color(0xFF1E40AF),
+                              color: AppColors.primary,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -592,9 +629,9 @@ class _MyFlightsScreenState extends ConsumerState<MyFlightsScreen> {
                   Container(
                     padding: EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Color(0xFF1E40AF).withOpacity(0.05),
+                      color: AppColors.primary.withOpacity(0.05),
                       border: Border.all(
-                        color: Color(0xFF1E40AF).withOpacity(0.2),
+                        color: AppColors.primary.withOpacity(0.2),
                       ),
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -620,7 +657,7 @@ class _MyFlightsScreenState extends ConsumerState<MyFlightsScreen> {
                               'Flight Story Posted',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: Color(0xFF1E40AF),
+                                color: AppColors.primary,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -975,7 +1012,7 @@ class _MyFlightsScreenState extends ConsumerState<MyFlightsScreen> {
   Color _getRouteColor(FlightStatus status) {
     return status == FlightStatus.cancelled
         ? Colors.red[400]!
-        : Color(0xFF1E40AF);
+        : AppColors.primary;
   }
 
   String _getSeatStatus(FlightStatus status) {
@@ -998,7 +1035,7 @@ class _MyFlightsScreenState extends ConsumerState<MyFlightsScreen> {
   Color _getDateColor(FlightStatus status) {
     return status == FlightStatus.cancelled
         ? Colors.red[600]!
-        : Color(0xFF1E40AF);
+        : AppColors.primary;
   }
 }
 
