@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nilewing/core/theme/app_colors.dart';
 import 'package:nilewing/features/my_flights/view/add_flight_post_screen.dart';
+import 'package:nilewing/features/my_flights/view/flight_detail_screen.dart';
 import '../model/flight_model.dart';
 import '../viewmodel/flight_view_model.dart';
 
@@ -359,7 +360,17 @@ class _MyFlightsScreenState extends ConsumerState<MyFlightsScreen> {
       margin: EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
-        onTap: () => widget.onNavigateToFlightDetail(flight.id),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => FlightDetailScreen(
+                flightId: flight.id,
+                onNavigateBack: () => Navigator.pop(context),
+              ),
+            ),
+          );
+        },
         borderRadius: BorderRadius.circular(12),
         child: Container(
           decoration: BoxDecoration(

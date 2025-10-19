@@ -1,14 +1,14 @@
 // features/my_flights/screens/add_flight_post_screen.dart
 import 'package:flutter/material.dart';
 import 'package:nilewing/core/theme/app_colors.dart';
-import 'package:nilewing/features/home/model/home_model.dart';
 import 'package:nilewing/features/my_flights/model/flight_post_model.dart';
 
+import '../model/flight_model.dart';
 import '../services/airport_service.dart';
 
 class AddFlightPostScreen extends StatefulWidget {
   final VoidCallback onNavigateBack;
-  final Function(Flight)? onFlightAdded;
+  final Function(dynamic)? onFlightAdded;
 
   const AddFlightPostScreen({
     Key? key,
@@ -250,7 +250,7 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
   void _handleSubmit() {
     if (_validateStep(3)) {
       final newFlight = _formData.toFlight();
-      widget.onFlightAdded?.call(newFlight as Flight);
+      widget.onFlightAdded?.call(newFlight);
 
       setState(() {
         _isSubmitted = true;

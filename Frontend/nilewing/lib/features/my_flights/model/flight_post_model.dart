@@ -1,8 +1,8 @@
 // features/my_flights/models/flight_post_model.dart
 import 'package:flutter/material.dart';
-import 'package:nilewing/features/home/model/home_model.dart'
-    hide Flight, FlightLeg;
-import 'package:nilewing/features/my_flights/model/flight_model.dart';
+// REMOVE this conflicting import:
+// import 'package:nilewing/features/home/model/home_model.dart' hide Flight, FlightLeg;
+import 'package:nilewing/features/my_flights/model/flight_model.dart'; // Use only this one
 
 class FlightPostData {
   String airlineName;
@@ -57,7 +57,7 @@ class FlightPostData {
     this.destinationPlace = '',
     this.isDelayed = false,
     this.delayDuration = '',
-    this.interests = const [],
+    List<String>? interests,
     this.postTitle = '',
     this.postContent = '',
     this.rating = 5,
@@ -67,7 +67,7 @@ class FlightPostData {
     this.terminal = '',
     this.hasLayover = false,
     this.layoverDuration = '',
-    this.layoverActivities = const [],
+    List<String>? layoverActivities,
     this.lookingForCompany = false,
     this.openToMeeting = true,
     this.preferredGender = 'Any',
@@ -75,7 +75,8 @@ class FlightPostData {
     this.isFirstInternationalFlight = false,
     this.needsGuidance = false,
     this.offeringGuidance = false,
-  });
+  }) : interests = interests ?? [],
+       layoverActivities = layoverActivities ?? [];
 
   // Convert to Flight model for saving
   Flight toFlight() {
