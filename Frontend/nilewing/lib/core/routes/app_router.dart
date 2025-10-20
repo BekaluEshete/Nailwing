@@ -11,7 +11,7 @@ import 'package:nilewing/features/chat/viewmodel/chat_view_model.dart';
 import 'package:nilewing/features/home/view/home_screen.dart';
 import 'package:nilewing/features/my_flights/view/flight_list_screen.dart';
 import 'package:nilewing/features/onboarding/onboarding_view.dart';
-import 'package:nilewing/features/recommendation/view/recommedation_screen.dart';
+import 'package:nilewing/features/recommendation/view/recommemdation_screen.dart';
 import 'package:nilewing/features/splash/splash_view.dart';
 import 'package:nilewing/features/main_navigation/main_navigation_screen.dart';
 // Import other screens when you create them
@@ -93,7 +93,12 @@ class AppRouter {
           GoRoute(
             path: '/recommendations',
             name: 'recommendations',
-            builder: (context, state) => const RecommendationsScreen(),
+            builder: (context, state) => RecommendationsScreen(
+              onNavigateBack: () {
+                // Navigate back to home or another route when back is pressed
+                context.go('/home');
+              },
+            ),
           ),
 
           GoRoute(
