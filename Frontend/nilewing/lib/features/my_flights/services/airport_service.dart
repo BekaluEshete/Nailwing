@@ -1,231 +1,102 @@
-// features/my_flights/services/airport_service.dart
 import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:nilewing/features/my_flights/model/flight_post_model.dart';
+import 'package:csv/csv.dart';
+import 'package:flutter/services.dart' show rootBundle;
+import 'package:shared_preferences/shared_preferences.dart';
+import '../model/flight_post_model.dart'; // Adjust path as needed
 
 class AirportService {
-  // Primary API - AviationStack
-  static const String _aviationStackBaseUrl = 'http://api.aviationstack.com/v1';
-  static const String _aviationStackApiKey = '5bca662a2906d65143aaa6bdb8c3f1ef';
+  // Cache for airlines
+  static List<String>? _cachedAirlines;
 
-  // Local cache of major airports as fallback
-  static final List<Airport> _majorAirports = [
-    Airport(
-      code: 'ATL',
-      name: 'Hartsfield-Jackson Atlanta International',
-      city: 'Atlanta',
-      country: 'United States',
-    ),
-    Airport(
-      code: 'PEK',
-      name: 'Beijing Capital International Airport',
-      city: 'Beijing',
-      country: 'China',
-    ),
-    Airport(
-      code: 'DXB',
-      name: 'Dubai International Airport',
-      city: 'Dubai',
-      country: 'United Arab Emirates',
-    ),
-    Airport(
-      code: 'LAX',
-      name: 'Los Angeles International Airport',
-      city: 'Los Angeles',
-      country: 'United States',
-    ),
-    Airport(
-      code: 'HND',
-      name: 'Tokyo Haneda Airport',
-      city: 'Tokyo',
-      country: 'Japan',
-    ),
-    Airport(
-      code: 'ORD',
-      name: 'O\'Hare International Airport',
-      city: 'Chicago',
-      country: 'United States',
-    ),
-    Airport(
-      code: 'LHR',
-      name: 'Heathrow Airport',
-      city: 'London',
-      country: 'United Kingdom',
-    ),
-    Airport(
-      code: 'PVG',
-      name: 'Shanghai Pudong International Airport',
-      city: 'Shanghai',
-      country: 'China',
-    ),
-    Airport(
-      code: 'CDG',
-      name: 'Charles de Gaulle Airport',
-      city: 'Paris',
-      country: 'France',
-    ),
-    Airport(
-      code: 'DFW',
-      name: 'Dallas/Fort Worth International Airport',
-      city: 'Dallas',
-      country: 'United States',
-    ),
-    Airport(
-      code: 'AMS',
-      name: 'Amsterdam Airport Schiphol',
-      city: 'Amsterdam',
-      country: 'Netherlands',
-    ),
-    Airport(
-      code: 'FRA',
-      name: 'Frankfurt Airport',
-      city: 'Frankfurt',
-      country: 'Germany',
-    ),
-    Airport(
-      code: 'IST',
-      name: 'Istanbul Airport',
-      city: 'Istanbul',
-      country: 'Turkey',
-    ),
-    Airport(
-      code: 'CAN',
-      name: 'Guangzhou Baiyun International Airport',
-      city: 'Guangzhou',
-      country: 'China',
-    ),
-    Airport(
-      code: 'JFK',
-      name: 'John F. Kennedy International Airport',
-      city: 'New York',
-      country: 'United States',
-    ),
-    Airport(
-      code: 'SIN',
-      name: 'Singapore Changi Airport',
-      city: 'Singapore',
-      country: 'Singapore',
-    ),
-    Airport(
-      code: 'DEN',
-      name: 'Denver International Airport',
-      city: 'Denver',
-      country: 'United States',
-    ),
-    Airport(
-      code: 'BKK',
-      name: 'Suvarnabhumi Airport',
-      city: 'Bangkok',
-      country: 'Thailand',
-    ),
-    Airport(
-      code: 'SFO',
-      name: 'San Francisco International Airport',
-      city: 'San Francisco',
-      country: 'United States',
-    ),
-    Airport(
-      code: 'ADD',
-      name: 'Addis Ababa Bole International Airport',
-      city: 'Addis Ababa',
-      country: 'Ethiopia',
-    ),
-    Airport(
-      code: 'NBO',
-      name: 'Jomo Kenyatta International Airport',
-      city: 'Nairobi',
-      country: 'Kenya',
-    ),
-    Airport(
-      code: 'JNB',
-      name: 'O.R. Tambo International Airport',
-      city: 'Johannesburg',
-      country: 'South Africa',
-    ),
-    Airport(
-      code: 'CAI',
-      name: 'Cairo International Airport',
-      city: 'Cairo',
-      country: 'Egypt',
-    ),
-    Airport(
-      code: 'MAD',
-      name: 'Adolfo Suárez Madrid–Barajas Airport',
-      city: 'Madrid',
-      country: 'Spain',
-    ),
-    Airport(
-      code: 'MUC',
-      name: 'Munich Airport',
-      city: 'Munich',
-      country: 'Germany',
-    ),
-    Airport(
-      code: 'YYZ',
-      name: 'Toronto Pearson International Airport',
-      city: 'Toronto',
-      country: 'Canada',
-    ),
-    Airport(
-      code: 'SYD',
-      name: 'Sydney Kingsford Smith Airport',
-      city: 'Sydney',
-      country: 'Australia',
-    ),
-    Airport(
-      code: 'ICN',
-      name: 'Incheon International Airport',
-      city: 'Seoul',
-      country: 'South Korea',
-    ),
-    Airport(
-      code: 'HKG',
-      name: 'Hong Kong International Airport',
-      city: 'Hong Kong',
-      country: 'China',
-    ),
-    Airport(
-      code: 'BOM',
-      name: 'Chhatrapati Shivaji Maharaj International Airport',
-      city: 'Mumbai',
-      country: 'India',
-    ),
+  // Hardcoded fallback list
+  static final List<String> popularAirlines = [
+    'American Airlines (AA)',
+    'Delta Air Lines (DL)',
+    'United Airlines (UA)',
+    'Ethiopian Airlines (ET)',
+    'Emirates (EK)',
+    'British Airways (BA)',
+    'Lufthansa (LH)',
+    'Singapore Airlines (SQ)',
+    'Qatar Airways (QR)',
+    'Air France (AF)',
   ];
 
+  // Load and filter airlines from CSV
+  static Future<List<String>> getAirlines({String query = ''}) async {
+    if (_cachedAirlines != null && _cachedAirlines!.isNotEmpty) {
+      print('Using cached airlines: ${_cachedAirlines!.length} airlines');
+      return _filterAirlines(_cachedAirlines!, query);
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final cached = prefs.getStringList('airlines');
+    if (cached != null && cached.isNotEmpty) {
+      _cachedAirlines = cached;
+      print('Loaded ${cached.length} airlines from cache');
+      return _filterAirlines(cached, query);
+    }
+
+    try {
+      final csvString = await rootBundle.loadString('assets/airlines.dat');
+      final csv = const CsvToListConverter().convert(csvString);
+      final airlines = <String>[];
+
+      for (var row in csv) {
+        // Validate row has enough columns and is well-formed
+        if (row.length >= 8 &&
+            row[1] != null && // Name
+            row[1].toString().isNotEmpty &&
+            row[3] != null && // IATA code
+            row[3].toString().isNotEmpty &&
+            row[3] != '-' &&
+            row[7] == 'Y') {
+          // Active
+          final airline = '${row[1]} (${row[3]})';
+          airlines.add(airline);
+        } else {
+          print('Skipping invalid CSV row: $row');
+        }
+      }
+
+      if (airlines.isEmpty) {
+        print('No valid airlines found in CSV');
+        return _filterAirlines(popularAirlines, query);
+      }
+
+      _cachedAirlines = airlines;
+      await prefs.setStringList('airlines', airlines); // Save to cache
+      print('Loaded ${airlines.length} airlines from CSV');
+      return _filterAirlines(airlines, query);
+    } catch (e) {
+      print('Error loading airlines from CSV: $e');
+      return _filterAirlines(popularAirlines, query);
+    }
+  }
+
+  // Filter airlines locally
+  static List<String> _filterAirlines(List<String> airlines, String query) {
+    if (query.isEmpty) {
+      print('Returning ${airlines.length} airlines (no query)');
+      return airlines;
+    }
+    final lowercaseQuery = query.toLowerCase();
+    final filtered = airlines
+        .where((airline) => airline.toLowerCase().contains(lowercaseQuery))
+        .toList();
+    print('Filtered ${filtered.length} airlines for query: $query');
+    return filtered;
+  }
+
+  // Existing airport-related methods
   static Future<AirportSearchResponse> searchAirports(String query) async {
     try {
       if (query.length < 2) {
         return AirportSearchResponse(airports: _filterLocalAirports(query));
       }
-
-      // Try AviationStack API
-      final response = await http.get(
-        Uri.parse(
-          '$_aviationStackBaseUrl/airports?access_key=$_aviationStackApiKey&search=$query',
-        ),
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['data'] != null && data['data'] is List) {
-          final airports = (data['data'] as List)
-              .map((json) => Airport.fromJson(json))
-              .where(
-                (airport) => airport.code.isNotEmpty && airport.code != 'null',
-              )
-              .take(20)
-              .toList();
-
-          if (airports.isNotEmpty) {
-            return AirportSearchResponse(airports: airports);
-          }
-        }
-      }
-
-      // Fallback to local data with fuzzy search
       return AirportSearchResponse(airports: _filterLocalAirports(query));
     } catch (e) {
-      // Final fallback to local data
+      print('Error searching airports: $e');
       return AirportSearchResponse(
         airports: _filterLocalAirports(query),
         error: 'Using local airport database',
@@ -233,51 +104,10 @@ class AirportService {
     }
   }
 
-  // Get airlines from AviationStack API
-  static Future<List<String>> getAirlines({String query = ''}) async {
-    try {
-      final response = await http.get(
-        Uri.parse(
-          '$_aviationStackBaseUrl/airlines?access_key=$_aviationStackApiKey${query.isNotEmpty ? '&search=$query' : ''}',
-        ),
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['data'] != null && data['data'] is List) {
-          final airlines = (data['data'] as List)
-              .where(
-                (airline) =>
-                    airline['airline_name'] != null &&
-                    airline['airline_name'].toString().isNotEmpty &&
-                    airline['iata_code'] != null &&
-                    airline['iata_code'].toString().isNotEmpty,
-              )
-              .map(
-                (airline) =>
-                    '${airline['airline_name']} (${airline['iata_code']})',
-              )
-              .take(50)
-              .toList();
-
-          if (airlines.isNotEmpty) {
-            return airlines;
-          }
-        }
-      }
-
-      // Fallback to popular airlines
-      return popularAirlines;
-    } catch (e) {
-      return popularAirlines;
-    }
-  }
-
   static List<Airport> _filterLocalAirports(String query) {
     if (query.isEmpty) {
       return _majorAirports;
     }
-
     final lowercaseQuery = query.toLowerCase();
     return _majorAirports.where((airport) {
       return airport.code.toLowerCase().contains(lowercaseQuery) ||
@@ -288,16 +118,35 @@ class AirportService {
   }
 
   static Future<List<Airport>> getPopularAirports() async {
-    // Try to get updated popular airports from API
-    try {
-      final response = await searchAirports('');
-      if (response.airports.isNotEmpty) {
-        return response.airports;
-      }
-    } catch (e) {
-      // Fallback to local data
-    }
-
     return _majorAirports;
   }
+
+  // Sample airport list (replace with your actual list)
+  static final List<Airport> _majorAirports = [
+    Airport(
+      code: 'ATL',
+      name: 'Hartsfield-Jackson Atlanta International',
+      city: 'Atlanta',
+      country: 'United States',
+    ),
+    Airport(
+      code: 'LAX',
+      name: 'Los Angeles International',
+      city: 'Los Angeles',
+      country: 'United States',
+    ),
+    Airport(
+      code: 'LHR',
+      name: 'London Heathrow',
+      city: 'London',
+      country: 'United Kingdom',
+    ),
+    Airport(
+      code: 'ADD',
+      name: 'Addis Ababa Bole International',
+      city: 'Addis Ababa',
+      country: 'Ethiopia',
+    ),
+    // Add more airports as needed
+  ];
 }

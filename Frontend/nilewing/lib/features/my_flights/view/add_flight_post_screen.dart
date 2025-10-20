@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:nilewing/core/theme/app_colors.dart';
 import 'package:nilewing/features/my_flights/model/flight_post_model.dart';
 
-import '../model/flight_model.dart';
 import '../services/airport_service.dart';
 
 class AddFlightPostScreen extends StatefulWidget {
@@ -318,7 +317,7 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [AppColors.primary, AppColors.accent ?? AppColors.primary],
+          colors: [AppColors.primary, AppColors.accent],
           begin: Alignment.centerLeft,
           end: Alignment.centerRight,
         ),

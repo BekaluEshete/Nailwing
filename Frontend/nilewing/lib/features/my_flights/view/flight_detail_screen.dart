@@ -1,7 +1,6 @@
 // features/my_flights/screens/flight_detail_screen.dart
 import 'package:flutter/material.dart';
 import 'package:nilewing/core/theme/app_colors.dart';
-import '../model/flight_model.dart';
 
 class FlightDetailScreen extends StatefulWidget {
   final String flightId;

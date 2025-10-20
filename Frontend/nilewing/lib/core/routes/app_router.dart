@@ -1,8 +1,13 @@
 // app_router.dart
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import 'package:nilewing/features/auth/view/login_screen.dart';
 import 'package:nilewing/features/auth/view/registration_screen.dart';
+import 'package:nilewing/features/chat/view/chat_detail_screen.dart';
+import 'package:nilewing/features/chat/viewmodel/chat_view_model.dart';
 import 'package:nilewing/features/home/view/home_screen.dart';
 import 'package:nilewing/features/my_flights/view/flight_list_screen.dart';
 import 'package:nilewing/features/onboarding/onboarding_view.dart';
@@ -77,7 +82,12 @@ class AppRouter {
           GoRoute(
             path: '/chat',
             name: 'chat',
-            builder: (context, state) => const ChatScreen(),
+            builder: (context, state) => ChatScreen(
+              onNavigateBack: () {
+                // Navigate back to home or another route when back is pressed
+                context.go('/home');
+              },
+            ),
           ),
 
           GoRoute(
@@ -92,6 +102,27 @@ class AppRouter {
             builder: (context, state) => const HomeScreen(),
           ),
         ],
+      ),
+      GoRoute(
+        path: '/chat/:contactId',
+        name: 'chatDetail',
+        builder: (context, state) {
+          final contactId = state.pathParameters['contactId']!;
+          // Use a Consumer to access Riverpod providers (we're in a regular builder)
+          return Consumer(
+            builder: (context, ref, _) {
+              final chatState = ref.watch(chatViewModelProvider);
+              final contact = chatState.contacts.firstWhere(
+                (contact) => contact.id == contactId,
+                orElse: () => throw Exception('Contact not found'),
+              );
+              return ChatDetailScreen(
+                contact: contact,
+                onBack: () => context.pop(),
+              );
+            },
+          );
+        },
       ),
 
       // Standalone routes (not part of bottom navigation)
