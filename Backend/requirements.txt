@@ -1,7 +1,9 @@
 Django>=5.0
 gunicorn
 psycopg2-binary
+djangorestframework-simplejwt
 dj-database-url
 django-redis
 python-dotenv
 celery
+Pillow  # Add this line
