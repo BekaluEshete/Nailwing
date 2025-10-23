@@ -3,7 +3,6 @@ from django.db import models
 
 
 class CustomUser(AbstractUser):
-    # Remove the redefined first_name and last_name - they already exist in AbstractUser
     email = models.EmailField(unique=True)
 
     # Additional fields from Flutter RegistrationData
@@ -36,7 +35,7 @@ class CustomUser(AbstractUser):
         verbose_name="groups",
         blank=True,
         help_text="The groups this user belongs to.",
-        related_name="customuser_set",  # Add this
+        related_name="customuser_set",
         related_query_name="user",
     )
     user_permissions = models.ManyToManyField(
@@ -44,13 +43,16 @@ class CustomUser(AbstractUser):
         verbose_name="user permissions",
         blank=True,
         help_text="Specific permissions for this user.",
-        related_name="customuser_set",  # Add this
+        related_name="customuser_set",
         related_query_name="user",
     )
+
+    class Meta:
+        db_table = "users"  # Custom table name
 
     def __str__(self):
         return self.email
 
     @property
     def full_name(self):
-        return f"{self.first_name} {self.last_name}"
+        return f"{self.first_name} {self.last_name}".strip()

@@ -1,4 +1,4 @@
-from rest_framework import viewsets, status, mixins
+from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -15,12 +15,27 @@ from .serializers import (
 class AuthViewSet(viewsets.GenericViewSet):
     permission_classes = [AllowAny]
 
+    # ADD THIS ONE LINE - Required by DRF ViewSet
+    serializer_class = UserRegistrationSerializer
+
+    def list(self, request):
+        return Response(
+            {
+                "message": "Welcome to the Authentication API",
+                "available_endpoints": {
+                    "register": "/api/auth/register/",
+                    "login": "/api/auth/login/",
+                    "logout": "/api/auth/logout/",
+                    "profile": "/api/auth/profile/",
+                    "change_password": "/api/auth/change_password/",
+                    "token_refresh": "/api/token/refresh/",
+                },
+            },
+            status=status.HTTP_200_OK,
+        )
+
     @action(detail=False, methods=["post"], permission_classes=[AllowAny])
     def register(self, request):
-        """
-        Register a new user with free-form country and language input
-        No restrictions on what users can enter for nationality and language
-        """
         serializer = UserRegistrationSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
@@ -37,8 +52,8 @@ class AuthViewSet(viewsets.GenericViewSet):
                             "email": user.email,
                             "age": user.age,
                             "gender": user.gender,
-                            "nationality": user.nationality,  # Whatever user entered
-                            "language": user.language,  # Whatever user entered
+                            "nationality": user.nationality,
+                            "language": user.language,
                         },
                         "tokens": {
                             "refresh": str(refresh),
@@ -76,8 +91,8 @@ class AuthViewSet(viewsets.GenericViewSet):
                             "email": user.email,
                             "age": user.age,
                             "gender": user.gender,
-                            "nationality": user.nationality,  # Free text field
-                            "language": user.language,  # Free text field
+                            "nationality": user.nationality,
+                            "language": user.language,
                             "rememberMe": user.remember_me,
                         },
                         "tokens": {
@@ -117,10 +132,6 @@ class AuthViewSet(viewsets.GenericViewSet):
         permission_classes=[IsAuthenticated],
     )
     def profile(self, request):
-        """
-        Get or update user profile
-        Users can update nationality and language to any value they want
-        """
         user = request.user
 
         if request.method == "GET":
@@ -150,9 +161,6 @@ class AuthViewSet(viewsets.GenericViewSet):
 
     @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated])
     def change_password(self, request):
-        """
-        Allow users to change their password
-        """
         user = request.user
         old_password = request.data.get("old_password")
         new_password = request.data.get("new_password")

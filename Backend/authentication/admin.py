@@ -53,5 +53,6 @@ class CustomUserAdmin(UserAdmin):
 
 
 # Optional: Customize admin site header
-
+admin.site.site_header = "Nailwing Administration"
+admin.site.site_title = "Nailwing Admin Portal"
 admin.site.index_title = "Welcome to Nailwing Admin Portal"
