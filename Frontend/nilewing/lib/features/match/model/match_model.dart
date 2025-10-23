@@ -12,6 +12,8 @@ class Match {
   final String status;
   final DateTime matchTime;
   final MatchType matchType;
+  final List<String> commonInterests;
+  final String? tripPurpose;
 
   Match({
     required this.id,
@@ -26,6 +28,8 @@ class Match {
     required this.status,
     required this.matchTime,
     required this.matchType,
+    required this.commonInterests,
+    this.tripPurpose,
   });
 
   String get timeAgo {
@@ -52,6 +56,8 @@ class Match {
     String? status,
     DateTime? matchTime,
     MatchType? matchType,
+    List<String>? commonInterests,
+    String? tripPurpose,
   }) {
     return Match(
       id: id ?? this.id,
@@ -66,6 +72,8 @@ class Match {
       status: status ?? this.status,
       matchTime: matchTime ?? this.matchTime,
       matchType: matchType ?? this.matchType,
+      commonInterests: commonInterests ?? this.commonInterests,
+      tripPurpose: tripPurpose ?? this.tripPurpose,
     );
   }
 }
@@ -83,6 +91,13 @@ class User {
   final String? bio;
   final double rating;
   final int reviewCount;
+  final bool isOnline;
+  final String? currentLocation;
+  final LocationAccuracy? locationAccuracy;
+  final DateTime? lastSeen;
+  final int mutualConnections;
+  final TravelStats travelStats;
+  final String? favoriteDestination;
 
   User({
     required this.id,
@@ -97,9 +112,29 @@ class User {
     this.bio,
     this.rating = 0.0,
     this.reviewCount = 0,
+    this.isOnline = false,
+    this.currentLocation,
+    this.locationAccuracy,
+    this.lastSeen,
+    this.mutualConnections = 0,
+    required this.travelStats,
+    this.favoriteDestination,
   });
 
   String get initials => name.split(' ').map((n) => n[0]).join();
+
+  String get lastSeenText {
+    if (isOnline) return 'Active now';
+    if (lastSeen == null) return 'Recently active';
+
+    final now = DateTime.now();
+    final difference = now.difference(lastSeen!);
+
+    if (difference.inMinutes < 1) return 'Just now';
+    if (difference.inMinutes < 60) return '${difference.inMinutes}m ago';
+    if (difference.inHours < 24) return '${difference.inHours}h ago';
+    return '${difference.inDays}d ago';
+  }
 
   User copyWith({
     String? id,
@@ -114,6 +149,13 @@ class User {
     String? bio,
     double? rating,
     int? reviewCount,
+    bool? isOnline,
+    String? currentLocation,
+    LocationAccuracy? locationAccuracy,
+    DateTime? lastSeen,
+    int? mutualConnections,
+    TravelStats? travelStats,
+    String? favoriteDestination,
   }) {
     return User(
       id: id ?? this.id,
@@ -128,6 +170,13 @@ class User {
       bio: bio ?? this.bio,
       rating: rating ?? this.rating,
       reviewCount: reviewCount ?? this.reviewCount,
+      isOnline: isOnline ?? this.isOnline,
+      currentLocation: currentLocation ?? this.currentLocation,
+      locationAccuracy: locationAccuracy ?? this.locationAccuracy,
+      lastSeen: lastSeen ?? this.lastSeen,
+      mutualConnections: mutualConnections ?? this.mutualConnections,
+      travelStats: travelStats ?? this.travelStats,
+      favoriteDestination: favoriteDestination ?? this.favoriteDestination,
     );
   }
 }
@@ -145,6 +194,7 @@ class FlightInfo {
   final DateTime arrivalTime;
   final String duration;
   final String? gate;
+  final String? tripPurpose;
 
   FlightInfo({
     required this.departure,
@@ -159,7 +209,15 @@ class FlightInfo {
     required this.arrivalTime,
     required this.duration,
     this.gate,
+    this.tripPurpose,
   });
+
+  String get route {
+    if (layover != null) {
+      return '$departure → $layover → $arrival';
+    }
+    return '$departure → $arrival';
+  }
 
   FlightInfo copyWith({
     String? departure,
@@ -174,6 +232,7 @@ class FlightInfo {
     DateTime? arrivalTime,
     String? duration,
     String? gate,
+    String? tripPurpose,
   }) {
     return FlightInfo(
       departure: departure ?? this.departure,
@@ -188,9 +247,35 @@ class FlightInfo {
       arrivalTime: arrivalTime ?? this.arrivalTime,
       duration: duration ?? this.duration,
       gate: gate ?? this.gate,
+      tripPurpose: tripPurpose ?? this.tripPurpose,
     );
   }
 }
+
+class TravelStats {
+  final int countriesVisited;
+  final int totalFlights;
+  final int flightsThisYear;
+  final String frequentFlyerTier;
+
+  const TravelStats({
+    required this.countriesVisited,
+    required this.totalFlights,
+    required this.flightsThisYear,
+    required this.frequentFlyerTier,
+  });
+}
+
+class LocationAccuracy {
+  final double accuracy;
+  final String unit;
+
+  const LocationAccuracy({required this.accuracy, this.unit = 'm'});
+
+  String get displayText => 'Accuracy: ${accuracy.toInt()}$unit';
+}
+
+// ... (Keep the existing MatchFilters and MatchType classes)
 
 class MatchFilters {
   final String gender;

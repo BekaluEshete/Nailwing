@@ -1,16 +1,19 @@
 // features/matches/views/match_list_screen.dart
 import 'package:flutter/material.dart';
-import 'package:nilewing/features/match/view/match_card.dart';
 import 'package:nilewing/features/match/model/match_model.dart';
+
+import 'match_card.dart';
 
 class MatchListScreen extends StatelessWidget {
   final List<Match> matches;
   final Function(Match) onMatchTap;
+  final Function(User) onUserTap;
 
   const MatchListScreen({
     Key? key,
     required this.matches,
     required this.onMatchTap,
+    required this.onUserTap,
   }) : super(key: key);
 
   @override
@@ -24,7 +27,11 @@ class MatchListScreen extends StatelessWidget {
       itemCount: matches.length,
       itemBuilder: (context, index) {
         final match = matches[index];
-        return MatchCard(match: match, onTap: () => onMatchTap(match));
+        return MatchCard(
+          match: match,
+          onTap: () => onMatchTap(match),
+          onUserTap: () => onUserTap(match.user),
+        );
       },
     );
   }

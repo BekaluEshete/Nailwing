@@ -1,4 +1,3 @@
-// features/matches/viewmodels/match_view_model.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nilewing/features/match/model/match_model.dart';
 import 'package:nilewing/features/match/service/match_service.dart';
@@ -11,6 +10,8 @@ class MatchState {
   final bool isLoading;
   final String? error;
   final Match? selectedMatch;
+  final User? selectedUser;
+  final bool isLoadingUserDetail;
 
   const MatchState({
     this.matches = const [],
@@ -19,6 +20,8 @@ class MatchState {
     this.isLoading = false,
     this.error,
     this.selectedMatch,
+    this.selectedUser,
+    this.isLoadingUserDetail = false,
   });
 
   MatchState copyWith({
@@ -28,6 +31,8 @@ class MatchState {
     bool? isLoading,
     String? error,
     Match? selectedMatch,
+    User? selectedUser,
+    bool? isLoadingUserDetail,
   }) {
     return MatchState(
       matches: matches ?? this.matches,
@@ -36,6 +41,8 @@ class MatchState {
       isLoading: isLoading ?? this.isLoading,
       error: error ?? this.error,
       selectedMatch: selectedMatch ?? this.selectedMatch,
+      selectedUser: selectedUser ?? this.selectedUser,
+      isLoadingUserDetail: isLoadingUserDetail ?? this.isLoadingUserDetail,
     );
   }
 
@@ -134,6 +141,8 @@ class MatchViewModel extends StateNotifier<MatchState> {
   bool get isLoading => state.isLoading;
   String? get error => state.error;
   Match? get selectedMatch => state.selectedMatch;
+  User? get selectedUser => state.selectedUser;
+  bool get isLoadingUserDetail => state.isLoadingUserDetail;
   List<Match> get filteredMatches => state.filteredMatches;
 
   // Actions
@@ -151,6 +160,20 @@ class MatchViewModel extends StateNotifier<MatchState> {
     }
   }
 
+  Future<void> loadUserDetail(String userId) async {
+    state = state.copyWith(isLoadingUserDetail: true, error: null);
+
+    try {
+      final user = await _service.getUserDetail(userId);
+      state = state.copyWith(selectedUser: user, isLoadingUserDetail: false);
+    } catch (e) {
+      state = state.copyWith(
+        error: 'Failed to load user details: $e',
+        isLoadingUserDetail: false,
+      );
+    }
+  }
+
   void setSearchQuery(String query) {
     state = state.copyWith(searchQuery: query);
   }
@@ -163,10 +186,13 @@ class MatchViewModel extends StateNotifier<MatchState> {
     state = state.copyWith(selectedMatch: match);
   }
 
+  void clearSelectedUser() {
+    state = state.copyWith(selectedUser: null);
+  }
+
   Future<void> sendMatchRequest(String matchId) async {
     try {
       await _service.sendMatchRequest(matchId);
-      // Update match status locally if needed
       final updatedMatches = state.matches.map((match) {
         if (match.id == matchId) {
           return match.copyWith(status: 'Request sent');
@@ -183,7 +209,6 @@ class MatchViewModel extends StateNotifier<MatchState> {
   Future<void> acceptMatch(String matchId) async {
     try {
       await _service.acceptMatch(matchId);
-      // Update match status locally
       final updatedMatches = state.matches.map((match) {
         if (match.id == matchId) {
           return match.copyWith(status: 'Accepted');
@@ -200,7 +225,6 @@ class MatchViewModel extends StateNotifier<MatchState> {
   Future<void> declineMatch(String matchId) async {
     try {
       await _service.declineMatch(matchId);
-      // Remove match from list
       final updatedMatches = state.matches
           .where((match) => match.id != matchId)
           .toList();

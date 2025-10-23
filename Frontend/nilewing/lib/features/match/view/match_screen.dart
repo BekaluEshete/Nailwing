@@ -4,6 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nilewing/features/match/viewModel/match_view_model.dart';
 
 import 'match_list_screen.dart';
+import 'match_detail_screen.dart';
+import 'user_detail_screen.dart';
+import 'package:nilewing/features/match/model/match_model.dart';
 
 class MatchScreen extends ConsumerStatefulWidget {
   final VoidCallback onNavigateBack;
@@ -35,6 +38,35 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
     super.dispose();
   }
 
+  void _navigateToMatchDetail(Match match, BuildContext context) {
+    ref.read(matchViewModelProvider.notifier).setSelectedMatch(match);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => MatchDetailScreen(
+          match: match,
+          onNavigateBack: () => Navigator.pop(context),
+        ),
+      ),
+    );
+  }
+
+  void _navigateToUserDetail(User user, BuildContext context) {
+    ref.read(matchViewModelProvider.notifier).loadUserDetail(user.id);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => UserDetailScreen(
+          user: user,
+          onNavigateBack: () {
+            ref.read(matchViewModelProvider.notifier).clearSelectedUser();
+            Navigator.pop(context);
+          },
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(matchViewModelProvider);
@@ -49,7 +81,13 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
           if (state.error != null) _buildError(state.error!, viewModel),
           if (!state.isLoading && state.error == null) ...[
             _buildResultsHeader(state, viewModel),
-            Expanded(child: _buildContent(state, viewModel)),
+            Expanded(
+              child: MatchListScreen(
+                matches: state.filteredMatches,
+                onMatchTap: (match) => _navigateToMatchDetail(match, context),
+                onUserTap: (user) => _navigateToUserDetail(user, context),
+              ),
+            ),
           ],
         ],
       ),
@@ -70,7 +108,7 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
               ),
               const SizedBox(width: 8),
               const Text(
-                'Matches',
+                'Travel Matches',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -96,12 +134,12 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
             child: TextField(
               controller: _searchController,
               onChanged: viewModel.setSearchQuery,
-              decoration: InputDecoration(
-                hintText: 'Search by name, interests, nationality...',
-                hintStyle: TextStyle(color: Colors.grey[500]),
-                prefixIcon: Icon(Icons.search, color: Colors.grey[500]),
+              decoration: const InputDecoration(
+                hintText: 'Search matches: airports, interests...',
+                hintStyle: TextStyle(color: Colors.grey),
+                prefixIcon: Icon(Icons.search, color: Colors.grey),
                 border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(
+                contentPadding: EdgeInsets.symmetric(
                   horizontal: 16,
                   vertical: 12,
                 ),
@@ -127,26 +165,13 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
           if (!state.filters.isDefault)
             TextButton(
               onPressed: viewModel.resetFilters,
-              child: Text(
+              child: const Text(
                 'Clear Filters',
                 style: TextStyle(fontSize: 14, color: Colors.blue),
               ),
             ),
         ],
       ),
-    );
-  }
-
-  Widget _buildContent(MatchState state, MatchViewModel viewModel) {
-    return MatchListScreen(
-      matches: state.filteredMatches as dynamic,
-      onMatchTap: (match) {
-        viewModel.setSelectedMatch(match as dynamic);
-        // TODO: Navigate to match detail screen
-        // Navigator.push(context, MaterialPageRoute(
-        //   builder: (context) => MatchDetailScreen(match: match)
-        // ));
-      },
     );
   }
 
