@@ -76,7 +76,12 @@ class AppRouter {
           GoRoute(
             path: '/match',
             name: 'match',
-            builder: (context, state) => const MatchScreen(),
+            builder: (context, state) => MatchScreen(
+              onNavigateBack: () {
+                // Navigate back to home or another route when back is pressed
+                context.go('/home');
+              },
+            ),
           ),
 
           GoRoute(
