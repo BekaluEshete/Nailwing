@@ -7,3 +7,5 @@ django-redis
 python-dotenv
 celery
 Pillow  # Add this line
+channels
+channels-redis

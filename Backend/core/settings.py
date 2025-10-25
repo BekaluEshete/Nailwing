@@ -33,6 +33,8 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt",
     "corsheaders",
     "authentication",
+    "channels",
+    "chat",
 ]
 
 MIDDLEWARE = [
@@ -63,6 +65,17 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "core.wsgi.application"
+# Channels configuration for WebSockets
+ASGI_APPLICATION = "core.asgi.application"
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [os.getenv("REDIS_URL", "redis://redis:6379/0")],
+        },
+    },
+}
 
 
 # Database
@@ -149,3 +162,14 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024 * 1024
 # settings.py
 AUTHENTICATION_BACKENDS = ["authentication.backends.EmailBackend"]
 AUTH_USER_MODEL = "authentication.CustomUser"
+
+
+# JWT Settings
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+}
