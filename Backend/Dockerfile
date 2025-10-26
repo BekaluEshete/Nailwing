@@ -20,4 +20,6 @@ RUN pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
 COPY . /app/
 
 # Run Django dev server
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+ CMD ["python", "-m", "daphne", "-b", "0.0.0.0", "-p", "8000", "core.asgi:application"]
+# Change the last line in your Dockerfile
+

@@ -6,6 +6,8 @@ dj-database-url
 django-redis
 python-dotenv
 celery
-Pillow  # Add this line
+Pillow  
 channels
 channels-redis
+daphne  
+django-cors-headers
