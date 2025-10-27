@@ -228,7 +228,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         Container(
           height: 48,
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey[300]!),
+            border: Border.all(
+              color: viewModel.emailError.isNotEmpty
+                  ? Colors.red
+                  : Colors.grey[300]!,
+            ),
             borderRadius: BorderRadius.circular(8),
             color: Colors.white,
           ),
@@ -239,7 +243,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 child: Icon(
                   Icons.mail_outline,
                   size: 20,
-                  color: Colors.grey[500],
+                  color: viewModel.emailError.isNotEmpty
+                      ? Colors.red
+                      : Colors.grey[500],
                 ),
               ),
               const SizedBox(width: 12),
@@ -250,6 +256,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     hintText: 'you@example.com',
                     border: InputBorder.none,
                     hintStyle: TextStyle(color: Colors.grey[500]),
+                    errorText: null, // We handle error separately
                   ),
                   onChanged: viewModel.setEmail,
                 ),
@@ -257,6 +264,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ],
           ),
         ),
+        if (viewModel.emailError.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            viewModel.emailError,
+            style: TextStyle(color: Colors.red, fontSize: 12),
+          ),
+        ],
       ],
     );
   }
@@ -277,7 +291,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         Container(
           height: 48,
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey[300]!),
+            border: Border.all(
+              color: viewModel.passwordError.isNotEmpty
+                  ? Colors.red
+                  : Colors.grey[300]!,
+            ),
             borderRadius: BorderRadius.circular(8),
             color: Colors.white,
           ),
@@ -288,7 +306,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 child: Icon(
                   Icons.lock_outline,
                   size: 20,
-                  color: Colors.grey[500],
+                  color: viewModel.passwordError.isNotEmpty
+                      ? Colors.red
+                      : Colors.grey[500],
                 ),
               ),
               const SizedBox(width: 12),
@@ -299,6 +319,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     hintText: '••••••••',
                     border: InputBorder.none,
                     hintStyle: TextStyle(color: Colors.grey[500]),
+                    errorText: null, // We handle error separately
                   ),
                   onChanged: viewModel.setPassword,
                 ),
@@ -308,7 +329,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   viewModel.showPassword
                       ? Icons.visibility_off
                       : Icons.visibility,
-                  color: Colors.grey[600],
+                  color: viewModel.passwordError.isNotEmpty
+                      ? Colors.red
+                      : Colors.grey[600],
                   size: 20,
                 ),
                 onPressed: viewModel.togglePasswordVisibility,
@@ -316,6 +339,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ],
           ),
         ),
+        if (viewModel.passwordError.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            viewModel.passwordError,
+            style: TextStyle(color: Colors.red, fontSize: 12),
+          ),
+        ],
       ],
     );
   }
@@ -382,7 +412,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       width: double.infinity,
       height: 52,
       child: ElevatedButton(
-        onPressed: viewModel.isLoading
+        onPressed: viewModel.isLoading || !viewModel.isFormValid
             ? null
             : () async {
                 final success = await viewModel.login();
@@ -396,24 +426,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           elevation: 2,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
-        child: GestureDetector(
-          onTap: () {
-            context.go('/home');
-          },
-          child: viewModel.isLoading
-              ? SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                  ),
-                )
-              : Text(
-                  'Login',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        child: viewModel.isLoading
+            ? SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                 ),
-        ),
+              )
+            : Text(
+                'Login',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
       ),
     );
   }

@@ -47,7 +47,11 @@ class AppRouter {
       GoRoute(
         path: '/login',
         name: 'login',
-        builder: (context, state) => const LoginScreen(),
+        builder: (context, state) => LoginScreen(
+          onLoginSuccess: () {
+            context.go('/home');
+          },
+        ),
       ),
 
       // Main navigation shell with bottom navigation
