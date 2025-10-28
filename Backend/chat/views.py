@@ -64,7 +64,7 @@ class CreatePersonalChat(generics.CreateAPIView):
 
             other_user = CustomUser.objects.get(id=user_id)
 
-            # Create a unique room name for personal chat
+            # Create unique room name for personal chat
             room_name = f"personal_{min(request.user.id, other_user.id)}_{max(request.user.id, other_user.id)}"
 
             # Check if room already exists
@@ -73,6 +73,7 @@ class CreatePersonalChat(generics.CreateAPIView):
                 defaults={
                     "description": f"Personal chat between {request.user.username} and {other_user.username}",
                     "created_by": request.user,
+                    "room_type": "personal",
                 },
             )
 

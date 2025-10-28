@@ -33,6 +33,15 @@ class RegistrationViewModel with ChangeNotifier {
   File? _profileImage;
   String? _errorMessage;
 
+  // Validation properties
+  String _fullNameError = '';
+  String _ageError = '';
+  String _genderError = '';
+  String _emailError = '';
+  String _passwordError = '';
+  String _nationalityError = '';
+  String _languageError = '';
+
   // Getters
   RegistrationData get registrationData => _registrationData;
   bool get showPassword => _showPassword;
@@ -43,45 +52,79 @@ class RegistrationViewModel with ChangeNotifier {
   File? get profileImage => _profileImage;
   String? get errorMessage => _errorMessage;
 
-  // Setters
+  // Validation error getters
+  String get fullNameError => _fullNameError;
+  String get ageError => _ageError;
+  String get genderError => _genderError;
+  String get emailError => _emailError;
+  String get passwordError => _passwordError;
+  String get nationalityError => _nationalityError;
+  String get languageError => _languageError;
+
+  // Check if form is valid
+  bool get isFormValid {
+    return _fullNameError.isEmpty &&
+        _ageError.isEmpty &&
+        _genderError.isEmpty &&
+        _emailError.isEmpty &&
+        _passwordError.isEmpty &&
+        _nationalityError.isEmpty &&
+        _languageError.isEmpty &&
+        _registrationData.fullName.isNotEmpty &&
+        _registrationData.age.isNotEmpty &&
+        _registrationData.gender.isNotEmpty &&
+        _registrationData.email.isNotEmpty &&
+        _registrationData.password.isNotEmpty &&
+        _registrationData.nationality.isNotEmpty &&
+        _registrationData.language.isNotEmpty;
+  }
+
+  // Setters with validation
   void setFullName(String value) {
     _registrationData = _registrationData.copyWith(fullName: value);
+    _validateFullName(value);
     _clearError();
     notifyListeners();
   }
 
   void setAge(String value) {
     _registrationData = _registrationData.copyWith(age: value);
+    _validateAge(value);
     _clearError();
     notifyListeners();
   }
 
   void setGender(String value) {
     _registrationData = _registrationData.copyWith(gender: value);
+    _validateGender(value);
     _clearError();
     notifyListeners();
   }
 
   void setEmail(String value) {
     _registrationData = _registrationData.copyWith(email: value);
+    _validateEmail(value);
     _clearError();
     notifyListeners();
   }
 
   void setPassword(String value) {
     _registrationData = _registrationData.copyWith(password: value);
+    _validatePassword(value);
     _clearError();
     notifyListeners();
   }
 
   void setNationality(String value) {
     _registrationData = _registrationData.copyWith(nationality: value);
+    _validateNationality(value);
     _clearError();
     notifyListeners();
   }
 
   void setLanguage(String value) {
     _registrationData = _registrationData.copyWith(language: value);
+    _validateLanguage(value);
     _clearError();
     notifyListeners();
   }
@@ -89,6 +132,83 @@ class RegistrationViewModel with ChangeNotifier {
   void togglePasswordVisibility() {
     _showPassword = !_showPassword;
     notifyListeners();
+  }
+
+  // Validation methods
+  void _validateFullName(String fullName) {
+    if (fullName.isEmpty) {
+      _fullNameError = 'Full name is required';
+    } else if (fullName.length < 2) {
+      _fullNameError = 'Full name must be at least 2 characters';
+    } else {
+      _fullNameError = '';
+    }
+  }
+
+  void _validateAge(String age) {
+    if (age.isEmpty) {
+      _ageError = 'Age is required';
+    } else if (!_isValidAge(age)) {
+      _ageError = 'Please enter a valid age (1-120)';
+    } else {
+      _ageError = '';
+    }
+  }
+
+  void _validateGender(String gender) {
+    if (gender.isEmpty) {
+      _genderError = 'Gender is required';
+    } else {
+      _genderError = '';
+    }
+  }
+
+  void _validateEmail(String email) {
+    if (email.isEmpty) {
+      _emailError = 'Email is required';
+    } else if (!_isValidEmail(email)) {
+      _emailError = 'Please enter a valid email address';
+    } else {
+      _emailError = '';
+    }
+  }
+
+  void _validatePassword(String password) {
+    if (password.isEmpty) {
+      _passwordError = 'Password is required';
+    } else if (password.length < 6) {
+      _passwordError = 'Password must be at least 6 characters';
+    } else {
+      _passwordError = '';
+    }
+  }
+
+  void _validateNationality(String nationality) {
+    if (nationality.isEmpty) {
+      _nationalityError = 'Nationality is required';
+    } else {
+      _nationalityError = '';
+    }
+  }
+
+  void _validateLanguage(String language) {
+    if (language.isEmpty) {
+      _languageError = 'Language is required';
+    } else {
+      _languageError = '';
+    }
+  }
+
+  bool _isValidEmail(String email) {
+    final emailRegex = RegExp(
+      r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
+    );
+    return emailRegex.hasMatch(email);
+  }
+
+  bool _isValidAge(String age) {
+    final ageValue = int.tryParse(age);
+    return ageValue != null && ageValue >= 1 && ageValue <= 120;
   }
 
   Future<void> pickImageFromGallery() async {
@@ -171,7 +291,16 @@ class RegistrationViewModel with ChangeNotifier {
   }
 
   Future<bool> submitRegistration() async {
-    if (!_validateForm()) {
+    // Validate all fields before attempting registration
+    _validateFullName(_registrationData.fullName);
+    _validateAge(_registrationData.age);
+    _validateGender(_registrationData.gender);
+    _validateEmail(_registrationData.email);
+    _validatePassword(_registrationData.password);
+    _validateNationality(_registrationData.nationality);
+    _validateLanguage(_registrationData.language);
+
+    if (!isFormValid) {
       _errorMessage = 'Please fill all required fields correctly';
       notifyListeners();
       return false;
@@ -194,31 +323,6 @@ class RegistrationViewModel with ChangeNotifier {
     }
   }
 
-  bool _validateForm() {
-    return _registrationData.fullName.isNotEmpty &&
-        _registrationData.age.isNotEmpty &&
-        _isValidAge(_registrationData.age) &&
-        _registrationData.gender.isNotEmpty &&
-        _registrationData.email.isNotEmpty &&
-        _isValidEmail(_registrationData.email) &&
-        _registrationData.password.isNotEmpty &&
-        _registrationData.password.length >= 6 &&
-        _registrationData.nationality.isNotEmpty &&
-        _registrationData.language.isNotEmpty;
-  }
-
-  bool _isValidEmail(String email) {
-    final emailRegex = RegExp(
-      r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
-    );
-    return emailRegex.hasMatch(email);
-  }
-
-  bool _isValidAge(String age) {
-    final ageValue = int.tryParse(age);
-    return ageValue != null && ageValue >= 1 && ageValue <= 120;
-  }
-
   void resetForm() {
     _registrationData = RegistrationData(
       fullName: '',
@@ -232,6 +336,16 @@ class RegistrationViewModel with ChangeNotifier {
     _profileImage = null;
     _showPassword = false;
     _errorMessage = null;
+
+    // Clear all validation errors
+    _fullNameError = '';
+    _ageError = '';
+    _genderError = '';
+    _emailError = '';
+    _passwordError = '';
+    _nationalityError = '';
+    _languageError = '';
+
     notifyListeners();
   }
 }

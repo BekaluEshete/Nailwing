@@ -205,6 +205,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
             label: 'Full Name *',
             hintText: 'Enter your full name',
             onChanged: viewModel.setFullName,
+            errorText: viewModel.fullNameError,
           ),
           const SizedBox(height: 16),
 
@@ -214,6 +215,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
             hintText: 'Enter your age',
             keyboardType: TextInputType.number,
             onChanged: viewModel.setAge,
+            errorText: viewModel.ageError,
           ),
           const SizedBox(height: 16),
 
@@ -227,6 +229,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
             hintText: 'your.email@example.com',
             keyboardType: TextInputType.emailAddress,
             onChanged: viewModel.setEmail,
+            errorText: viewModel.emailError,
           ),
           const SizedBox(height: 16),
 
@@ -347,6 +350,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     required String hintText,
     TextInputType? keyboardType,
     required Function(String) onChanged,
+    required String errorText, // Add this parameter
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -365,11 +369,15 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
             hintText: hintText,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Colors.grey[300]!),
+              borderSide: BorderSide(
+                color: errorText.isNotEmpty ? Colors.red : Colors.grey[300]!,
+              ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Color(0xFF1E40AF)),
+              borderSide: BorderSide(
+                color: errorText.isNotEmpty ? Colors.red : Color(0xFF1E40AF),
+              ),
             ),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
@@ -378,6 +386,10 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
           ),
           onChanged: onChanged,
         ),
+        if (errorText.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(errorText, style: TextStyle(color: Colors.red, fontSize: 12)),
+        ],
       ],
     );
   }

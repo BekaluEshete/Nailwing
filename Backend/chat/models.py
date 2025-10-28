@@ -11,8 +11,24 @@ class ChatRoom(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
 
+    # ✅ CORRECT INDENTATION - class field, not inside method
+    room_type = models.CharField(
+        max_length=20,
+        default="group",
+        choices=[
+            ("group", "Group Chat"),
+            ("personal", "Personal Chat"),
+        ],
+    )
+
     def __str__(self):
         return self.name
+
+    # Update the save method to auto-detect room type
+    def save(self, *args, **kwargs):
+        if self.name.startswith("personal_"):
+            self.room_type = "personal"
+        super().save(*args, **kwargs)
 
 
 class Message(models.Model):
