@@ -36,8 +36,13 @@ The app creates opportunities for **networking, socializing, and collaboration**
 
 ## 🧩 System Architecture
 
- | **Flutter App ⇄ Django REST API ⇄ PostgreSQL (Neon)** |
- | **↕** |
- | **WebSockets (Django Channels + Redis)** |
- | **↕** |
- | **Docker (Backend + Redis +  Daphne)** |
+📱 Flutter App  
+   ⇅  
+🌐 Django REST API  
+   ⇅  
+🐘 PostgreSQL (Neon)  
+   ⇅  
+🔌 WebSockets (Django Channels + Redis)  
+   ⇅  
+🐳 Docker (Backend + Redis + Nginx + Daphne)
+
