@@ -44,5 +44,5 @@ The app creates opportunities for **networking, socializing, and collaboration**
    ⇅  
 🔌 WebSockets (Django Channels + Redis)  
    ⇅  
-🐳 Docker (Backend + Redis + Nginx + Daphne)
+🐳 Docker (Backend + Redis + Daphne)
 
