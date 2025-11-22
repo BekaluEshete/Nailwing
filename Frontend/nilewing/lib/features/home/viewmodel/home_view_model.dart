@@ -3,6 +3,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nilewing/core/utils/token_storage.dart';
 import '../model/home_model.dart';
 import '../services/flight_service.dart';
 import '../services/user_service.dart';
@@ -73,15 +74,39 @@ class HomeViewModel with ChangeNotifier {
   Future<void> _loadUserProfile() async {
     try {
       _user = await _userService.getUserProfile("current_user_id");
+      notifyListeners(); // Notify listeners when user profile is loaded
     } catch (e) {
       print('Error loading user profile: $e');
-      // Fallback user data
-      _user = User(
-        name: "Markos Tesfaye",
-        profileImage: null,
-        email: "markos.tesfaye@email.com",
-        nationality: "Ethiopian",
-      );
+      // Try to get user data from storage as fallback
+      try {
+        final tokenStorage = TokenStorage();
+        final userData = await tokenStorage.getUserData();
+        if (userData != null) {
+          _user = User(
+            name: userData['fullName'] ?? 'User',
+            profileImage: userData['profileImageUrl'] ?? userData['profileImage'],
+            email: userData['email'] ?? '',
+            nationality: userData['nationality'] ?? '',
+          );
+        } else {
+          // Last resort fallback
+          _user = User(
+            name: "User",
+            profileImage: null,
+            email: "",
+            nationality: "",
+          );
+        }
+      } catch (fallbackError) {
+        print('Error in fallback: $fallbackError');
+        _user = User(
+          name: "User",
+          profileImage: null,
+          email: "",
+          nationality: "",
+        );
+      }
+      notifyListeners();
     }
   }
 

@@ -67,21 +67,21 @@ class UserService {
       // Add authorization header
       request.headers['Authorization'] = 'Bearer $token';
 
-      // Add text fields
-      if (fullName != null) {
-        request.fields['fullName'] = fullName;
+      // Add text fields - always send fullName if provided
+      if (fullName != null && fullName.isNotEmpty) {
+        request.fields['fullName'] = fullName.trim();
       }
       if (age != null) {
         request.fields['age'] = age.toString();
       }
-      if (gender != null) {
+      if (gender != null && gender.isNotEmpty) {
         request.fields['gender'] = gender;
       }
       if (nationality != null) {
-        request.fields['nationality'] = nationality;
+        request.fields['nationality'] = nationality.trim();
       }
       if (language != null) {
-        request.fields['language'] = language;
+        request.fields['language'] = language.trim();
       }
 
       // Add profile image if provided

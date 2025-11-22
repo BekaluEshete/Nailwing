@@ -170,9 +170,26 @@ class AuthViewSet(viewsets.GenericViewSet):
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
+            # Prepare data for serializer - convert fullName to fullNameInput
+            # Handle both form data (QueryDict) and regular dict
+            if hasattr(request.data, "dict"):
+                serializer_data = request.data.dict()
+            else:
+                serializer_data = dict(request.data)
+
+            # Remove file field from serializer data (handled separately)
+            serializer_data.pop("profileImage", None)
+
+            # Convert fullName to fullNameInput for serializer
+            if "fullName" in serializer_data:
+                serializer_data["fullNameInput"] = serializer_data.pop("fullName")
+
             # Update other profile fields
             serializer = UserProfileSerializer(
-                user, data=request.data, partial=partial, context={"request": request}
+                user,
+                data=serializer_data,
+                partial=partial,
+                context={"request": request},
             )
             if serializer.is_valid():
                 serializer.save()

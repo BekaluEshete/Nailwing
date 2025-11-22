@@ -1,4 +1,8 @@
 // // features/home/services/user_service.dart
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:nilewing/core/utils/app_constants.dart';
+import 'package:nilewing/core/utils/token_storage.dart';
 import '../model/home_model.dart';
 
 class UserService {
@@ -6,17 +10,65 @@ class UserService {
   factory UserService() => _instance;
   UserService._internal();
 
-  // Get user profile
-  Future<User> getUserProfile(String userId) async {
-    // Simulate API delay
-    await Future.delayed(Duration(milliseconds: 600));
+  final TokenStorage _tokenStorage = TokenStorage();
 
-    return User(
-      name: "Markos Tesfaye",
-      profileImage: null,
-      email: "markos.tesfaye@email.com",
-      nationality: "Ethiopian",
-    );
+  Future<String?> _getAuthToken() async {
+    return await _tokenStorage.getAccessToken();
+  }
+
+  // Get user profile from backend
+  Future<User> getUserProfile(String userId) async {
+    try {
+      final token = await _getAuthToken();
+      if (token == null) {
+        throw Exception('Not authenticated');
+      }
+
+      final response = await http.get(
+        Uri.parse(AppConstants.profileEndpoint),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body) as Map<String, dynamic>;
+        if (responseData['success'] == true && responseData['data'] != null) {
+          final userData = responseData['data'] as Map<String, dynamic>;
+          
+          // Map backend user data to home User model
+          return User(
+            name: userData['fullName'] ?? 'User',
+            profileImage: userData['profileImageUrl'] ?? userData['profileImage'],
+            email: userData['email'] ?? '',
+            nationality: userData['nationality'] ?? '',
+          );
+        }
+        throw Exception('Failed to load profile');
+      } else {
+        throw Exception('Failed to load profile: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error loading user profile: $e');
+      // Fallback to stored user data if available
+      final storedUserData = await _tokenStorage.getUserData();
+      if (storedUserData != null) {
+        return User(
+          name: storedUserData['fullName'] ?? 'User',
+          profileImage: storedUserData['profileImageUrl'] ?? storedUserData['profileImage'],
+          email: storedUserData['email'] ?? '',
+          nationality: storedUserData['nationality'] ?? '',
+        );
+      }
+      // Last resort fallback
+      return User(
+        name: "User",
+        profileImage: null,
+        email: "",
+        nationality: "",
+      );
+    }
   }
 
   // Get user notifications

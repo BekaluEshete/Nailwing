@@ -113,17 +113,19 @@ class UserLoginSerializer(serializers.Serializer):
 
 class UserProfileSerializer(serializers.ModelSerializer):
     fullName = serializers.SerializerMethodField()
+    fullNameInput = serializers.CharField(write_only=True, required=False)
     profileImage = serializers.SerializerMethodField()
     profileImageUrl = serializers.URLField(
         source="profile_image_url", read_only=True
     )
-    rememberMe = serializers.BooleanField(source="remember_me")
+    rememberMe = serializers.BooleanField(source="remember_me", read_only=True)
 
     class Meta:
         model = CustomUser
         fields = (
             "id",
             "fullName",
+            "fullNameInput",
             "email",
             "age",
             "gender",
@@ -135,6 +137,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "date_joined",
         )
         extra_kwargs = {
+            "email": {"read_only": True},
             "nationality": {"required": False, "allow_blank": True},
             "language": {"required": False, "allow_blank": True},
         }
@@ -153,11 +156,23 @@ class UserProfileSerializer(serializers.ModelSerializer):
         return None
 
     def update(self, instance, validated_data):
+        # Handle fullName - split into first_name and last_name
+        full_name = validated_data.pop("fullNameInput", None)
+        if full_name and full_name.strip():
+            name_parts = full_name.strip().split(" ", 1)
+            instance.first_name = name_parts[0]
+            instance.last_name = name_parts[1] if len(name_parts) > 1 else ""
+
         # profile_image is handled separately in views.py for Cloudinary upload
         profile_image = validated_data.pop("profile_image", None)
 
+        # Update other fields - handle empty strings for optional fields
         for attr, value in validated_data.items():
-            setattr(instance, attr, value)
+            # Convert empty strings to None for optional fields
+            if value == "" and attr in ["nationality", "language"]:
+                setattr(instance, attr, None)
+            elif value is not None:
+                setattr(instance, attr, value)
 
         # Only update local profile_image if Cloudinary URL is not set
         if profile_image is not None and not instance.profile_image_url:

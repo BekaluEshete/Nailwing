@@ -252,10 +252,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           backgroundImage: NetworkImage(user.profileImage!),
                         )
                       : Text(
-                          user.name.substring(0, 2).toUpperCase(),
+                          user.name.isNotEmpty 
+                              ? user.name.substring(0, user.name.length > 2 ? 2 : user.name.length).toUpperCase()
+                              : 'U',
                           style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
+                            fontSize: 14,
                           ),
                         ),
                 ),

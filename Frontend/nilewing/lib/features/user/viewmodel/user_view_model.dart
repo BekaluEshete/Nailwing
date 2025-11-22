@@ -1,7 +1,11 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
-import 'dart:io';
+import 'package:nilewing/core/utils/app_constants.dart';
+import 'package:nilewing/core/utils/token_storage.dart';
 import '../model/user_model.dart';
 import '../service/user_service.dart';
 
@@ -130,6 +134,57 @@ class UserViewModel extends ChangeNotifier {
   void clearError() {
     _errorMessage = null;
     notifyListeners();
+  }
+
+  // Change password
+  Future<bool> changePassword({
+    required String oldPassword,
+    required String newPassword,
+  }) async {
+    _isUpdating = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final tokenStorage = TokenStorage();
+      final token = await tokenStorage.getAccessToken();
+      if (token == null) {
+        throw Exception('Not authenticated');
+      }
+
+      final response = await http.post(
+        Uri.parse('${AppConstants.authBaseUrl}/change_password/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: json.encode({
+          'old_password': oldPassword,
+          'new_password': newPassword,
+        }),
+      );
+
+      final responseData = json.decode(response.body) as Map<String, dynamic>;
+
+      if (response.statusCode == 200 && responseData['success'] == true) {
+        _errorMessage = null;
+        _isUpdating = false;
+        notifyListeners();
+        return true;
+      } else {
+        _errorMessage = responseData['message'] ?? 
+            responseData['errors']?.toString() ?? 
+            'Failed to change password';
+        _isUpdating = false;
+        notifyListeners();
+        return false;
+      }
+    } catch (e) {
+      _errorMessage = 'Error changing password: ${e.toString()}';
+      _isUpdating = false;
+      notifyListeners();
+      return false;
+    }
   }
 }
 
