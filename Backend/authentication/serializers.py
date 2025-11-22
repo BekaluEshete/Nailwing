@@ -115,9 +115,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
     fullName = serializers.SerializerMethodField()
     fullNameInput = serializers.CharField(write_only=True, required=False)
     profileImage = serializers.SerializerMethodField()
-    profileImageUrl = serializers.URLField(
-        source="profile_image_url", read_only=True
-    )
+    profileImageUrl = serializers.URLField(source="profile_image_url", read_only=True)
     rememberMe = serializers.BooleanField(source="remember_me", read_only=True)
 
     class Meta:
