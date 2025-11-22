@@ -311,12 +311,37 @@ class RegistrationViewModel with ChangeNotifier {
     notifyListeners();
 
     try {
-      await _registrationService.submitRegistration(_registrationData);
+      final response = await _registrationService.submitRegistration(_registrationData);
       _isLoading = false;
-      notifyListeners();
-      return true;
+      
+      if (response.success && response.data != null) {
+        _errorMessage = null;
+        notifyListeners();
+        return true;
+      } else {
+        // Handle errors from backend
+        if (response.errors != null && response.errors!.isNotEmpty) {
+          // Get first error message
+          final firstErrorKey = response.errors!.keys.first;
+          final firstErrorValue = response.errors![firstErrorKey];
+          
+          if (firstErrorValue is List && firstErrorValue.isNotEmpty) {
+            _errorMessage = firstErrorValue.first.toString();
+          } else if (firstErrorValue is String) {
+            _errorMessage = firstErrorValue;
+          } else {
+            _errorMessage = 'Registration failed: ${firstErrorKey}';
+          }
+        } else {
+          _errorMessage = response.message.isNotEmpty 
+              ? response.message 
+              : 'Registration failed. Please try again.';
+        }
+        notifyListeners();
+        return false;
+      }
     } catch (e) {
-      _errorMessage = 'Registration failed: $e';
+      _errorMessage = 'Network error: ${e.toString()}';
       _isLoading = false;
       notifyListeners();
       return false;

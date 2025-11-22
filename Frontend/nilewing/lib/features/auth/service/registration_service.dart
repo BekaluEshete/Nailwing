@@ -2,6 +2,8 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../model/registration_model.dart';
+import 'package:nilewing/core/utils/token_storage.dart';
+import 'package:nilewing/core/utils/app_constants.dart';
 
 class RegistrationService {
   static final RegistrationService _instance = RegistrationService._internal();
@@ -89,17 +91,74 @@ class RegistrationService {
     return languageName.toLowerCase().replaceAll(RegExp(r'[^\w]'), '-');
   }
 
-  Future<void> submitRegistration(RegistrationData data) async {
-    // Simulate API call
-    await Future.delayed(Duration(seconds: 2));
-
+  Future<RegistrationResponse> submitRegistration(RegistrationData data) async {
     // Validate data
     if (!_validateRegistrationData(data)) {
-      throw Exception('Invalid registration data');
+      return RegistrationResponse(
+        success: false,
+        message: 'Invalid registration data',
+      );
     }
 
-    print('Registration submitted: ${data.toJson()}');
-    // Here you would make actual API call to register user
+    try {
+      // Create multipart request for file upload
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse(AppConstants.registerEndpoint),
+      );
+
+      // Add text fields
+      request.fields['fullName'] = data.fullName;
+      request.fields['age'] = data.age;
+      request.fields['gender'] = data.gender;
+      request.fields['email'] = data.email;
+      request.fields['password'] = data.password;
+      request.fields['password2'] = data.password; // Backend requires password2
+      request.fields['nationality'] = data.nationality;
+      request.fields['language'] = data.language;
+
+      // Add profile image if available
+      if (data.profileImage != null && data.profileImage!.isNotEmpty) {
+        try {
+          final file = await http.MultipartFile.fromPath(
+            'profileImage',
+            data.profileImage!,
+          );
+          request.files.add(file);
+        } catch (e) {
+          print('Error adding profile image: $e');
+          // Continue without image if there's an error
+        }
+      }
+
+      // Send request
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+      final responseData = json.decode(response.body) as Map<String, dynamic>;
+
+      final registrationResponse = RegistrationResponse.fromJson(responseData);
+
+      // Save tokens if registration successful
+      if (registrationResponse.success && registrationResponse.data != null) {
+        final tokenStorage = TokenStorage();
+        await tokenStorage.saveAccessToken(
+          registrationResponse.data!.tokens.access,
+        );
+        await tokenStorage.saveRefreshToken(
+          registrationResponse.data!.tokens.refresh,
+        );
+        await tokenStorage.saveUserData(
+          registrationResponse.data!.user.toJson(),
+        );
+      }
+
+      return registrationResponse;
+    } catch (e) {
+      return RegistrationResponse(
+        success: false,
+        message: 'Network error: ${e.toString()}',
+      );
+    }
   }
 
   bool _validateRegistrationData(RegistrationData data) {

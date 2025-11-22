@@ -36,6 +36,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               _buildHeader(),
               const SizedBox(height: 24),
 
+              // Error Message Banner
+              if (viewModel.errorMessage != null && viewModel.errorMessage!.isNotEmpty)
+                _buildErrorBanner(viewModel.errorMessage!),
+
               // Login Form Card
               Card(
                 elevation: 4,
@@ -99,6 +103,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildErrorBanner(String error) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.red[50],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.red[200]!),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.error_outline, color: Colors.red[600], size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              error,
+              style: TextStyle(color: Colors.red[800], fontSize: 14),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -84,26 +84,50 @@ class LoginViewModel with ChangeNotifier {
     return emailRegex.hasMatch(email);
   }
 
+  String? _errorMessage;
+  String? get errorMessage => _errorMessage;
+
   Future<bool> login() async {
     // Validate all fields before attempting login
     _validateEmail(_loginData.email);
     _validatePassword(_loginData.password);
 
     if (!isFormValid) {
+      _errorMessage = 'Please fill all required fields correctly';
       notifyListeners();
       return false;
     }
 
     _isLoading = true;
+    _errorMessage = null;
     notifyListeners();
 
     try {
-      final success = await _loginService.loginUser(_loginData);
+      final response = await _loginService.loginUser(_loginData);
       _isLoading = false;
-      notifyListeners();
-      return success;
+      
+      if (response.success && response.data != null) {
+        _errorMessage = null;
+        notifyListeners();
+        return true;
+      } else {
+        // Handle errors from backend
+        if (response.errors != null && response.errors!.isNotEmpty) {
+          final firstError = response.errors!.values.first;
+          _errorMessage = firstError is List 
+              ? firstError.first.toString() 
+              : firstError.toString();
+        } else {
+          _errorMessage = response.message.isNotEmpty 
+              ? response.message 
+              : 'Login failed. Please try again.';
+        }
+        notifyListeners();
+        return false;
+      }
     } catch (e) {
       _isLoading = false;
+      _errorMessage = 'Network error: ${e.toString()}';
       notifyListeners();
       return false;
     }

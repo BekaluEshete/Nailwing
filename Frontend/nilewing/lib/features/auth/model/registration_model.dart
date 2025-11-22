@@ -1,4 +1,6 @@
 // registration_model.dart
+import 'login_model.dart';
+
 class RegistrationData {
   String fullName;
   String age;
@@ -27,6 +29,7 @@ class RegistrationData {
       'gender': gender,
       'email': email,
       'password': password,
+      'password2': password, // Backend requires password2
       'nationality': nationality,
       'language': language,
       'profileImage': profileImage,
@@ -80,4 +83,47 @@ class Language {
 
   @override
   int get hashCode => name.hashCode ^ code.hashCode;
+}
+
+// Registration Response Models
+class RegistrationResponse {
+  final bool success;
+  final String message;
+  final RegistrationResponseData? data;
+  final Map<String, dynamic>? errors;
+
+  RegistrationResponse({
+    required this.success,
+    required this.message,
+    this.data,
+    this.errors,
+  });
+
+  factory RegistrationResponse.fromJson(Map<String, dynamic> json) {
+    return RegistrationResponse(
+      success: json['success'] ?? false,
+      message: json['message'] ?? '',
+      data: json['data'] != null 
+          ? RegistrationResponseData.fromJson(json['data']) 
+          : null,
+      errors: json['errors'] as Map<String, dynamic>?,
+    );
+  }
+}
+
+class RegistrationResponseData {
+  final UserData user;
+  final TokenData tokens;
+
+  RegistrationResponseData({
+    required this.user,
+    required this.tokens,
+  });
+
+  factory RegistrationResponseData.fromJson(Map<String, dynamic> json) {
+    return RegistrationResponseData(
+      user: UserData.fromJson(json['user']),
+      tokens: TokenData.fromJson(json['tokens']),
+    );
+  }
 }
