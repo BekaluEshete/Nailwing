@@ -35,6 +35,9 @@ INSTALLED_APPS = [
     "authentication",
     "channels",
     "chat",
+    "flights",
+    "matching",
+    "recommendations",
 ]
 
 MIDDLEWARE = [
