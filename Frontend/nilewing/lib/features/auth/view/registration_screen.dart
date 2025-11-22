@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nilewing/core/theme/app_colors.dart';
+import 'package:nilewing/core/providers/auth_provider.dart';
 import '../viewmodel/registration_view_model.dart';
 
 class RegistrationScreen extends ConsumerStatefulWidget {
@@ -625,7 +626,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       width: double.infinity,
       height: 50,
       child: ElevatedButton(
-        onPressed: viewModel.isLoading
+        onPressed: (viewModel.isLoading || !viewModel.isFormValid)
             ? null
             : () => _handleRegistration(viewModel),
         style: ElevatedButton.styleFrom(
@@ -643,26 +644,35 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                   valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                 ),
               )
-            : GestureDetector(
-                onTap: () {
-                  context.go('/home');
-                },
-                child: Text(
-                  'Create Nile Wing Account',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                ),
+            : Text(
+                'Create Nile Wing Account',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
               ),
       ),
     );
   }
 
   Future<void> _handleRegistration(RegistrationViewModel viewModel) async {
-    final success = await viewModel.submitRegistration();
-    if (success && widget.onRegistrationSuccess != null) {
-      widget.onRegistrationSuccess!();
-    } else if (!success) {
-      // Error is already handled in the viewModel
+    // Only proceed if form is valid
+    if (!viewModel.isFormValid) {
+      return;
     }
+
+    final success = await viewModel.submitRegistration();
+    if (success) {
+      // Update auth state
+      ref.read(authStateProvider.notifier).login();
+
+      // Navigate to home only on successful registration
+      if (mounted) {
+        context.go('/home');
+      }
+
+      if (widget.onRegistrationSuccess != null) {
+        widget.onRegistrationSuccess!();
+      }
+    }
+    // Error is already handled in the viewModel
   }
 
   Widget _buildLoginRedirect() {

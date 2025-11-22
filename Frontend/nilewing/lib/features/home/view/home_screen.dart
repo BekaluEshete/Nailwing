@@ -1307,7 +1307,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ],
                 ),
                 GestureDetector(
-                  onTap: () {},
+                  onTap: widget.onNavigateToProfile,
                   child: Text(
                     'View Profile',
                     style: TextStyle(

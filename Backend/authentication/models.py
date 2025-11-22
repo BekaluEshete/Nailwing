@@ -22,6 +22,9 @@ class CustomUser(AbstractUser):
     profile_image = models.ImageField(
         upload_to="profile_images/", null=True, blank=True
     )
+    # Cloudinary URL for profile image
+    profile_image_url = models.URLField(null=True, blank=True)
+    cloudinary_public_id = models.CharField(max_length=255, null=True, blank=True)
 
     # Remember me functionality
     remember_me = models.BooleanField(default=False)

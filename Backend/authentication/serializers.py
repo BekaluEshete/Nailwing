@@ -113,8 +113,9 @@ class UserLoginSerializer(serializers.Serializer):
 
 class UserProfileSerializer(serializers.ModelSerializer):
     fullName = serializers.SerializerMethodField()
-    profileImage = serializers.ImageField(
-        source="profile_image", required=False, allow_null=True
+    profileImage = serializers.SerializerMethodField()
+    profileImageUrl = serializers.URLField(
+        source="profile_image_url", read_only=True
     )
     rememberMe = serializers.BooleanField(source="remember_me")
 
@@ -129,6 +130,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "nationality",
             "language",
             "profileImage",
+            "profileImageUrl",
             "rememberMe",
             "date_joined",
         )
@@ -140,13 +142,25 @@ class UserProfileSerializer(serializers.ModelSerializer):
     def get_fullName(self, obj):
         return obj.full_name
 
+    def get_profileImage(self, obj):
+        # Return Cloudinary URL if available, otherwise local image URL
+        if obj.profile_image_url:
+            return obj.profile_image_url
+        if obj.profile_image:
+            request = self.context.get("request")
+            if request:
+                return request.build_absolute_uri(obj.profile_image.url)
+        return None
+
     def update(self, instance, validated_data):
+        # profile_image is handled separately in views.py for Cloudinary upload
         profile_image = validated_data.pop("profile_image", None)
 
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
 
-        if profile_image is not None:
+        # Only update local profile_image if Cloudinary URL is not set
+        if profile_image is not None and not instance.profile_image_url:
             instance.profile_image = profile_image
 
         instance.save()

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'dart:async';
 
 import 'package:nilewing/features/splash/splash_view_model.dart';
+import 'package:nilewing/core/providers/auth_provider.dart';
 
 class SplashView extends ConsumerStatefulWidget {
   const SplashView({super.key});
@@ -42,12 +44,23 @@ class _SplashViewState extends ConsumerState<SplashView>
       CurvedAnimation(parent: _planeController, curve: Curves.easeInOut),
     );
 
-    // Navigation after 5 seconds
+    // Navigation after 5 seconds - check auth status
     _navigationTimer = Timer(const Duration(seconds: 5), () {
       if (!_isDisposed) {
-        _navigateToOnboarding();
+        _checkAuthAndNavigate();
       }
     });
+  }
+
+  void _checkAuthAndNavigate() {
+    if (!_isDisposed && mounted) {
+      final isAuthenticated = ref.read(authStateProvider);
+      if (isAuthenticated) {
+        context.go('/home');
+      } else {
+        ref.read(splashViewModelProvider.notifier).navigateToOnboarding(context);
+      }
+    }
   }
 
   void _navigateToOnboarding() {
@@ -70,7 +83,7 @@ class _SplashViewState extends ConsumerState<SplashView>
     return GestureDetector(
       onTap: () {
         _navigationTimer?.cancel();
-        _navigateToOnboarding();
+        _checkAuthAndNavigate();
       },
       child: Scaffold(
         body: Container(

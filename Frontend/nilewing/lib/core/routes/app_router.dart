@@ -14,6 +14,8 @@ import 'package:nilewing/features/onboarding/onboarding_view.dart';
 import 'package:nilewing/features/recommendation/view/recommemdation_screen.dart';
 import 'package:nilewing/features/splash/splash_view.dart';
 import 'package:nilewing/features/main_navigation/main_navigation_screen.dart';
+import 'package:nilewing/core/providers/auth_provider.dart';
+import 'package:nilewing/features/user/view/profile_screen.dart';
 // Import other screens when you create them
 import 'package:nilewing/features/match/view/match_screen.dart';
 import 'package:nilewing/features/chat/view/chat_screen.dart';
@@ -113,7 +115,17 @@ class AppRouter {
           GoRoute(
             path: '/home',
             name: 'home',
-            builder: (context, state) => const HomeScreen(),
+            builder: (context, state) => HomeScreen(
+              onNavigateToProfile: () {
+                context.go('/profile');
+              },
+            ),
+          ),
+
+          GoRoute(
+            path: '/profile',
+            name: 'profile',
+            builder: (context, state) => const ProfileScreen(),
           ),
         ],
       ),
@@ -156,12 +168,40 @@ class AppRouter {
       // ),
     ],
 
-    // Optional: Redirect to home after auth
-    redirect: (context, state) {
-      // Add your authentication logic here
-      // Example: if user is authenticated, redirect to home
-      // if (isAuthenticated && state.location == '/login') return '/home';
-      return null;
+    // Authentication guard - redirect based on auth status
+    redirect: (BuildContext context, GoRouterState state) {
+      try {
+        final container = ProviderScope.containerOf(context);
+        final isAuthenticated = container.read(authStateProvider);
+
+        // List of public routes that don't require authentication
+        final publicRoutes = [
+          '/splash',
+          '/onboarding',
+          '/login',
+          '/registration',
+        ];
+        final currentLocation = state.uri.path;
+        final isPublicRoute = publicRoutes.contains(currentLocation);
+
+        // If user is not authenticated and trying to access protected route
+        if (!isAuthenticated && !isPublicRoute) {
+          return '/login';
+        }
+
+        // If user is authenticated and trying to access auth pages
+        if (isAuthenticated &&
+            (currentLocation == '/login' ||
+                currentLocation == '/registration')) {
+          return '/home';
+        }
+
+        return null; // No redirect needed
+      } catch (e) {
+        // If there's an error accessing the provider, allow navigation
+        // This can happen during initial app load
+        return null;
+      }
     },
 
     // Optional: Handle wrong URLs gracefully

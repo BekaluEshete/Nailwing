@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nilewing/core/theme/app_colors.dart';
+import 'package:nilewing/core/providers/auth_provider.dart';
 import '../viewmodel/login_view_model.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -37,7 +38,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               const SizedBox(height: 24),
 
               // Error Message Banner
-              if (viewModel.errorMessage != null && viewModel.errorMessage!.isNotEmpty)
+              if (viewModel.errorMessage != null &&
+                  viewModel.errorMessage!.isNotEmpty)
                 _buildErrorBanner(viewModel.errorMessage!),
 
               // Login Form Card
@@ -445,8 +447,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ? null
             : () async {
                 final success = await viewModel.login();
-                if (success && widget.onLoginSuccess != null) {
-                  widget.onLoginSuccess!();
+                if (success) {
+                  // Update auth state
+                  ref.read(authStateProvider.notifier).login();
+
+                  // Navigate to home
+                  if (widget.onLoginSuccess != null) {
+                    widget.onLoginSuccess!();
+                  } else {
+                    context.go('/home');
+                  }
                 }
               },
         style: ElevatedButton.styleFrom(

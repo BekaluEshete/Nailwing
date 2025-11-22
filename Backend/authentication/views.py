@@ -135,19 +135,57 @@ class AuthViewSet(viewsets.GenericViewSet):
         user = request.user
 
         if request.method == "GET":
-            serializer = UserProfileSerializer(user)
+            serializer = UserProfileSerializer(user, context={"request": request})
             return Response({"success": True, "data": serializer.data})
 
         elif request.method in ["PUT", "PATCH"]:
+            from .cloudinary_service import upload_profile_image, delete_profile_image
+
             partial = request.method == "PATCH"
-            serializer = UserProfileSerializer(user, data=request.data, partial=partial)
+
+            # Handle profile image upload to Cloudinary
+            profile_image = request.FILES.get("profileImage")
+            if profile_image:
+                # Delete old image from Cloudinary if exists
+                if user.cloudinary_public_id:
+                    delete_profile_image(user.cloudinary_public_id)
+
+                # Upload new image to Cloudinary
+                upload_result = upload_profile_image(profile_image, user.id)
+
+                if upload_result["success"]:
+                    # Store Cloudinary URL instead of local file
+                    user.profile_image_url = upload_result["url"]
+                    user.cloudinary_public_id = upload_result["public_id"]
+                    user.save(
+                        update_fields=["profile_image_url", "cloudinary_public_id"]
+                    )
+                else:
+                    return Response(
+                        {
+                            "success": False,
+                            "message": "Failed to upload image",
+                            "error": upload_result.get("error", "Unknown error"),
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+            # Update other profile fields
+            serializer = UserProfileSerializer(
+                user, data=request.data, partial=partial, context={"request": request}
+            )
             if serializer.is_valid():
                 serializer.save()
+                # Refresh user to get updated data
+                user.refresh_from_db()
+                updated_serializer = UserProfileSerializer(
+                    user, context={"request": request}
+                )
                 return Response(
                     {
                         "success": True,
                         "message": "Profile updated successfully",
-                        "data": serializer.data,
+                        "data": updated_serializer.data,
                     }
                 )
             return Response(
