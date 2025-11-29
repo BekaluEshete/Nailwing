@@ -44,10 +44,12 @@ class MatchViewSet(viewsets.ReadOnlyModelViewSet):
             # Check if user has any flights
             all_flights = Flight.objects.filter(user=user)
             visible_flights = Flight.objects.filter(user=user, is_visible=True)
+            # Expanded time window for matching
             upcoming_flights = Flight.objects.filter(
                 user=user,
                 is_visible=True,
-                departure_datetime__gte=timezone.now() - timedelta(hours=2),
+                departure_datetime__gte=timezone.now() - timedelta(hours=24),
+                departure_datetime__lte=timezone.now() + timedelta(days=7),
             )
 
             print(f"🔍 [MatchViewSet] User {user.email} has:")
@@ -88,11 +90,13 @@ class MatchViewSet(viewsets.ReadOnlyModelViewSet):
 
         if not flight:
             # Get the flight that was used for matching
+            # Expanded time window
             flight = (
                 Flight.objects.filter(
                     user=user,
                     is_visible=True,
-                    departure_datetime__gte=timezone.now() - timedelta(hours=2),
+                    departure_datetime__gte=timezone.now() - timedelta(hours=24),
+                    departure_datetime__lte=timezone.now() + timedelta(days=7),
                 )
                 .order_by("departure_datetime")
                 .first()
