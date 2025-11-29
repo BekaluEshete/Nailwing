@@ -320,6 +320,47 @@ class MatchService {
           'Match at $matchingAirport - ${overlapHours.toStringAsFixed(1)}h overlap';
     }
 
+    // Extract common interests from JSON
+    final commonInterestsList = json['common_interests'];
+    List<String> commonInterests = [];
+    
+    if (commonInterestsList != null) {
+      if (commonInterestsList is List) {
+        commonInterests = commonInterestsList
+            .map((e) => e.toString().trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
+      } else if (commonInterestsList is String) {
+        // Handle case where it might be a JSON string
+        try {
+          final parsed = jsonDecode(commonInterestsList) as List;
+          commonInterests = parsed
+              .map((e) => e.toString().trim())
+              .where((e) => e.isNotEmpty)
+              .toList();
+        } catch (e) {
+          // If parsing fails, treat as single interest
+          if (commonInterestsList.toString().trim().isNotEmpty) {
+            commonInterests = [commonInterestsList.toString().trim()];
+          }
+        }
+      }
+    }
+    
+    print('🔍 [MatchService] Common interests parsed: $commonInterests');
+    
+    // Get user's own interests (not common interests) - this should come from user data
+    // For now, we'll use an empty list or try to get from user2_data if available
+    List<String> userInterests = [];
+    if (otherUserData['interests'] != null) {
+      if (otherUserData['interests'] is List) {
+        userInterests = (otherUserData['interests'] as List)
+            .map((e) => e.toString().trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
+      }
+    }
+    
     return Match(
       id: json['id'].toString(),
       user: User(
@@ -333,11 +374,7 @@ class MatchService {
         languages: otherUserData['language'] != null
             ? [otherUserData['language']]
             : [],
-        interests:
-            (json['common_interests'] as List<dynamic>?)
-                ?.map((e) => e.toString())
-                .toList() ??
-            [],
+        interests: userInterests, // User's own interests, not common interests
         verified: false,
         bio: '',
         rating: 0.0,
@@ -384,11 +421,7 @@ class MatchService {
           ? DateTime.parse(json['created_at'])
           : DateTime.now(),
       matchType: matchType,
-      commonInterests:
-          (json['common_interests'] as List<dynamic>?)
-              ?.map((e) => e.toString())
-              .toList() ??
-          [],
+      commonInterests: commonInterests, // Set common interests on Match object
       tripPurpose: null,
     );
   }

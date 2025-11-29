@@ -289,6 +289,10 @@ class MatchCard extends StatelessWidget {
   }
 
   Widget _buildCommonInterests() {
+    if (match.commonInterests.isEmpty) {
+      return const SizedBox.shrink(); // Don't show if no common interests
+    }
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
