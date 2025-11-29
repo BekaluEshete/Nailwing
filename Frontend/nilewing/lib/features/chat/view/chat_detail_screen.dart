@@ -1,7 +1,6 @@
 // features/chat/views/chat_detail_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:nilewing/core/theme/app_colors.dart';
 import 'package:nilewing/features/chat/model/chat_model.dart';
 import 'package:nilewing/features/chat/viewmodel/chat_view_model.dart';
@@ -51,11 +50,13 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
     });
   }
 
@@ -64,6 +65,15 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
     final chatState = ref.watch(chatViewModelProvider);
     final messages = chatState.selectedMessages;
 
+    // Auto-scroll to bottom when new messages arrive
+    if (messages.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scrollController.hasClients) {
+          _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+        }
+      });
+    }
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
@@ -71,16 +81,41 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
           children: [
             // Chat Header
             _buildChatHeader(),
+            // Error message banner if any
+            if (chatState.error != null && chatState.error!.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                color: Colors.orange[50],
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.orange[800], size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        chatState.error!,
+                        style: TextStyle(color: Colors.orange[800], fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             // Messages
             Expanded(
-              child: ListView.builder(
-                controller: _scrollController,
-                padding: const EdgeInsets.all(16),
-                itemCount: messages.length,
-                itemBuilder: (context, index) {
-                  return _buildMessageBubble(messages[index]);
-                },
-              ),
+              child: messages.isEmpty
+                  ? Center(
+                      child: Text(
+                        'No messages yet. Start the conversation!',
+                        style: TextStyle(color: Colors.grey[600]),
+                      ),
+                    )
+                  : ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.all(16),
+                      itemCount: messages.length,
+                      itemBuilder: (context, index) {
+                        return _buildMessageBubble(messages[index]);
+                      },
+                    ),
             ),
             // Message Input
             _buildMessageInput(),
@@ -94,7 +129,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [AppColors.primary, AppColors.accent ?? AppColors.primary],
+          colors: [AppColors.primary, AppColors.accent],
           begin: Alignment.centerLeft,
           end: Alignment.centerRight,
         ),
@@ -105,9 +140,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
           children: [
             IconButton(
               onPressed: () {
-                print('ChatDetailScreen back button pressed');
                 widget.onBack();
-                print('After calling onBack');
               },
               icon: const Icon(Icons.arrow_back, color: Colors.white),
             ),
@@ -232,7 +265,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
                     ? LinearGradient(
                         colors: [
                           AppColors.primary,
-                          AppColors.accent ?? AppColors.primary,
+                          AppColors.accent,
                         ],
                         begin: Alignment.centerLeft,
                         end: Alignment.centerRight,
@@ -336,13 +369,6 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
     // For now, we'll use the contact's flight info
     final flightMessage =
         'Flight: ${widget.contact.flight}, Gate: ${widget.contact.gate}';
-    final newMessage = ChatMessage(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      senderId: 'me',
-      content: flightMessage,
-      timestamp: _formatTime(DateTime.now()),
-      type: MessageType.flight,
-    );
 
     await ref.read(chatViewModelProvider.notifier).sendMessage(flightMessage);
     _scrollToBottom();
@@ -353,26 +379,8 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
     // In a real app, this would use a location service (e.g., geolocator package)
     // For now, we'll use a mock location
     const locationMessage = 'Current location: Airport Terminal 1';
-    final newMessage = ChatMessage(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      senderId: 'me',
-      content: locationMessage,
-      timestamp: _formatTime(DateTime.now()),
-      type: MessageType.location,
-    );
 
     await ref.read(chatViewModelProvider.notifier).sendMessage(locationMessage);
     _scrollToBottom();
-  }
-
-  // Add this helper method to format time (copied from ChatViewModel for consistency)
-  String _formatTime(DateTime time) {
-    final now = DateTime.now();
-    final difference = now.difference(time);
-
-    if (difference.inMinutes < 1) return 'Just now';
-    if (difference.inMinutes < 60) return '${difference.inMinutes} min ago';
-    if (difference.inHours < 24) return '${difference.inHours} hours ago';
-    return '${difference.inDays} days ago';
   }
 }

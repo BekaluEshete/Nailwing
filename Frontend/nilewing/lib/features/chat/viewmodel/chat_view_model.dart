@@ -64,35 +64,40 @@ class ChatViewModel extends StateNotifier<ChatState> {
       // Mark messages as read (non-blocking)
       _chatService.markAsRead(contactId);
 
-      // Load messages for this chat
+      // ALWAYS load messages from database when selecting a chat
+      // This ensures we have the latest persisted messages
       final messages = await _chatService.getMessages(contactId);
 
-      // Update state with loaded messages (optimize by checking if already loaded)
-      if (!state.messages.containsKey(contactId) || 
-          state.messages[contactId]!.length != messages.length) {
-        final updatedMessages = Map<String, List<ChatMessage>>.from(
-          state.messages,
+      // Update state with loaded messages from database
+      final updatedMessages = Map<String, List<ChatMessage>>.from(
+        state.messages,
+      );
+      updatedMessages[contactId] = messages.map((msg) {
+        // Determine if message is from current user
+        final isMe = _currentUserId != null && msg.senderId == _currentUserId;
+        return ChatMessage(
+          id: msg.id,
+          senderId: isMe ? 'me' : msg.senderId,
+          content: msg.content,
+          timestamp: msg.timestamp,
+          type: msg.type,
         );
-        updatedMessages[contactId] = messages.map((msg) {
-          // Determine if message is from current user
-          final isMe = _currentUserId != null && msg.senderId == _currentUserId;
-          return ChatMessage(
-            id: msg.id,
-            senderId: isMe ? 'me' : msg.senderId,
-            content: msg.content,
-            timestamp: msg.timestamp,
-            type: msg.type,
-          );
-        }).toList();
+      }).toList();
 
-        state = state.copyWith(messages: updatedMessages);
-      }
+      state = state.copyWith(messages: updatedMessages);
 
       // Connect to WebSocket for real-time messages (non-blocking)
       _chatService.connectToRoom(
         _currentRoomName!,
         _handleWebSocketMessage,
-      );
+      ).then((channel) {
+        if (channel != null) {
+          // Connection successful - clear any previous connection errors
+          if (state.error != null && state.error!.contains('connection')) {
+            state = state.copyWith(error: null);
+          }
+        }
+      });
 
       // Update contact's unread count
       final updatedContacts = state.contacts.map((contact) {
@@ -180,27 +185,86 @@ class ChatViewModel extends StateNotifier<ChatState> {
     updatedMessages[state.selectedChatId!] = [...currentMessages, newMessage];
     state = state.copyWith(messages: updatedMessages);
 
-    // Send to server via WebSocket (async, don't block)
+    // Send to server - try WebSocket first, fallback to HTTP
+    // IMPORTANT: Keep the message in state even if sending fails initially
+    // The message will be saved to database via HTTP if WebSocket fails
+    bool messageSent = false;
+    
     try {
       if (_currentRoomName != null) {
-        _chatService.sendWebSocketMessage(_currentRoomName!, trimmedMessage);
+        // Try to send via WebSocket first
+        try {
+          _chatService.sendWebSocketMessage(_currentRoomName!, trimmedMessage);
+          messageSent = true;
+          // Clear any connection errors
+          if (state.error != null && state.error!.contains('connection')) {
+            state = state.copyWith(error: null);
+          }
+        } catch (e) {
+          // WebSocket failed, will try HTTP fallback
+          print('⚠️ [ChatViewModel] WebSocket send failed, trying HTTP: $e');
+        }
       } else {
-        // Fallback to HTTP (this will fail but try anyway)
-        await _chatService.sendMessage(state.selectedChatId!, trimmedMessage);
+        // Get room name first
+        try {
+          final roomName = await _chatService.getRoomName(state.selectedChatId!);
+          if (roomName.isNotEmpty) {
+            _currentRoomName = roomName;
+            try {
+              _chatService.sendWebSocketMessage(roomName, trimmedMessage);
+              messageSent = true;
+              if (state.error != null && state.error!.contains('connection')) {
+                state = state.copyWith(error: null);
+              }
+            } catch (e) {
+              print('⚠️ [ChatViewModel] WebSocket send failed, trying HTTP: $e');
+            }
+          }
+        } catch (e) {
+          print('⚠️ [ChatViewModel] Could not get room name: $e');
+        }
       }
     } catch (e) {
-      // Remove message from local state if sending fails
-      final failedMessages = Map<String, List<ChatMessage>>.from(
-        state.messages,
-      );
-      final failedCurrentMessages = failedMessages[state.selectedChatId!] ?? [];
-      failedMessages[state.selectedChatId!] = failedCurrentMessages
-          .where((m) => m.id != tempId)
-          .toList();
-      state = state.copyWith(
-        messages: failedMessages,
-        error: 'Failed to send message. Please try again.',
-      );
+      print('⚠️ [ChatViewModel] WebSocket error: $e');
+    }
+
+    // If WebSocket failed, try HTTP fallback to save message to database
+    if (!messageSent) {
+      try {
+        print('📡 [ChatViewModel] Sending message via HTTP fallback...');
+        final savedMessage = await _chatService.sendMessageViaHttp(
+          state.selectedChatId!,
+          trimmedMessage,
+        );
+        
+        // Update the message ID with the one from database
+        final updatedMessages = Map<String, List<ChatMessage>>.from(
+          state.messages,
+        );
+        final currentMessages = updatedMessages[state.selectedChatId!] ?? [];
+        final messageIndex = currentMessages.indexWhere((m) => m.id == tempId);
+        if (messageIndex != -1) {
+          currentMessages[messageIndex] = ChatMessage(
+            id: savedMessage.id,
+            senderId: 'me',
+            content: savedMessage.content,
+            timestamp: savedMessage.timestamp,
+            type: savedMessage.type,
+          );
+          updatedMessages[state.selectedChatId!] = currentMessages;
+          state = state.copyWith(messages: updatedMessages);
+        }
+        
+        // Clear error
+        state = state.copyWith(error: null);
+        print('✅ [ChatViewModel] Message saved via HTTP');
+      } catch (e) {
+        // HTTP also failed - keep message in state but show error
+        print('❌ [ChatViewModel] HTTP fallback also failed: $e');
+        state = state.copyWith(
+          error: 'Message saved locally. Will sync when connection is restored.',
+        );
+      }
     }
   }
 

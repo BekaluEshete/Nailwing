@@ -48,7 +48,7 @@ class ChatRoomDetail(generics.RetrieveAPIView):
     queryset = ChatRoom.objects.filter(is_active=True)
 
 
-class MessageList(generics.ListAPIView):
+class MessageList(generics.ListCreateAPIView):
     serializer_class = MessageSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -59,9 +59,29 @@ class MessageList(generics.ListAPIView):
         limit = int(self.request.query_params.get('limit', 50))
         offset = int(self.request.query_params.get('offset', 0))
         
+        # Return messages in ascending order (oldest first) for proper chat display
         return Message.objects.filter(
             room_id=room_id
-        ).select_related("user", "room").order_by('-timestamp')[offset:offset + limit]
+        ).select_related("user", "room").order_by('timestamp')[offset:offset + limit]
+
+    def perform_create(self, serializer):
+        """Create a message via HTTP (fallback when WebSocket fails)"""
+        room_id = self.kwargs["room_id"]
+        try:
+            room = ChatRoom.objects.get(id=room_id, is_active=True)
+            # Verify user has access to this room
+            # For personal chats, check if user is a participant
+            if room.room_type == "personal":
+                room_name_parts = room.name.split("_")
+                if len(room_name_parts) == 3:
+                    user1_id, user2_id = int(room_name_parts[1]), int(room_name_parts[2])
+                    if self.request.user.id not in [user1_id, user2_id]:
+                        from rest_framework.exceptions import PermissionDenied
+                        raise PermissionDenied("You don't have access to this chat room")
+            serializer.save(room=room, user=self.request.user)
+        except ChatRoom.DoesNotExist:
+            from rest_framework.exceptions import NotFound
+            raise NotFound("Chat room not found")
 
 
 class CreatePersonalChat(generics.CreateAPIView):

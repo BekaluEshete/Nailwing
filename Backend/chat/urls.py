@@ -9,6 +9,11 @@ urlpatterns = [
         views.MessageList.as_view(),
         name="message-list",
     ),
+    path(
+        "api/rooms/<uuid:room_id>/messages/create/",
+        views.MessageList.as_view(),
+        name="message-create",
+    ),
     path("api/users/search/", views.user_search, name="user-search"),
     path(
         "api/chats/personal/",

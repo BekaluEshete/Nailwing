@@ -205,21 +205,50 @@ class ChatService {
 
   // Send message via WebSocket
   void sendWebSocketMessage(String roomName, String message) {
+    final channel = _activeConnections[roomName];
+    if (channel == null) {
+      throw Exception('WebSocket not connected for room: $roomName');
+    }
+    
     try {
-      final channel = _activeConnections[roomName];
-      if (channel != null) {
-        final messageData = json.encode({
-          'type': 'message',
-          'message': message,
-          'message_type': 'text',
-        });
-        channel.sink.add(messageData);
-      } else {
-        throw Exception('WebSocket not connected');
-      }
+      final messageData = json.encode({
+        'type': 'message',
+        'message': message,
+        'message_type': 'text',
+      });
+      channel.sink.add(messageData);
     } catch (e) {
-      // Re-throw to allow caller to handle
-      rethrow;
+      // If sending fails, remove the connection and rethrow
+      _activeConnections.remove(roomName);
+      throw Exception('Failed to send message: $e');
+    }
+  }
+
+  // Send message via HTTP (fallback when WebSocket fails)
+  Future<ChatMessage> sendMessageViaHttp(String roomId, String message) async {
+    try {
+      final token = await _getAuthToken();
+      if (token == null) {
+        throw Exception('Not authenticated');
+      }
+
+      final url = '${AppConstants.chatMessagesEndpoint}/$roomId/messages/';
+      
+      final response = await _httpClient.post(
+        Uri.parse(url),
+        body: json.encode({
+          'content': message,
+          'message_type': 'text',
+        }),
+      );
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return _messageFromJson(data);
+      }
+      throw Exception('Failed to send message: ${response.statusCode}');
+    } catch (e) {
+      throw Exception('Error sending message via HTTP: $e');
     }
   }
 
