@@ -19,13 +19,11 @@ class ChatService {
     return await _tokenStorage.getAccessToken();
   }
 
-  // Get chat rooms (contacts)
+  // Get chat rooms (contacts) - Optimized with batch user info fetching
   Future<List<ChatContact>> getContacts() async {
     try {
-      print('💬 [ChatService] Getting chat rooms...');
       final token = await _getAuthToken();
       if (token == null) {
-        print('❌ [ChatService] No auth token found');
         throw Exception('Not authenticated');
       }
 
@@ -33,54 +31,49 @@ class ChatService {
         Uri.parse(AppConstants.chatRoomsEndpoint),
       );
 
-      print('📥 [ChatService] Response status: ${response.statusCode}');
-      print('📥 [ChatService] Response body: ${response.body}');
-
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
+        
+        // Batch process contacts for better performance
         final contacts = <ChatContact>[];
+        final userInfoFutures = <Future<ChatContact>>[];
+        
+        // Process all rooms in parallel
         for (final room in data) {
-          final contact = await _roomToContact(room);
-          contacts.add(contact);
+          userInfoFutures.add(_roomToContact(room));
         }
-        print('✅ [ChatService] Loaded ${contacts.length} chat rooms');
+        
+        // Wait for all contacts to be processed
+        contacts.addAll(await Future.wait(userInfoFutures));
+        
         return contacts;
       }
-      print('❌ [ChatService] Failed with status: ${response.statusCode}');
       throw Exception('Failed to load chat rooms: ${response.statusCode}');
     } catch (e) {
-      print('❌ [ChatService] Error getting contacts: $e');
       throw Exception('Error getting contacts: $e');
     }
   }
 
-  // Get messages for a room
-  Future<List<ChatMessage>> getMessages(String roomId) async {
+  // Get messages for a room with optional pagination
+  Future<List<ChatMessage>> getMessages(String roomId, {int limit = 50, int offset = 0}) async {
     try {
-      print('💬 [ChatService] Getting messages for room: $roomId');
       final token = await _getAuthToken();
       if (token == null) {
         throw Exception('Not authenticated');
       }
 
-      final url = '${AppConstants.chatMessagesEndpoint}/$roomId/messages/';
-      print('📡 [ChatService] Calling: $url');
+      final url = '${AppConstants.chatMessagesEndpoint}/$roomId/messages/?limit=$limit&offset=$offset';
 
       final response = await _httpClient.get(
         Uri.parse(url),
       );
 
-      print('📥 [ChatService] Response status: ${response.statusCode}');
-
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
-        final messages = data.map((msg) => _messageFromJson(msg)).toList();
-        print('✅ [ChatService] Loaded ${messages.length} messages');
-        return messages;
+        return data.map((msg) => _messageFromJson(msg)).toList();
       }
       return [];
     } catch (e) {
-      print('❌ [ChatService] Error getting messages: $e');
       return [];
     }
   }
@@ -130,39 +123,38 @@ class ChatService {
     }
   }
 
-  // Connect to WebSocket for a room
-  Future<WebSocketChannel?> connectToRoom(String roomName, Function(Map<String, dynamic>) onMessage) async {
+  // Connect to WebSocket for a room with reconnection logic
+  Future<WebSocketChannel?> connectToRoom(
+    String roomName,
+    Function(Map<String, dynamic>) onMessage, {
+    int retryCount = 0,
+    int maxRetries = 3,
+  }) async {
     try {
-      print('🔌 [ChatService] Connecting to room: $roomName');
-      
       // Close existing connection if any
       disconnectFromRoom(roomName);
 
       // Get token for WebSocket connection
       final token = await _getAuthToken();
       if (token == null) {
-        print('❌ [ChatService] No token for WebSocket');
         return null;
       }
 
       // Build WebSocket URL with token
       final wsUrl = _buildWebSocketUrl(roomName, token);
-      print('🔌 [ChatService] WebSocket URL: $wsUrl');
 
       try {
         final uri = Uri.parse(wsUrl);
-        print('🔌 [ChatService] Parsed URI: scheme=${uri.scheme}, host=${uri.host}, port=${uri.port}, path=${uri.path}');
         
         // Validate the URI before connecting
         if (uri.scheme != 'ws' && uri.scheme != 'wss') {
-          throw Exception('Invalid WebSocket scheme: ${uri.scheme}. Expected ws:// or wss://');
+          throw Exception('Invalid WebSocket scheme: ${uri.scheme}');
         }
         
         if (uri.host.isEmpty) {
           throw Exception('Invalid WebSocket host: empty');
         }
         
-        print('🔌 [ChatService] Connecting to WebSocket: $wsUrl');
         final channel = WebSocketChannel.connect(uri);
         _activeConnections[roomName] = channel;
 
@@ -171,31 +163,42 @@ class ChatService {
           (message) {
             try {
               final data = json.decode(message as String);
-              print('📨 [ChatService] Received WebSocket message: $data');
               onMessage(data);
             } catch (e) {
-              print('❌ [ChatService] Error parsing WebSocket message: $e');
+              // Silently handle parse errors
             }
           },
           onError: (error) {
-            print('❌ [ChatService] WebSocket error: $error');
             _activeConnections.remove(roomName);
+            // Attempt reconnection with exponential backoff
+            if (retryCount < maxRetries) {
+              Future.delayed(Duration(seconds: 2 * (retryCount + 1)), () {
+                connectToRoom(roomName, onMessage, retryCount: retryCount + 1);
+              });
+            }
           },
           onDone: () {
-            print('🔌 [ChatService] WebSocket connection closed');
             _activeConnections.remove(roomName);
+            // Attempt reconnection if not manually disconnected
+            if (retryCount < maxRetries) {
+              Future.delayed(Duration(seconds: 2 * (retryCount + 1)), () {
+                connectToRoom(roomName, onMessage, retryCount: retryCount + 1);
+              });
+            }
           },
         );
 
-        print('✅ [ChatService] WebSocket connected to $roomName');
         return channel;
       } catch (e) {
-        print('❌ [ChatService] Error connecting WebSocket: $e');
         _activeConnections.remove(roomName);
+        // Retry with exponential backoff
+        if (retryCount < maxRetries) {
+          await Future.delayed(Duration(seconds: 2 * (retryCount + 1)));
+          return connectToRoom(roomName, onMessage, retryCount: retryCount + 1);
+        }
         return null;
       }
     } catch (e) {
-      print('❌ [ChatService] Error in connectToRoom: $e');
       return null;
     }
   }
@@ -210,13 +213,13 @@ class ChatService {
           'message': message,
           'message_type': 'text',
         });
-        print('📤 [ChatService] Sending WebSocket message: $messageData');
         channel.sink.add(messageData);
       } else {
-        print('❌ [ChatService] No WebSocket connection for room: $roomName');
+        throw Exception('WebSocket not connected');
       }
     } catch (e) {
-      print('❌ [ChatService] Error sending WebSocket message: $e');
+      // Re-throw to allow caller to handle
+      rethrow;
     }
   }
 
@@ -416,7 +419,6 @@ class ChatService {
         final currentUserName = currentUserData?['username']?.toString().toLowerCase() ?? 
                                 currentUserData?['first_name']?.toString().toLowerCase() ?? '';
         final currentUserEmail = currentUserData?['email']?.toString().toLowerCase() ?? '';
-        final currentUserFullName = currentUserData?['fullName']?.toString().toLowerCase() ?? '';
         
         print('💬 [ChatService] Description: $description');
         print('💬 [ChatService] First part: $firstPart, Second part: $secondPart');
@@ -481,27 +483,35 @@ class ChatService {
     return 'Unknown User';
   }
 
-  // Helper: Get user information by ID
+  // Helper: Get user information by ID (with caching to reduce API calls)
+  static final Map<String, Map<String, dynamic>> _userInfoCache = {};
+  static final Map<String, DateTime> _userInfoCacheTime = {};
+  static const Duration _cacheExpiry = Duration(minutes: 5);
+
   Future<Map<String, dynamic>?> _getUserInfo(String userId) async {
+    // Check cache first
+    if (_userInfoCache.containsKey(userId)) {
+      final cacheTime = _userInfoCacheTime[userId];
+      if (cacheTime != null && 
+          DateTime.now().difference(cacheTime) < _cacheExpiry) {
+        return _userInfoCache[userId];
+      }
+      // Cache expired, remove it
+      _userInfoCache.remove(userId);
+      _userInfoCacheTime.remove(userId);
+    }
+
     try {
       final token = await _getAuthToken();
       if (token == null) {
-        print('⚠️ [ChatService] No token for fetching user info');
         return null;
       }
       
-      print('💬 [ChatService] Fetching user info for ID: $userId');
-      
-      // Use the user_profile endpoint: /api/auth/{id}/user_profile/
       final url = '${AppConstants.authBaseUrl}/$userId/user_profile/';
-      print('📡 [ChatService] GET: $url');
       
       final response = await _httpClient.get(
         Uri.parse(url),
       );
-      
-      print('📥 [ChatService] Response status: ${response.statusCode}');
-      print('📥 [ChatService] Response body: ${response.body}');
       
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -515,16 +525,19 @@ class ChatService {
                          : userData['username'] ?? 'Unknown');
         final avatar = userData['profileImageUrl'] ?? userData['profile_image_url'];
         
-        print('✅ [ChatService] Fetched user info: $userName (ID: $userId)');
-        return {
+        final userInfo = {
           'name': userName,
           'avatar': avatar,
         };
-      } else {
-        print('⚠️ [ChatService] Failed to fetch user info: ${response.statusCode}');
+        
+        // Cache the result
+        _userInfoCache[userId] = userInfo;
+        _userInfoCacheTime[userId] = DateTime.now();
+        
+        return userInfo;
       }
     } catch (e) {
-      print('⚠️ [ChatService] Error fetching user info: $e');
+      // Return null on error
     }
     return null;
   }

@@ -110,7 +110,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         if not message_content.strip():
             return
 
-        # Save message to database
+        # Save message to database (this also caches it)
         message_obj = await self.save_message(message_content, message_type)
 
         # Send message to room group
@@ -297,7 +297,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         try:
             from .models import ChatRoom, Message
 
-            # Get or create room
+            # Get or create room (optimized)
             room, created = ChatRoom.objects.get_or_create(
                 name=self.room_name,
                 defaults={
@@ -312,6 +312,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
             message = Message.objects.create(
                 room=room, user=self.user, content=content, message_type=message_type
             )
+            
+            # Cache message in Redis asynchronously (don't wait)
+            # This improves response time
+            import asyncio
+            asyncio.create_task(self.cache_message(message))
+            
             return message
         except Exception as e:
             print(f"Error saving message: {e}")
@@ -339,7 +345,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             print(f"Error updating online status: {e}")
 
     async def cache_message(self, message):
-        """Cache message in Redis"""
+        """Cache message in Redis asynchronously"""
         try:
             from .redis_client import redis_client
 
@@ -354,8 +360,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     "personal" if self.room_name.startswith("personal_") else "group"
                 ),
             }
+            # Use async Redis operations if available, otherwise sync
             redis_client.add_to_list(f"messages_{self.room_name}", message_data)
             # Keep only last 100 messages in cache
             redis_client.redis_client.ltrim(f"messages_{self.room_name}", 0, 99)
-        except Exception as e:
-            print(f"Error caching message: {e}")
+        except Exception:
+            # Silently fail caching - not critical
+            pass

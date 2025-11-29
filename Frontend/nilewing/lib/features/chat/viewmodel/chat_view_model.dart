@@ -51,49 +51,45 @@ class ChatViewModel extends StateNotifier<ChatState> {
   }
 
   Future<void> selectChat(String contactId) async {
-    print('💬 [ChatViewModel] Selecting chat: $contactId');
     state = state.copyWith(selectedChatId: contactId, error: null);
 
     try {
       // Get room name from contact ID
       _currentRoomName = await _chatService.getRoomName(contactId);
-      print(
-        '💬 [ChatViewModel] Room name for contact $contactId: $_currentRoomName',
-      );
 
       if (_currentRoomName == null || _currentRoomName!.isEmpty) {
         throw Exception('Could not get room name for contact');
       }
 
-      // Mark messages as read
-      await _chatService.markAsRead(contactId);
+      // Mark messages as read (non-blocking)
+      _chatService.markAsRead(contactId);
 
       // Load messages for this chat
       final messages = await _chatService.getMessages(contactId);
 
-      // Update state with loaded messages
-      final updatedMessages = Map<String, List<ChatMessage>>.from(
-        state.messages,
-      );
-      updatedMessages[contactId] = messages.map((msg) {
-        // Determine if message is from current user
-        final isMe = _currentUserId != null && msg.senderId == _currentUserId;
-        return ChatMessage(
-          id: msg.id,
-          senderId: isMe ? 'me' : msg.senderId,
-          content: msg.content,
-          timestamp: msg.timestamp,
-          type: msg.type,
+      // Update state with loaded messages (optimize by checking if already loaded)
+      if (!state.messages.containsKey(contactId) || 
+          state.messages[contactId]!.length != messages.length) {
+        final updatedMessages = Map<String, List<ChatMessage>>.from(
+          state.messages,
         );
-      }).toList();
+        updatedMessages[contactId] = messages.map((msg) {
+          // Determine if message is from current user
+          final isMe = _currentUserId != null && msg.senderId == _currentUserId;
+          return ChatMessage(
+            id: msg.id,
+            senderId: isMe ? 'me' : msg.senderId,
+            content: msg.content,
+            timestamp: msg.timestamp,
+            type: msg.type,
+          );
+        }).toList();
 
-      state = state.copyWith(messages: updatedMessages);
+        state = state.copyWith(messages: updatedMessages);
+      }
 
-      // Connect to WebSocket for real-time messages
-      print(
-        '🔌 [ChatViewModel] Connecting to WebSocket for room: $_currentRoomName',
-      );
-      await _chatService.connectToRoom(
+      // Connect to WebSocket for real-time messages (non-blocking)
+      _chatService.connectToRoom(
         _currentRoomName!,
         _handleWebSocketMessage,
       );
@@ -108,14 +104,11 @@ class ChatViewModel extends StateNotifier<ChatState> {
 
       state = state.copyWith(contacts: updatedContacts);
     } catch (e) {
-      print('❌ [ChatViewModel] Error selecting chat: $e');
       state = state.copyWith(error: e.toString());
     }
   }
 
   void _handleWebSocketMessage(Map<String, dynamic> data) {
-    print('📨 [ChatViewModel] Handling WebSocket message: $data');
-
     final messageType = data['type'];
 
     if (messageType == 'message' && state.selectedChatId != null) {
@@ -135,27 +128,23 @@ class ChatViewModel extends StateNotifier<ChatState> {
         type: _parseMessageType(data['message_type'] ?? 'text'),
       );
 
-      // Update state with new message
+      // Update state with new message (optimized duplicate check)
       final updatedMessages = Map<String, List<ChatMessage>>.from(
         state.messages,
       );
       final currentMessages = updatedMessages[state.selectedChatId!] ?? [];
 
-      // Avoid duplicates
-      if (!currentMessages.any((m) => m.id == newMessage.id)) {
+      // Avoid duplicates using Set for O(1) lookup
+      final existingIds = currentMessages.map((m) => m.id).toSet();
+      if (!existingIds.contains(newMessage.id)) {
         updatedMessages[state.selectedChatId!] = [
           ...currentMessages,
           newMessage,
         ];
         state = state.copyWith(messages: updatedMessages);
       }
-    } else if (messageType == 'typing') {
-      // Handle typing indicator (can be implemented later)
-      print('⌨️ [ChatViewModel] User typing: ${data['username']}');
-    } else if (messageType == 'user_joined' || messageType == 'user_left') {
-      // Handle user join/leave (for group chats)
-      print('👥 [ChatViewModel] User ${messageType}: ${data['username']}');
     }
+    // Typing indicators and user join/leave can be handled here if needed
   }
 
   void clearSelectedChat() {
@@ -174,44 +163,44 @@ class ChatViewModel extends StateNotifier<ChatState> {
     if (message.trim().isEmpty || state.selectedChatId == null) return;
 
     final tempId = DateTime.now().millisecondsSinceEpoch.toString();
+    final trimmedMessage = message.trim();
     final newMessage = ChatMessage(
       id: tempId,
       senderId: 'me',
-      content: message.trim(),
+      content: trimmedMessage,
       timestamp: _formatTime(DateTime.now()),
       type: MessageType.text,
     );
 
+    // Update local state immediately for better UX
+    final updatedMessages = Map<String, List<ChatMessage>>.from(
+      state.messages,
+    );
+    final currentMessages = updatedMessages[state.selectedChatId!] ?? [];
+    updatedMessages[state.selectedChatId!] = [...currentMessages, newMessage];
+    state = state.copyWith(messages: updatedMessages);
+
+    // Send to server via WebSocket (async, don't block)
     try {
-      // Update local state immediately for better UX
-      final updatedMessages = Map<String, List<ChatMessage>>.from(
-        state.messages,
-      );
-      final currentMessages = updatedMessages[state.selectedChatId!] ?? [];
-      updatedMessages[state.selectedChatId!] = [...currentMessages, newMessage];
-
-      state = state.copyWith(messages: updatedMessages);
-
-      // Send to server via WebSocket
       if (_currentRoomName != null) {
-        _chatService.sendWebSocketMessage(_currentRoomName!, message.trim());
+        _chatService.sendWebSocketMessage(_currentRoomName!, trimmedMessage);
       } else {
-        // Fallback to HTTP
-        await _chatService.sendMessage(state.selectedChatId!, message.trim());
+        // Fallback to HTTP (this will fail but try anyway)
+        await _chatService.sendMessage(state.selectedChatId!, trimmedMessage);
       }
     } catch (e) {
-      print('❌ [ChatViewModel] Error sending message: $e');
-      state = state.copyWith(error: 'Failed to send message: $e');
-
       // Remove message from local state if sending fails
-      final updatedMessages = Map<String, List<ChatMessage>>.from(
+      final failedMessages = Map<String, List<ChatMessage>>.from(
         state.messages,
       );
-      final currentMessages = updatedMessages[state.selectedChatId!] ?? [];
-      updatedMessages[state.selectedChatId!] = currentMessages
+      final failedCurrentMessages = failedMessages[state.selectedChatId!] ?? [];
+      failedMessages[state.selectedChatId!] = failedCurrentMessages
           .where((m) => m.id != tempId)
           .toList();
-      state = state.copyWith(messages: updatedMessages);
+      state = state.copyWith(
+        messages: failedMessages,
+        error: 'Failed to send message. Please try again.',
+      );
     }
   }
 

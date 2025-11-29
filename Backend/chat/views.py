@@ -33,7 +33,10 @@ class ChatRoomList(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return ChatRoom.objects.filter(is_active=True)
+        # Optimize query with select_related to avoid N+1 queries
+        return ChatRoom.objects.filter(
+            is_active=True
+        ).select_related('created_by').order_by('-created_at')
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
@@ -51,7 +54,14 @@ class MessageList(generics.ListAPIView):
 
     def get_queryset(self):
         room_id = self.kwargs["room_id"]
-        return Message.objects.filter(room_id=room_id).select_related("user")[:50]
+        # Optimize with select_related and order by timestamp descending
+        # Add pagination support
+        limit = int(self.request.query_params.get('limit', 50))
+        offset = int(self.request.query_params.get('offset', 0))
+        
+        return Message.objects.filter(
+            room_id=room_id
+        ).select_related("user", "room").order_by('-timestamp')[offset:offset + limit]
 
 
 class CreatePersonalChat(generics.CreateAPIView):
