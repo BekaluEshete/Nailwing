@@ -2,6 +2,8 @@ from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db.models import Q
+from django.utils import timezone
+from datetime import timedelta
 from .models import Match, MatchFilter
 from .serializers import MatchSerializer, MatchFilterSerializer
 from .matching_service import MatchingService
@@ -29,14 +31,72 @@ class MatchViewSet(viewsets.ReadOnlyModelViewSet):
         if flight_id:
             try:
                 flight = Flight.objects.get(id=flight_id, user=user)
+                print(f"🔍 [MatchViewSet] Using specified flight: {flight.flight_number} ({flight.departure_airport} → {flight.arrival_airport})")
             except Flight.DoesNotExist:
                 return Response(
                     {'error': 'Flight not found'},
                     status=status.HTTP_404_NOT_FOUND
                 )
+        else:
+            # Check if user has any flights
+            all_flights = Flight.objects.filter(user=user)
+            visible_flights = Flight.objects.filter(user=user, is_visible=True)
+            upcoming_flights = Flight.objects.filter(
+                user=user,
+                is_visible=True,
+                departure_datetime__gte=timezone.now() - timedelta(hours=2)
+            )
+            
+            print(f"🔍 [MatchViewSet] User {user.email} has:")
+            print(f"   - Total flights: {all_flights.count()}")
+            print(f"   - Visible flights: {visible_flights.count()}")
+            print(f"   - Upcoming flights (for matching): {upcoming_flights.count()}")
+            
+            if all_flights.count() == 0:
+                return Response({
+                    'matches': [],
+                    'message': 'No flights found. Please add a flight to find matches.',
+                    'debug': {
+                        'has_flights': False,
+                        'has_visible_flights': False,
+                        'has_upcoming_flights': False
+                    }
+                })
+            
+            if visible_flights.count() == 0:
+                return Response({
+                    'matches': [],
+                    'message': 'No visible flights found. Make sure your flights are set to visible for matching.',
+                    'debug': {
+                        'has_flights': True,
+                        'has_visible_flights': False,
+                        'has_upcoming_flights': False
+                    }
+                })
         
         # Find matches using matching service
         match_data_list = MatchingService.find_matches_for_user(user, flight)
+        
+        print(f"🔍 [MatchViewSet] Found {len(match_data_list)} potential matches")
+        
+        if not flight:
+            # Get the flight that was used for matching
+            flight = Flight.objects.filter(
+                user=user,
+                is_visible=True,
+                departure_datetime__gte=timezone.now() - timedelta(hours=2)
+            ).order_by('departure_datetime').first()
+        
+        if not flight:
+            return Response({
+                'matches': [],
+                'message': 'No suitable flight found for matching. Flights must be visible and within 2 hours of departure.',
+                'debug': {
+                    'has_flights': Flight.objects.filter(user=user).exists(),
+                    'has_visible_flights': Flight.objects.filter(user=user, is_visible=True).exists(),
+                    'has_upcoming_flights': False
+                }
+            })
         
         # Create or update match records
         matches = []
@@ -58,7 +118,40 @@ class MatchViewSet(viewsets.ReadOnlyModelViewSet):
             matches.append(match)
         
         serializer = self.get_serializer(matches, many=True)
-        return Response(serializer.data)
+        
+        # Add debug info if no matches found
+        response_data = serializer.data
+        if len(response_data) == 0:
+            # Count other users with visible flights
+            other_users_count = Flight.objects.filter(
+                is_visible=True,
+                user__isnull=False
+            ).exclude(user=user).values('user').distinct().count()
+            
+            response_data = {
+                'matches': [],
+                'message': 'No matches found. This could be because:',
+                'reasons': [
+                    'No other users with compatible flights',
+                    'Flight times don\'t overlap',
+                    'No matching airports or routes',
+                ],
+                'debug': {
+                    'user_flight': {
+                        'id': str(flight.id),
+                        'flight_number': flight.flight_number,
+                        'departure': flight.departure_airport,
+                        'arrival': flight.arrival_airport,
+                        'departure_time': flight.departure_datetime.isoformat(),
+                        'is_visible': flight.is_visible,
+                        'has_layover': flight.has_layover,
+                    },
+                    'other_users_with_flights': other_users_count,
+                    'total_visible_flights': Flight.objects.filter(is_visible=True).exclude(user=user).count(),
+                }
+            }
+        
+        return Response(response_data)
     
     @action(detail=True, methods=['post'])
     def like(self, request, pk=None):
