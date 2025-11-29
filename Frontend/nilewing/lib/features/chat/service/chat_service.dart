@@ -153,6 +153,16 @@ class ChatService {
         final uri = Uri.parse(wsUrl);
         print('🔌 [ChatService] Parsed URI: scheme=${uri.scheme}, host=${uri.host}, port=${uri.port}, path=${uri.path}');
         
+        // Validate the URI before connecting
+        if (uri.scheme != 'ws' && uri.scheme != 'wss') {
+          throw Exception('Invalid WebSocket scheme: ${uri.scheme}. Expected ws:// or wss://');
+        }
+        
+        if (uri.host.isEmpty) {
+          throw Exception('Invalid WebSocket host: empty');
+        }
+        
+        print('🔌 [ChatService] Connecting to WebSocket: $wsUrl');
         final channel = WebSocketChannel.connect(uri);
         _activeConnections[roomName] = channel;
 
@@ -233,30 +243,41 @@ class ChatService {
     final baseUrl = AppConstants.baseUrl;
     print('🔌 [ChatService] Base URL: $baseUrl');
     
-    // Parse the base URL to extract components
-    Uri? baseUri;
-    try {
-      baseUri = Uri.parse(baseUrl);
-    } catch (e) {
-      print('❌ [ChatService] Error parsing base URL: $e');
-      // Fallback: manual parsing
-      String wsProtocol = 'wss://';
-      String host = baseUrl.replaceAll('https://', '').replaceAll('http://', '');
-      if (baseUrl.startsWith('http://')) {
-        wsProtocol = 'ws://';
-      }
-      final cleanRoomName = roomName.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
-      return '$wsProtocol$host/ws/chat/$cleanRoomName/?token=$token';
+    // Determine WebSocket protocol based on base URL
+    String wsProtocol = 'wss://';
+    String host;
+    
+    // Parse the base URL to extract host
+    if (baseUrl.startsWith('https://')) {
+      wsProtocol = 'wss://';
+      host = baseUrl.replaceAll('https://', '');
+    } else if (baseUrl.startsWith('http://')) {
+      wsProtocol = 'ws://';
+      host = baseUrl.replaceAll('http://', '');
+    } else {
+      // Assume https if no protocol specified
+      wsProtocol = 'wss://';
+      host = baseUrl;
     }
     
-    // Determine WebSocket protocol
-    String wsProtocol = baseUri.scheme == 'https' ? 'wss://' : 'ws://';
+    // Remove any trailing slashes
+    host = host.replaceAll(RegExp(r'/$'), '');
     
-    // Build host (without port for default ports)
-    String host = baseUri.host;
-    // Only include port if it's not a default port
-    if (baseUri.hasPort && baseUri.port != 80 && baseUri.port != 443) {
-      host = '${baseUri.host}:${baseUri.port}';
+    // Remove port if it's 0 or default ports (for cloud services)
+    // Cloud services like Render don't need explicit ports
+    if (host.contains(':0') || host.contains(':80') || host.contains(':443')) {
+      host = host.split(':')[0];
+    }
+    
+    // For cloud services, ensure no port is included
+    if (host.contains('onrender.com') || 
+        host.contains('herokuapp.com') ||
+        host.contains('railway.app')) {
+      // Remove any port that might be in the host
+      final parts = host.split(':');
+      if (parts.length > 1) {
+        host = parts[0];
+      }
     }
 
     // Clean room name (remove any special characters except underscore and hyphen)
