@@ -179,22 +179,36 @@ class MatchViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=True, methods=["post"])
     def like(self, request, pk=None):
-        """Like a match"""
+        """Send connection request (like a match)"""
         match = self.get_object()
         user = request.user
 
-        if match.user1 == user:
-            match.user1_liked = True
-            match.user1_viewed = True
-        elif match.user2 == user:
-            match.user2_liked = True
-            match.user2_viewed = True
-        else:
+        # Check if user is part of this match
+        if match.user1 != user and match.user2 != user:
             return Response(
                 {"error": "Not authorized"}, status=status.HTTP_403_FORBIDDEN
             )
 
-        match.mark_matched()
+        # Determine which user is sending the request
+        if match.user1 == user:
+            match.user1_liked = True
+            match.user1_viewed = True
+            # If user2 already liked, it's a match; otherwise it's a connection request
+            if match.user2_liked:
+                match.status = "matched"
+                match.matched_at = timezone.now()
+            else:
+                match.status = "connection_requested"
+        elif match.user2 == user:
+            match.user2_liked = True
+            match.user2_viewed = True
+            # If user1 already liked, it's a match; otherwise it's a connection request
+            if match.user1_liked:
+                match.status = "matched"
+                match.matched_at = timezone.now()
+            else:
+                match.status = "connection_requested"
+
         match.save()
 
         serializer = self.get_serializer(match)
@@ -202,16 +216,88 @@ class MatchViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=True, methods=["post"])
     def reject(self, request, pk=None):
-        """Reject a match"""
+        """Reject a match or connection request"""
         match = self.get_object()
         user = request.user
 
         if match.user1 == user or match.user2 == user:
             match.status = "rejected"
+            # Reset liked flags when rejected
+            if match.user1 == user:
+                match.user1_liked = False
+            else:
+                match.user2_liked = False
             match.save()
-            return Response({"message": "Match rejected"})
+            return Response({"message": "Connection request rejected"})
 
         return Response({"error": "Not authorized"}, status=status.HTTP_403_FORBIDDEN)
+
+    @action(detail=True, methods=["post"])
+    def accept_connection(self, request, pk=None):
+        """Accept a connection request"""
+        match = self.get_object()
+        user = request.user
+
+        # Check if this is a connection request for the current user
+        if match.status != "connection_requested":
+            return Response(
+                {"error": "This is not a connection request"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Determine which user is accepting
+        if match.user1 == user:
+            if not match.user2_liked:  # User2 sent the request
+                return Response(
+                    {
+                        "error": "You did not receive a connection request from this user"
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            match.user1_liked = True
+            match.user1_viewed = True
+        elif match.user2 == user:
+            if not match.user1_liked:  # User1 sent the request
+                return Response(
+                    {
+                        "error": "You did not receive a connection request from this user"
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            match.user2_liked = True
+            match.user2_viewed = True
+        else:
+            return Response(
+                {"error": "Not authorized"}, status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Both users have liked, mark as matched
+        match.status = "matched"
+        match.matched_at = timezone.now()
+        match.save()
+
+        serializer = self.get_serializer(match)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=["get"])
+    def connection_requests(self, request):
+        """Get pending connection requests for the current user"""
+        user = request.user
+
+        # Find matches where:
+        # 1. Current user is user1 and user2 sent request (user2_liked=True, user1_liked=False)
+        # 2. Current user is user2 and user1 sent request (user1_liked=True, user2_liked=False)
+        # 3. Status is 'connection_requested'
+        requests = Match.objects.filter(
+            Q(
+                Q(user1=user, user2_liked=True, user1_liked=False)
+                | Q(user2=user, user1_liked=True, user2_liked=False)
+            ),
+            status="connection_requested",
+        ).order_by("-created_at")
+
+        serializer = self.get_serializer(requests, many=True)
+        return Response(serializer.data)
 
     @action(detail=True, methods=["post"])
     def view(self, request, pk=None):

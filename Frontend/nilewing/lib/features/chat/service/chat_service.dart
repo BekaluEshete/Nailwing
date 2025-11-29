@@ -1,9 +1,9 @@
 // features/chat/services/chat_service.dart
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:nilewing/core/utils/app_constants.dart';
 import 'package:nilewing/core/utils/token_storage.dart';
+import 'package:nilewing/core/utils/http_client.dart';
 import 'package:nilewing/features/chat/model/chat_model.dart';
 
 class ChatService {
@@ -12,6 +12,7 @@ class ChatService {
   ChatService._internal();
 
   final TokenStorage _tokenStorage = TokenStorage();
+  final HttpClient _httpClient = HttpClient();
   final Map<String, WebSocketChannel?> _activeConnections = {};
 
   Future<String?> _getAuthToken() async {
@@ -28,12 +29,8 @@ class ChatService {
         throw Exception('Not authenticated');
       }
 
-      final response = await http.get(
+      final response = await _httpClient.get(
         Uri.parse(AppConstants.chatRoomsEndpoint),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
       );
 
       print('📥 [ChatService] Response status: ${response.statusCode}');
@@ -41,7 +38,11 @@ class ChatService {
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
-        final contacts = data.map((room) => _roomToContact(room)).toList();
+        final contacts = <ChatContact>[];
+        for (final room in data) {
+          final contact = await _roomToContact(room);
+          contacts.add(contact);
+        }
         print('✅ [ChatService] Loaded ${contacts.length} chat rooms');
         return contacts;
       }
@@ -65,12 +66,8 @@ class ChatService {
       final url = '${AppConstants.chatMessagesEndpoint}/$roomId/messages/';
       print('📡 [ChatService] Calling: $url');
 
-      final response = await http.get(
+      final response = await _httpClient.get(
         Uri.parse(url),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
       );
 
       print('📥 [ChatService] Response status: ${response.statusCode}');
@@ -91,18 +88,32 @@ class ChatService {
   // Create or get personal chat room
   Future<ChatContact> createPersonalChat(String userId) async {
     try {
-      print('💬 [ChatService] Creating personal chat with user: $userId');
+      print('💬 [ChatService] Creating personal chat with user ID: $userId');
+      
+      // Verify user ID is valid
+      if (userId.isEmpty || userId == '0' || userId == 'null') {
+        throw Exception('Invalid user ID provided: $userId');
+      }
+      
+      // Get current user ID to verify we're not chatting with ourselves
+      final currentUserData = await _tokenStorage.getUserData();
+      final currentUserId = currentUserData?['id']?.toString();
+      
+      print('💬 [ChatService] Current user ID: $currentUserId');
+      print('💬 [ChatService] Target user ID: $userId');
+      
+      if (currentUserId != null && userId == currentUserId) {
+        throw Exception('Cannot create chat with yourself. User ID matches current user.');
+      }
+      
       final token = await _getAuthToken();
       if (token == null) {
         throw Exception('Not authenticated');
       }
 
-      final response = await http.post(
+      print('💬 [ChatService] Sending request to create chat with user_id: $userId');
+      final response = await _httpClient.post(
         Uri.parse('${AppConstants.chatBaseUrl}/api/chats/personal/'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
         body: json.encode({'user_id': userId}),
       );
 
@@ -110,7 +121,7 @@ class ChatService {
 
       if (response.statusCode == 201 || response.statusCode == 200) {
         final data = json.decode(response.body);
-        return _roomToContact(data);
+        return await _roomToContact(data);
       }
       throw Exception('Failed to create chat: ${response.statusCode}');
     } catch (e) {
@@ -295,16 +306,72 @@ class ChatService {
   }
 
   // Helper: Convert backend room to frontend contact
-  ChatContact _roomToContact(Map<String, dynamic> room) {
+  Future<ChatContact> _roomToContact(Map<String, dynamic> room) async {
+    final roomName = room['name']?.toString() ?? '';
     final createdBy = room['created_by'] ?? {};
-    final name = createdBy['first_name'] != null && createdBy['last_name'] != null
-        ? '${createdBy['first_name']} ${createdBy['last_name']}'
-        : createdBy['username'] ?? createdBy['email'] ?? 'Unknown';
+    final createdById = createdBy['id']?.toString();
+    
+    // Get current user ID
+    final currentUserData = await _tokenStorage.getUserData();
+    final currentUserId = currentUserData?['id']?.toString();
+    
+    String name = 'Unknown';
+    String? avatar;
+    
+    // For personal chats, parse the room name to find the other user
+    if (roomName.startsWith('personal_')) {
+      // Room name format: personal_16_18 (where 16 and 18 are user IDs)
+      final parts = roomName.split('_');
+      if (parts.length >= 3) {
+        final user1Id = parts[1];
+        final user2Id = parts[2];
+        
+        // Determine which user is the "other" user
+        String otherUserId;
+        if (currentUserId == user1Id) {
+          otherUserId = user2Id;
+        } else if (currentUserId == user2Id) {
+          otherUserId = user1Id;
+        } else {
+          // If current user is not in the room name, use the one that's not created_by
+          otherUserId = createdById == user1Id ? user2Id : user1Id;
+        }
+        
+        print('💬 [ChatService] Personal chat - Current user: $currentUserId, Other user: $otherUserId');
+        
+        // Fetch the other user's information
+        if (otherUserId.isNotEmpty) {
+          try {
+            final otherUserInfo = await _getUserInfo(otherUserId);
+            if (otherUserInfo != null) {
+              name = otherUserInfo['name'] ?? 'Unknown';
+              avatar = otherUserInfo['avatar'];
+              print('💬 [ChatService] Found other user: $name (ID: $otherUserId)');
+            } else {
+              // Fallback: use description which contains the other user's name
+              name = _extractOtherUserNameFromDescription(room['description']?.toString() ?? '', currentUserData);
+            }
+          } catch (e) {
+            print('⚠️ [ChatService] Error fetching other user info: $e');
+            // Fallback to description parsing
+            name = _extractOtherUserNameFromDescription(room['description']?.toString() ?? '', currentUserData);
+          }
+        } else {
+          // If we couldn't determine other user ID, use description
+          name = _extractOtherUserNameFromDescription(room['description']?.toString() ?? '', currentUserData);
+        }
+      }
+    } else {
+      // For group chats, use created_by or room name
+      name = createdBy['first_name'] != null && createdBy['last_name'] != null
+          ? '${createdBy['first_name']} ${createdBy['last_name']}'
+          : createdBy['username'] ?? roomName;
+    }
     
     return ChatContact(
       id: room['id']?.toString() ?? '',
       name: name,
-      avatar: null, // Backend doesn't return avatar in room serializer
+      avatar: avatar,
       isOnline: false, // Would need to check UserProfile
       lastMessage: '', // Would need to get last message
       timestamp: _formatTimestamp(room['created_at']),
@@ -312,6 +379,98 @@ class ChatService {
       flight: '', // Not in room data
       gate: '', // Not in room data
     );
+  }
+  
+  // Helper: Extract other user's name from description
+  String _extractOtherUserNameFromDescription(String description, Map<String, dynamic>? currentUserData) {
+    if (description.contains('between')) {
+      // Description format: "Personal chat between be and Abrsh"
+      final parts = description.split(' and ');
+      if (parts.length >= 2) {
+        // Get both names
+        final firstPart = parts[0].replaceAll('Personal chat between', '').trim();
+        final secondPart = parts[1].trim();
+        
+        // Get current user's username/name
+        final currentUserName = currentUserData?['username']?.toString().toLowerCase() ?? 
+                                currentUserData?['first_name']?.toString().toLowerCase() ?? '';
+        
+        print('💬 [ChatService] Description: $description');
+        print('💬 [ChatService] First part: $firstPart, Second part: $secondPart');
+        print('💬 [ChatService] Current user name: $currentUserName');
+        
+        // Determine which name is NOT the current user
+        // Check if first part matches current user (more flexible matching)
+        final firstPartLower = firstPart.toLowerCase();
+        final currentUserNameLower = currentUserName.toLowerCase();
+        
+        bool firstPartIsCurrentUser = false;
+        
+        // Check various ways the name might match
+        if (firstPartLower == currentUserNameLower ||
+            firstPartLower.contains(currentUserNameLower) ||
+            currentUserNameLower.contains(firstPartLower) ||
+            (currentUserData?['email']?.toString().toLowerCase().contains(firstPartLower) ?? false)) {
+          firstPartIsCurrentUser = true;
+        }
+        
+        if (firstPartIsCurrentUser) {
+          // First part is current user, so second part is the other user
+          print('💬 [ChatService] First part "$firstPart" is current user, using second part: "$secondPart"');
+          return secondPart.trim();
+        } else {
+          // First part is the other user
+          print('💬 [ChatService] First part "$firstPart" is other user, using it');
+          return firstPart.trim();
+        }
+      }
+    }
+    return 'Unknown';
+  }
+
+  // Helper: Get user information by ID
+  Future<Map<String, dynamic>?> _getUserInfo(String userId) async {
+    try {
+      final token = await _getAuthToken();
+      if (token == null) {
+        print('⚠️ [ChatService] No token for fetching user info');
+        return null;
+      }
+      
+      print('💬 [ChatService] Fetching user info for ID: $userId');
+      
+      // Try profile endpoint first
+      final response = await _httpClient.get(
+        Uri.parse('${AppConstants.apiBaseUrl}/auth/profile/$userId/'),
+      );
+      
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        String userName = 'Unknown';
+        
+        // Try different field names for the name
+        if (data['fullName'] != null) {
+          userName = data['fullName'].toString();
+        } else if (data['first_name'] != null && data['last_name'] != null) {
+          userName = '${data['first_name']} ${data['last_name']}';
+        } else if (data['username'] != null) {
+          userName = data['username'].toString();
+        } else if (data['email'] != null) {
+          userName = data['email'].toString().split('@')[0]; // Use email prefix as fallback
+        }
+        
+        print('✅ [ChatService] Fetched user info: $userName (ID: $userId)');
+        return {
+          'name': userName,
+          'avatar': data['profileImageUrl'] ?? data['profileImage'],
+        };
+      } else {
+        print('⚠️ [ChatService] Failed to fetch user info: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('⚠️ [ChatService] Error fetching user info: $e');
+    }
+    return null;
   }
 
   // Helper: Convert backend message to frontend message
@@ -377,12 +536,8 @@ class ChatService {
       }
 
       // Get room details to extract room name
-      final response = await http.get(
+      final response = await _httpClient.get(
         Uri.parse('${AppConstants.chatRoomsEndpoint}$roomId/'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
       );
 
       if (response.statusCode == 200) {

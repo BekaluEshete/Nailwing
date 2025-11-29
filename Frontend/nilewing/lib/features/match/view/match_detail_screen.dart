@@ -1,9 +1,12 @@
 // features/matches/views/match_detail_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nilewing/features/match/view/user_detail_screen.dart';
 import 'package:nilewing/features/match/viewModel/match_view_model.dart';
 import 'package:nilewing/features/match/model/match_model.dart';
+import 'package:nilewing/features/chat/viewmodel/chat_view_model.dart';
+import 'package:nilewing/core/utils/token_storage.dart';
 
 class MatchDetailScreen extends ConsumerWidget {
   final Match match;
@@ -18,6 +21,13 @@ class MatchDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final viewModel = ref.read(matchViewModelProvider.notifier);
+    final matchState = ref.watch(matchViewModelProvider);
+    
+    // Get the latest match from state if available, otherwise use the passed match
+    final currentMatch = matchState.matches.firstWhere(
+      (m) => m.id == match.id,
+      orElse: () => match,
+    );
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -36,42 +46,42 @@ class MatchDetailScreen extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // User header
-            _buildUserHeader(context, ref),
+            _buildUserHeader(context, ref, currentMatch),
             const SizedBox(height: 20),
 
             // Compatibility section
-            _buildCompatibilitySection(),
+            _buildCompatibilitySection(currentMatch),
             const SizedBox(height: 20),
 
             // Description
-            _buildDescription(),
+            _buildDescription(currentMatch),
             const SizedBox(height: 20),
 
             // Route info
-            _buildRouteInfo(),
+            _buildRouteInfo(currentMatch),
             const SizedBox(height: 20),
 
             // Suggested activities
-            _buildSuggestedActivities(),
+            _buildSuggestedActivities(currentMatch),
             const SizedBox(height: 20),
 
             // Trip purpose
-            if (match.tripPurpose != null) _buildTripPurpose(),
-            if (match.tripPurpose != null) const SizedBox(height: 20),
+            if (currentMatch.tripPurpose != null) _buildTripPurpose(currentMatch),
+            if (currentMatch.tripPurpose != null) const SizedBox(height: 20),
 
             // Common interests
-            _buildCommonInterests(),
+            _buildCommonInterests(currentMatch),
             const SizedBox(height: 20),
 
             // Status and action buttons
-            _buildActionSection(viewModel),
+            _buildActionSection(context, ref, viewModel, currentMatch),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildUserHeader(BuildContext context, WidgetRef ref) {
+  Widget _buildUserHeader(BuildContext context, WidgetRef ref, Match currentMatch) {
     return GestureDetector(
       onTap: () {
         // Navigate to user detail
@@ -79,7 +89,7 @@ class MatchDetailScreen extends ConsumerWidget {
           context,
           MaterialPageRoute(
             builder: (context) => UserDetailScreen(
-              user: match.user,
+              user: currentMatch.user,
               onNavigateBack: () => Navigator.pop(context),
             ),
           ),
@@ -96,7 +106,7 @@ class MatchDetailScreen extends ConsumerWidget {
             ),
             child: Center(
               child: Text(
-                match.user.initials,
+                currentMatch.user.initials,
                 style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -111,7 +121,7 @@ class MatchDetailScreen extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  match.user.name,
+                  currentMatch.user.name,
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -119,7 +129,7 @@ class MatchDetailScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${match.user.nationality} • ${match.user.age} years',
+                  '${currentMatch.user.nationality} • ${currentMatch.user.age} years',
                   style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                 ),
                 const SizedBox(height: 4),
@@ -134,7 +144,7 @@ class MatchDetailScreen extends ConsumerWidget {
                     border: Border.all(color: Colors.green[100]!),
                   ),
                   child: Text(
-                    match.compatibilityText,
+                    currentMatch.compatibilityText,
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.green[700],
@@ -150,7 +160,7 @@ class MatchDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildCompatibilitySection() {
+  Widget _buildCompatibilitySection(Match currentMatch) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -164,7 +174,7 @@ class MatchDetailScreen extends ConsumerWidget {
       child: Row(
         children: [
           Text(
-            '${match.compatibility}%',
+            '${currentMatch.compatibility}%',
             style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.bold,
@@ -185,7 +195,7 @@ class MatchDetailScreen extends ConsumerWidget {
                   ),
                 ),
                 Text(
-                  match.matchType.description,
+                  currentMatch.matchType.description,
                   style: const TextStyle(color: Colors.white, fontSize: 14),
                 ),
               ],
@@ -196,14 +206,14 @@ class MatchDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildDescription() {
+  Widget _buildDescription(Match currentMatch) {
     return Text(
-      match.description,
+      currentMatch.description,
       style: const TextStyle(fontSize: 16, color: Colors.black87, height: 1.5),
     );
   }
 
-  Widget _buildRouteInfo() {
+  Widget _buildRouteInfo(Match currentMatch) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -215,7 +225,7 @@ class MatchDetailScreen extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            match.flightInfo.route,
+            currentMatch.flightInfo.route,
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
@@ -226,7 +236,7 @@ class MatchDetailScreen extends ConsumerWidget {
           Row(
             children: [
               Text(
-                match.overlapTime,
+                currentMatch.overlapTime,
                 style: TextStyle(
                   fontSize: 14,
                   color: Colors.blue[800],
@@ -244,7 +254,7 @@ class MatchDetailScreen extends ConsumerWidget {
               ),
               const SizedBox(width: 12),
               Text(
-                'Shared: ${match.sharedSegments.join(', ')}',
+                'Shared: ${currentMatch.sharedSegments.join(', ')}',
                 style: TextStyle(fontSize: 14, color: Colors.blue[800]),
               ),
             ],
@@ -254,7 +264,7 @@ class MatchDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildSuggestedActivities() {
+  Widget _buildSuggestedActivities(Match currentMatch) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -268,7 +278,7 @@ class MatchDetailScreen extends ConsumerWidget {
         ),
         const SizedBox(height: 12),
         Column(
-          children: match.suggestedActivities.map((activity) {
+          children: currentMatch.suggestedActivities.map((activity) {
             return Padding(
               padding: const EdgeInsets.symmetric(vertical: 6),
               child: Row(
@@ -295,7 +305,7 @@ class MatchDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildTripPurpose() {
+  Widget _buildTripPurpose(Match currentMatch) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -309,7 +319,7 @@ class MatchDetailScreen extends ConsumerWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          match.tripPurpose!,
+          currentMatch.tripPurpose!,
           style: const TextStyle(
             fontSize: 14,
             color: Colors.black87,
@@ -320,8 +330,8 @@ class MatchDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildCommonInterests() {
-    if (match.commonInterests.isEmpty) {
+  Widget _buildCommonInterests(Match currentMatch) {
+    if (currentMatch.commonInterests.isEmpty) {
       return const SizedBox.shrink(); // Don't show if no common interests
     }
     
@@ -340,7 +350,7 @@ class MatchDetailScreen extends ConsumerWidget {
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: match.commonInterests.map((interest) {
+          children: currentMatch.commonInterests.map((interest) {
             return Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
@@ -363,7 +373,12 @@ class MatchDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildActionSection(MatchViewModel viewModel) {
+  Widget _buildActionSection(
+    BuildContext context,
+    WidgetRef ref,
+    MatchViewModel viewModel,
+    Match currentMatch,
+  ) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -376,8 +391,8 @@ class MatchDetailScreen extends ConsumerWidget {
       child: Row(
         children: [
           Icon(
-            _getStatusIcon(match.status),
-            color: _getStatusColor(match.status),
+            _getStatusIcon(currentMatch.status),
+            color: _getStatusColor(currentMatch.status),
             size: 20,
           ),
           const SizedBox(width: 12),
@@ -392,9 +407,10 @@ class MatchDetailScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(width: 12),
-          if (match.status.toLowerCase().contains('connect'))
+          // Show Connect button only if status is "Connect"
+          if (currentMatch.status.toLowerCase() == 'connect')
             ElevatedButton(
-              onPressed: () => viewModel.likeMatch(match.id),
+              onPressed: () => _handleConnect(context, ref, viewModel, currentMatch),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blue,
                 foregroundColor: Colors.white,
@@ -407,10 +423,401 @@ class MatchDetailScreen extends ConsumerWidget {
                 ),
               ),
               child: const Text('Connect'),
+            )
+          // Show Accept/Reject buttons if connection request received
+          else if (currentMatch.status.toLowerCase() == 'connection request')
+            Row(
+              children: [
+                ElevatedButton(
+                  onPressed: () => _handleAcceptConnection(context, ref, viewModel, currentMatch),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                  ),
+                  child: const Text('Accept'),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton(
+                  onPressed: () => _handleRejectConnection(context, ref, viewModel, currentMatch),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                  ),
+                  child: const Text('Reject'),
+                ),
+              ],
+            )
+          // Show "Request Sent" status
+          else if (currentMatch.status.toLowerCase() == 'request sent')
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 10,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.orange[50],
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                'Request Sent',
+                style: TextStyle(
+                  color: Colors.orange[700],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            )
+          // Show "Connected" status with "Start Chat" button
+          else if (currentMatch.status.toLowerCase() == 'connected')
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.green[50],
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    'Connected',
+                    style: TextStyle(
+                      color: Colors.green[700],
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: () => _createChatAfterConnection(context, ref, currentMatch),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                  ),
+                  child: const Text('Start Chat'),
+                ),
+              ],
+            )
+          // Show rejected message
+          else if (currentMatch.status.toLowerCase() == 'rejected')
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 10,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.red[50],
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                'Connection canceled. You cannot chat with this person.',
+                style: TextStyle(
+                  color: Colors.red[700],
+                  fontWeight: FontWeight.w500,
+                  fontSize: 12,
+                ),
+                textAlign: TextAlign.center,
+              ),
             ),
         ],
       ),
     );
+  }
+
+  Future<void> _handleConnect(
+    BuildContext context,
+    WidgetRef ref,
+    MatchViewModel matchViewModel,
+    Match match,
+  ) async {
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+
+      // Send connection request (like the match)
+      print('💚 [MatchDetail] Sending connection request for match: ${match.id}');
+      await matchViewModel.likeMatch(match.id);
+      
+      // Refresh matches to get updated status
+      await matchViewModel.loadMatches();
+
+      // Close loading dialog
+      if (context.mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Connection request sent!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ [MatchDetail] Error sending connection request: $e');
+      
+      // Close loading dialog if still open
+      if (context.mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleAcceptConnection(
+    BuildContext context,
+    WidgetRef ref,
+    MatchViewModel matchViewModel,
+    Match match,
+  ) async {
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+
+      // Accept the connection request
+      print('✅ [MatchDetail] Accepting connection request: ${match.id}');
+      await matchViewModel.acceptConnection(match.id);
+      
+      // Refresh matches to get updated status
+      await matchViewModel.loadMatches();
+
+      // Close loading dialog
+      if (context.mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Connection accepted! You can now chat.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+
+      // Now create chat since connection is accepted
+      await _createChatAfterConnection(context, ref, match);
+    } catch (e) {
+      print('❌ [MatchDetail] Error accepting connection: $e');
+      
+      // Close loading dialog if still open
+      if (context.mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleRejectConnection(
+    BuildContext context,
+    WidgetRef ref,
+    MatchViewModel matchViewModel,
+    Match match,
+  ) async {
+    try {
+      // Show confirmation dialog
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Reject Connection?'),
+          content: const Text('Are you sure you want to reject this connection request?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Reject'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed != true) return;
+
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+
+      // Reject the connection request
+      print('❌ [MatchDetail] Rejecting connection request: ${match.id}');
+      await matchViewModel.rejectMatch(match.id);
+      
+      // Refresh matches to get updated status
+      await matchViewModel.loadMatches();
+
+      // Close loading dialog
+      if (context.mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Connection canceled. You cannot chat with this person.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ [MatchDetail] Error rejecting connection: $e');
+      
+      // Close loading dialog if still open
+      if (context.mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _createChatAfterConnection(
+    BuildContext context,
+    WidgetRef ref,
+    Match match,
+  ) async {
+    try {
+      // Verify connection is accepted before creating chat
+      if (match.status.toLowerCase() != 'connected') {
+        throw Exception('Connection must be accepted before you can chat. Please wait for the other person to accept your connection request.');
+      }
+
+      // Create personal chat with the matched user
+      // Get current user ID to verify we're not creating chat with ourselves
+      final tokenStorage = TokenStorage();
+      final currentUserData = await tokenStorage.getUserData();
+      final currentUserId = currentUserData?['id']?.toString();
+      final matchedUserId = match.user.id;
+      
+      print('💬 [MatchDetail] Current user ID: $currentUserId');
+      print('💬 [MatchDetail] Matched user ID: $matchedUserId');
+      print('💬 [MatchDetail] Match user name: ${match.user.name}');
+      print('💬 [MatchDetail] Match status: ${match.status}');
+      
+      // Verify we're not trying to chat with ourselves
+      if (currentUserId != null && matchedUserId == currentUserId) {
+        throw Exception('Cannot create chat with yourself. Please select a different match.');
+      }
+      
+      if (matchedUserId.isEmpty || matchedUserId == '0') {
+        throw Exception('Invalid user ID. Cannot create chat.');
+      }
+      
+      print('💬 [MatchDetail] Creating personal chat with matched user: $matchedUserId');
+      final chatViewModel = ref.read(chatViewModelProvider.notifier);
+      final contact = await chatViewModel.createPersonalChat(matchedUserId);
+
+      if (contact == null) {
+        // If chat creation failed, show error
+        if (context.mounted) {
+          Navigator.of(context).pop(); // Close loading dialog
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to create chat. Please try again.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Step 3: Refresh contacts to ensure the new contact is in the list
+      print('🔄 [MatchDetail] Refreshing contacts to ensure contact is available...');
+      await chatViewModel.refreshContacts();
+      
+      // Wait a moment for state to propagate
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      // Step 4: Verify contact is in the list before navigating
+      final chatState = ref.read(chatViewModelProvider);
+      final contactExists = chatState.contacts.any((c) => c.id == contact.id);
+      
+      if (!contactExists) {
+        print('⚠️ [MatchDetail] Contact not in list yet, waiting...');
+        // Wait a bit more and check again
+        await Future.delayed(const Duration(milliseconds: 500));
+        final updatedState = ref.read(chatViewModelProvider);
+        if (!updatedState.contacts.any((c) => c.id == contact.id)) {
+          // Still not found - manually add it
+          print('➕ [MatchDetail] Manually ensuring contact is in state');
+          await chatViewModel.refreshContacts();
+        }
+      }
+
+      // Step 5: Close loading dialog
+      if (context.mounted) {
+        Navigator.of(context).pop(); // Close loading dialog
+      }
+
+      // Step 6: Navigate to chat detail screen
+      if (context.mounted) {
+        print('✅ [MatchDetail] Chat created, navigating to chat: ${contact.id}');
+        // Navigate to chat detail using GoRouter
+        context.push('/chat/${contact.id}');
+      }
+    } catch (e) {
+      print('❌ [MatchDetail] Error connecting: $e');
+      
+      // Close loading dialog if still open
+      if (context.mounted) {
+        Navigator.of(context).pop(); // Close loading dialog
+      }
+
+      // Show error message
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Color _getStatusColor(String status) {

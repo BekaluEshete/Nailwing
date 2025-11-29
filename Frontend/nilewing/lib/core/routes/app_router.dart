@@ -8,6 +8,7 @@ import 'package:nilewing/features/auth/view/login_screen.dart';
 import 'package:nilewing/features/auth/view/registration_screen.dart';
 import 'package:nilewing/features/chat/view/chat_detail_screen.dart';
 import 'package:nilewing/features/chat/viewmodel/chat_view_model.dart';
+import 'package:nilewing/features/chat/model/chat_model.dart';
 import 'package:nilewing/features/home/view/home_screen.dart';
 import 'package:nilewing/features/my_flights/view/flight_list_screen.dart';
 import 'package:nilewing/features/onboarding/onboarding_view.dart';
@@ -18,6 +19,7 @@ import 'package:nilewing/core/providers/auth_provider.dart';
 import 'package:nilewing/features/user/view/profile_screen.dart';
 // Import other screens when you create them
 import 'package:nilewing/features/match/view/match_screen.dart';
+import 'package:nilewing/features/match/view/connection_requests_screen.dart';
 import 'package:nilewing/features/chat/view/chat_screen.dart';
 
 /// Centralized app router using GoRouter.
@@ -91,6 +93,16 @@ class AppRouter {
           ),
 
           GoRoute(
+            path: '/connection-requests',
+            name: 'connectionRequests',
+            builder: (context, state) => ConnectionRequestsScreen(
+              onNavigateBack: () {
+                context.pop();
+              },
+            ),
+          ),
+
+          GoRoute(
             path: '/chat',
             name: 'chat',
             builder: (context, state) => ChatScreen(
@@ -138,10 +150,72 @@ class AppRouter {
           return Consumer(
             builder: (context, ref, _) {
               final chatState = ref.watch(chatViewModelProvider);
-              final contact = chatState.contacts.firstWhere(
-                (contact) => contact.id == contactId,
-                orElse: () => throw Exception('Contact not found'),
-              );
+              final chatViewModel = ref.read(chatViewModelProvider.notifier);
+              
+              // Try to find the contact
+              ChatContact? contact;
+              try {
+                contact = chatState.contacts.firstWhere(
+                  (c) => c.id == contactId,
+                );
+                print('✅ [AppRouter] Found contact: ${contact.name}');
+              } catch (e) {
+                // Contact not found - refresh contacts and show loading
+                print('⚠️ [AppRouter] Contact $contactId not found, refreshing contacts...');
+                chatViewModel.refreshContacts();
+                
+                // Show loading screen while we wait
+                return Scaffold(
+                  appBar: AppBar(
+                    title: const Text('Loading Chat...'),
+                    leading: IconButton(
+                      icon: const Icon(Icons.arrow_back),
+                      onPressed: () => context.pop(),
+                    ),
+                  ),
+                  body: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const CircularProgressIndicator(),
+                        const SizedBox(height: 16),
+                        const Text('Loading chat...'),
+                        const SizedBox(height: 8),
+                        ElevatedButton(
+                          onPressed: () {
+                            // Try to refresh and navigate again
+                            chatViewModel.refreshContacts();
+                            Future.delayed(const Duration(milliseconds: 500), () {
+                              final updatedState = ref.read(chatViewModelProvider);
+                              try {
+                                updatedState.contacts.firstWhere(
+                                  (c) => c.id == contactId,
+                                );
+                                // If found, refresh to trigger rebuild
+                                ref.invalidate(chatViewModelProvider);
+                              } catch (e) {
+                                // Still not found, go back
+                                if (context.mounted) {
+                                  context.pop();
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Chat not found. Please try again.'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                              }
+                            });
+                          },
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+              
+              // Contact found - show chat screen
               return ChatDetailScreen(
                 contact: contact,
                 onBack: () => context.pop(),

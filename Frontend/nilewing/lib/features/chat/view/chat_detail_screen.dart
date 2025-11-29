@@ -25,6 +25,15 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
   final ScrollController _scrollController = ScrollController();
 
   @override
+  void initState() {
+    super.initState();
+    // Select the chat when screen opens to connect WebSocket
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(chatViewModelProvider.notifier).selectChat(widget.contact.id);
+    });
+  }
+
+  @override
   void dispose() {
     _messageController.dispose();
     _scrollController.dispose();

@@ -61,8 +61,41 @@ class CreatePersonalChat(generics.CreateAPIView):
         user_id = request.data.get("user_id")
         try:
             from authentication.models import CustomUser
+            from matching.models import Match
 
             other_user = CustomUser.objects.get(id=user_id)
+
+            # Check if connection is accepted (both users have liked/match status is matched)
+            # Determine user1 and user2 for match lookup
+            if request.user.id < other_user.id:
+                user1, user2 = request.user, other_user
+            else:
+                user1, user2 = other_user, request.user
+
+            # Check if there's a match with 'matched' status
+            match = Match.objects.filter(
+                user1=user1,
+                user2=user2,
+                status='matched'
+            ).first()
+
+            if not match:
+                # Check if connection request exists but not accepted
+                pending_match = Match.objects.filter(
+                    Q(user1=user1, user2=user2) | Q(user1=user2, user2=user1),
+                    status='connection_requested'
+                ).first()
+                
+                if pending_match:
+                    return Response(
+                        {"error": "Connection request not yet accepted. Please wait for the other person to accept your connection request."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                return Response(
+                    {"error": "Connection not established. Please send a connection request first."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
             # Create unique room name for personal chat
             room_name = f"personal_{min(request.user.id, other_user.id)}_{max(request.user.id, other_user.id)}"

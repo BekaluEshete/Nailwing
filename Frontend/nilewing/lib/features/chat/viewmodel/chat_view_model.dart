@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nilewing/features/chat/model/chat_model.dart';
 import 'package:nilewing/features/chat/service/chat_service.dart';
 import 'package:nilewing/core/utils/token_storage.dart';
-import 'dart:convert';
 
 final chatServiceProvider = Provider<ChatService>((ref) => ChatService());
 
@@ -56,6 +55,16 @@ class ChatViewModel extends StateNotifier<ChatState> {
     state = state.copyWith(selectedChatId: contactId, error: null);
 
     try {
+      // Get room name from contact ID
+      _currentRoomName = await _chatService.getRoomName(contactId);
+      print(
+        '💬 [ChatViewModel] Room name for contact $contactId: $_currentRoomName',
+      );
+
+      if (_currentRoomName == null || _currentRoomName!.isEmpty) {
+        throw Exception('Could not get room name for contact');
+      }
+
       // Mark messages as read
       await _chatService.markAsRead(contactId);
 
@@ -81,6 +90,9 @@ class ChatViewModel extends StateNotifier<ChatState> {
       state = state.copyWith(messages: updatedMessages);
 
       // Connect to WebSocket for real-time messages
+      print(
+        '🔌 [ChatViewModel] Connecting to WebSocket for room: $_currentRoomName',
+      );
       await _chatService.connectToRoom(
         _currentRoomName!,
         _handleWebSocketMessage,
@@ -222,20 +234,26 @@ class ChatViewModel extends StateNotifier<ChatState> {
       print('💬 [ChatViewModel] Creating personal chat with user: $userId');
       final contact = await _chatService.createPersonalChat(userId);
 
-      // Add to contacts if not already present
-      final existingContact = state.contacts.firstWhere(
-        (c) => c.id == contact.id,
-        orElse: () => contact,
-      );
+      // Check if contact already exists in the list
+      final contactExists = state.contacts.any((c) => c.id == contact.id);
 
-      if (existingContact.id != contact.id) {
+      // Add to contacts if not already present
+      if (!contactExists) {
+        print('➕ [ChatViewModel] Adding new contact to list: ${contact.id}');
         final updatedContacts = [...state.contacts, contact];
         state = state.copyWith(contacts: updatedContacts);
+      } else {
+        print(
+          'ℹ️ [ChatViewModel] Contact already exists in list: ${contact.id}',
+        );
       }
 
       // Select the new chat
       await selectChat(contact.id);
 
+      print(
+        '✅ [ChatViewModel] Personal chat created and selected: ${contact.id}',
+      );
       return contact;
     } catch (e) {
       print('❌ [ChatViewModel] Error creating personal chat: $e');

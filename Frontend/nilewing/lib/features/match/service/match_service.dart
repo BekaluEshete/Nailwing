@@ -17,6 +17,16 @@ class MatchService {
     return await _tokenStorage.getAccessToken();
   }
 
+  Future<String?> _getCurrentUserId() async {
+    try {
+      final userData = await _tokenStorage.getUserData();
+      return userData?['id']?.toString();
+    } catch (e) {
+      print('❌ [MatchService] Error getting current user ID: $e');
+      return null;
+    }
+  }
+
   // Find new matches
   Future<List<Match>> findMatches({String? flightId}) async {
     try {
@@ -36,7 +46,24 @@ class MatchService {
       }
 
       print('📡 [MatchService] Calling: $url');
-      final response = await _httpClient.get(Uri.parse(url));
+      
+      http.Response response;
+      try {
+        response = await _httpClient.get(Uri.parse(url));
+      } catch (e) {
+        // Check for network connectivity issues
+        final errorString = e.toString().toLowerCase();
+        if (errorString.contains('failed host lookup') || 
+            errorString.contains('socketexception') ||
+            errorString.contains('no address associated with hostname')) {
+          throw Exception('Cannot connect to server. Please check your internet connection and ensure the backend server is running.');
+        } else if (errorString.contains('timeout') || errorString.contains('timed out')) {
+          throw Exception('Connection timeout. The server is taking too long to respond. Please try again.');
+        } else if (errorString.contains('connection refused')) {
+          throw Exception('Connection refused. The server may be down. Please try again later.');
+        }
+        rethrow;
+      }
 
       print('📥 [MatchService] Response status: ${response.statusCode}');
       print('📥 [MatchService] Response body: ${response.body}');
@@ -72,14 +99,44 @@ class MatchService {
         }
         
         print('✅ [MatchService] Found ${matchesData.length} matches');
-        final matches = matchesData.map((json) => _matchFromJson(json)).toList();
+        // Get current user ID once for all matches
+        final currentUserId = await _getCurrentUserId();
+        
+        // Parse matches with error handling
+        final matches = <Match>[];
+        for (final jsonData in matchesData) {
+          try {
+            final match = _matchFromJson(jsonData, currentUserId);
+            matches.add(match);
+            print('✅ [MatchService] Successfully parsed match: ${match.id}');
+          } catch (e, stackTrace) {
+            print('❌ [MatchService] Error parsing match: $e');
+            print('❌ [MatchService] Stack trace: $stackTrace');
+            print('❌ [MatchService] Match data: ${json.encode(jsonData)}');
+            // Continue with other matches instead of failing completely
+          }
+        }
+        
+        if (matches.isEmpty && matchesData.isNotEmpty) {
+          print('⚠️ [MatchService] Failed to parse any matches from ${matchesData.length} match(es)');
+          throw Exception('Failed to parse matches. Please check the data format.');
+        }
+        
+        print('✅ [MatchService] Successfully parsed ${matches.length} out of ${matchesData.length} matches');
         return matches;
       }
       print('❌ [MatchService] Failed with status: ${response.statusCode}');
       throw Exception('Failed to find matches: ${response.statusCode}');
     } catch (e) {
       print('❌ [MatchService] Error finding matches: $e');
-      throw Exception('Error finding matches: $e');
+      // If it's already a user-friendly message, rethrow it
+      if (e.toString().contains('Cannot connect') || 
+          e.toString().contains('Connection timeout') ||
+          e.toString().contains('Connection refused')) {
+        rethrow;
+      }
+      // Otherwise, provide a generic error
+      throw Exception('Failed to load matches. Please check your internet connection and try again.');
     }
   }
 
@@ -101,7 +158,8 @@ class MatchService {
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
-        return data.map((json) => _matchFromJson(json)).toList();
+        final currentUserId = await _getCurrentUserId();
+        return data.map((json) => _matchFromJson(json, currentUserId)).toList();
       }
       return [];
     } catch (e) {
@@ -135,7 +193,8 @@ class MatchService {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         print('✅ [MatchService] Match liked successfully');
-        return _matchFromJson(data);
+        final currentUserId = await _getCurrentUserId();
+        return _matchFromJson(data, currentUserId);
       } else {
         final errorData = json.decode(response.body);
         print(
@@ -149,7 +208,7 @@ class MatchService {
     }
   }
 
-  // Reject a match
+  // Reject a match or connection request
   Future<void> rejectMatch(String matchId) async {
     try {
       final token = await _getAuthToken();
@@ -170,6 +229,81 @@ class MatchService {
       }
     } catch (e) {
       throw Exception('Error rejecting match: $e');
+    }
+  }
+
+  // Accept a connection request
+  Future<Match> acceptConnection(String matchId) async {
+    try {
+      print('✅ [MatchService] Accepting connection request: $matchId');
+      final token = await _getAuthToken();
+      if (token == null) {
+        print('❌ [MatchService] No auth token found');
+        throw Exception('Not authenticated');
+      }
+
+      final url = '${AppConstants.matchesEndpoint}/$matchId/accept_connection/';
+      print('📡 [MatchService] POST to: $url');
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      print('📥 [MatchService] Response status: ${response.statusCode}');
+      print('📥 [MatchService] Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        print('✅ [MatchService] Connection accepted successfully');
+        final currentUserId = await _getCurrentUserId();
+        return _matchFromJson(data, currentUserId);
+      } else {
+        final errorData = json.decode(response.body);
+        print(
+          '❌ [MatchService] Error: ${errorData['error'] ?? 'Unknown error'}',
+        );
+        throw Exception(errorData['error'] ?? 'Failed to accept connection');
+      }
+    } catch (e) {
+      print('❌ [MatchService] Error accepting connection: $e');
+      throw Exception('Error accepting connection: $e');
+    }
+  }
+
+  // Get connection requests (pending requests sent to current user)
+  Future<List<Match>> getConnectionRequests() async {
+    try {
+      print('📬 [MatchService] Getting connection requests...');
+      final token = await _getAuthToken();
+      if (token == null) {
+        throw Exception('Not authenticated');
+      }
+
+      final response = await http.get(
+        Uri.parse('${AppConstants.matchesEndpoint}/connection_requests/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      print('📥 [MatchService] Response status: ${response.statusCode}');
+      print('📥 [MatchService] Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        final currentUserId = await _getCurrentUserId();
+        final requests = data.map((json) => _matchFromJson(json, currentUserId)).toList();
+        print('✅ [MatchService] Found ${requests.length} connection requests');
+        return requests;
+      }
+      return [];
+    } catch (e) {
+      print('❌ [MatchService] Error getting connection requests: $e');
+      return [];
     }
   }
 
@@ -255,14 +389,35 @@ class MatchService {
   }
 
   // Helper: Convert JSON to Match model
-  Match _matchFromJson(Map<String, dynamic> json) {
-    final user2Data = json['user2_data'] ?? {};
-    final flight2Data = json['flight2_data'];
+  Match _matchFromJson(Map<String, dynamic> json, String? currentUserId) {
+    final user1Data = json['user1_data'] ?? <String, dynamic>{};
+    final user2Data = json['user2_data'] ?? <String, dynamic>{};
+    final flight1Data = json['flight1_data'] as Map<String, dynamic>?;
+    final flight2Data = json['flight2_data'] as Map<String, dynamic>?;
 
     // Determine which user is the "other" user (not current user)
-    // For now, assume user2 is the match
-    final otherUserData = user2Data;
-    final otherFlightData = flight2Data;
+    Map<String, dynamic> otherUserData;
+    Map<String, dynamic>? otherFlightData;
+    
+    final user1Id = user1Data['id']?.toString();
+    final user2Id = user2Data['id']?.toString();
+    
+    if (currentUserId != null && user1Id == currentUserId) {
+      // Current user is user1, so other user is user2
+      otherUserData = user2Data;
+      otherFlightData = flight2Data;
+      print('👤 [MatchService] Current user is user1 (ID: $currentUserId), other user is user2 (ID: $user2Id)');
+    } else if (currentUserId != null && user2Id == currentUserId) {
+      // Current user is user2, so other user is user1
+      otherUserData = user1Data;
+      otherFlightData = flight1Data;
+      print('👤 [MatchService] Current user is user2 (ID: $currentUserId), other user is user1 (ID: $user1Id)');
+    } else {
+      // Fallback: assume user2 is the match (for backward compatibility)
+      otherUserData = user2Data;
+      otherFlightData = flight2Data;
+      print('⚠️ [MatchService] Could not determine current user (current: $currentUserId, user1: $user1Id, user2: $user2Id), defaulting to user2');
+    }
 
     // Parse match type
     final matchTypeStr = json['match_type'] ?? '';
@@ -278,27 +433,32 @@ class MatchService {
     // Build flight info
     FlightInfo? flightInfo;
     if (otherFlightData != null) {
-      flightInfo = FlightInfo(
-        departure: otherFlightData['departure_airport'] ?? '',
-        departureCity: otherFlightData['departure_city'] ?? '',
-        arrival: otherFlightData['arrival_airport'] ?? '',
-        arrivalCity: otherFlightData['arrival_city'] ?? '',
-        layover: otherFlightData['layover_airport'],
-        layoverCity: otherFlightData['layover_city'],
-        airline: otherFlightData['airline'] ?? '',
-        flightNumber: otherFlightData['flight_number'] ?? '',
-        departureTime: otherFlightData['departure_datetime'] != null
-            ? DateTime.parse(otherFlightData['departure_datetime'])
-            : DateTime.now(),
-        arrivalTime: otherFlightData['arrival_datetime'] != null
-            ? DateTime.parse(otherFlightData['arrival_datetime'])
-            : DateTime.now(),
-        duration: otherFlightData['duration_hours'] != null
-            ? '${otherFlightData['duration_hours'].toStringAsFixed(1)}h'
-            : '',
-        gate: otherFlightData['departure_gate'],
-        tripPurpose: null,
-      );
+      try {
+        flightInfo = FlightInfo(
+          departure: otherFlightData['departure_airport']?.toString() ?? '',
+          departureCity: otherFlightData['departure_city']?.toString() ?? '',
+          arrival: otherFlightData['arrival_airport']?.toString() ?? '',
+          arrivalCity: otherFlightData['arrival_city']?.toString() ?? '',
+          layover: otherFlightData['layover_airport']?.toString(),
+          layoverCity: otherFlightData['layover_city']?.toString(),
+          airline: otherFlightData['airline']?.toString() ?? '',
+          flightNumber: otherFlightData['flight_number']?.toString() ?? '',
+          departureTime: otherFlightData['departure_datetime'] != null
+              ? DateTime.parse(otherFlightData['departure_datetime'].toString())
+              : DateTime.now(),
+          arrivalTime: otherFlightData['arrival_datetime'] != null
+              ? DateTime.parse(otherFlightData['arrival_datetime'].toString())
+              : DateTime.now(),
+          duration: otherFlightData['duration_hours'] != null
+              ? '${(otherFlightData['duration_hours'] as num).toStringAsFixed(1)}h'
+              : '',
+          gate: otherFlightData['departure_gate']?.toString(),
+          tripPurpose: null,
+        );
+      } catch (e) {
+        print('⚠️ [MatchService] Error parsing flight info: $e');
+        // Continue without flight info
+      }
     }
 
     // Calculate compatibility score (0-100)
@@ -416,7 +576,7 @@ class MatchService {
         matchType,
         json['matching_city'] ?? '',
       ),
-      status: json['status'] == 'matched' ? 'Matched!' : 'Connect',
+      status: _getStatusDisplayText(json, currentUserId),
       matchTime: json['created_at'] != null
           ? DateTime.parse(json['created_at'])
           : DateTime.now(),
@@ -424,6 +584,42 @@ class MatchService {
       commonInterests: commonInterests, // Set common interests on Match object
       tripPurpose: null,
     );
+  }
+
+  // Helper: Get display text for match status
+  String _getStatusDisplayText(Map<String, dynamic> json, String? currentUserId) {
+    final status = json['status']?.toString().toLowerCase() ?? 'pending';
+    final user1Liked = json['user1_liked'] ?? false;
+    final user2Liked = json['user2_liked'] ?? false;
+    final user1Id = json['user1']?.toString();
+    final user2Id = json['user2']?.toString();
+    
+    // Determine if current user sent the request or received it
+    bool currentUserSentRequest = false;
+    if (currentUserId != null) {
+      if (currentUserId == user1Id && user1Liked && !user2Liked) {
+        currentUserSentRequest = true;
+      } else if (currentUserId == user2Id && user2Liked && !user1Liked) {
+        currentUserSentRequest = true;
+      }
+    }
+    
+    // Status display logic
+    if (status == 'matched' || (user1Liked && user2Liked)) {
+      return 'Connected';
+    } else if (status == 'connection_requested') {
+      if (currentUserSentRequest) {
+        return 'Request Sent';
+      } else {
+        return 'Connection Request';
+      }
+    } else if (status == 'rejected') {
+      return 'Rejected';
+    } else if (status == 'liked') {
+      return 'Connected'; // Legacy support
+    } else {
+      return 'Connect';
+    }
   }
 
   List<String> _getSuggestedActivities(MatchType matchType, String city) {

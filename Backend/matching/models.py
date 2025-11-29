@@ -39,8 +39,9 @@ class Match(models.Model):
     STATUS_CHOICES = [
         ('pending', 'Pending'),
         ('viewed', 'Viewed'),
-        ('liked', 'Liked'),
-        ('matched', 'Matched'),  # Both liked each other
+        ('connection_requested', 'Connection Requested'),  # One user sent connection request
+        ('liked', 'Liked'),  # Deprecated, kept for backward compatibility
+        ('matched', 'Matched'),  # Both users accepted connection
         ('rejected', 'Rejected'),
         ('expired', 'Expired'),
     ]

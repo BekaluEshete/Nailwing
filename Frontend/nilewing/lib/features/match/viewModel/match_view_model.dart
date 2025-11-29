@@ -153,8 +153,24 @@ class MatchViewModel extends StateNotifier<MatchState> {
       final matches = await _service.findMatches(flightId: flightId);
       state = state.copyWith(matches: matches, isLoading: false);
     } catch (e) {
+      // Extract user-friendly error message
+      String errorMessage = 'Failed to load matches';
+      final errorString = e.toString();
+      
+      if (errorString.contains('Cannot connect to server')) {
+        errorMessage = 'Cannot connect to server. Please check your internet connection.';
+      } else if (errorString.contains('Connection timeout')) {
+        errorMessage = 'Connection timeout. Please try again.';
+      } else if (errorString.contains('Connection refused')) {
+        errorMessage = 'Server is not responding. Please try again later.';
+      } else if (errorString.contains('Not authenticated')) {
+        errorMessage = 'Please log in to find matches.';
+      } else {
+        errorMessage = errorString.replaceAll('Exception: ', '');
+      }
+      
       state = state.copyWith(
-        error: 'Failed to load matches: $e',
+        error: errorMessage,
         isLoading: false,
       );
     }
@@ -196,10 +212,11 @@ class MatchViewModel extends StateNotifier<MatchState> {
 
   Future<void> likeMatch(String matchId) async {
     try {
-      await _service.likeMatch(matchId);
+      final updatedMatch = await _service.likeMatch(matchId);
       final updatedMatches = state.matches.map((match) {
         if (match.id == matchId) {
-          return match.copyWith(status: 'Liked');
+          // Use the status from the backend response
+          return updatedMatch;
         }
         return match;
       }).toList();
@@ -213,12 +230,44 @@ class MatchViewModel extends StateNotifier<MatchState> {
   Future<void> rejectMatch(String matchId) async {
     try {
       await _service.rejectMatch(matchId);
-      final updatedMatches = state.matches
-          .where((match) => match.id != matchId)
-          .toList();
+      // Update match status to rejected instead of removing
+      final updatedMatches = state.matches.map((match) {
+        if (match.id == matchId) {
+          return match.copyWith(status: 'Rejected');
+        }
+        return match;
+      }).toList();
       state = state.copyWith(matches: updatedMatches);
     } catch (e) {
       state = state.copyWith(error: 'Failed to reject match: $e');
+    }
+  }
+
+  // Accept a connection request
+  Future<void> acceptConnection(String matchId) async {
+    try {
+      final updatedMatch = await _service.acceptConnection(matchId);
+      final updatedMatches = state.matches.map((match) {
+        if (match.id == matchId) {
+          return updatedMatch;
+        }
+        return match;
+      }).toList();
+      state = state.copyWith(matches: updatedMatches);
+    } catch (e) {
+      state = state.copyWith(error: 'Failed to accept connection: $e');
+    }
+  }
+
+  // Get connection requests
+  Future<void> loadConnectionRequests() async {
+    try {
+      final requests = await _service.getConnectionRequests();
+      // You might want to store these separately or merge with matches
+      // For now, we'll just update the matches list
+      state = state.copyWith(matches: requests);
+    } catch (e) {
+      state = state.copyWith(error: 'Failed to load connection requests: $e');
     }
   }
 
