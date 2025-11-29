@@ -749,20 +749,24 @@ class MatchDetailScreen extends ConsumerWidget {
       }
       
       print('💬 [MatchDetail] Creating personal chat with matched user: $matchedUserId');
+      
+      // Check if widget is still mounted before reading ref
+      if (!context.mounted) return;
+      
       final chatViewModel = ref.read(chatViewModelProvider.notifier);
       final contact = await chatViewModel.createPersonalChat(matchedUserId);
 
+      // Check if widget is still mounted
+      if (!context.mounted) return;
+
       if (contact == null) {
         // If chat creation failed, show error
-        if (context.mounted) {
-          Navigator.of(context).pop(); // Close loading dialog
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Failed to create chat. Please try again.'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to create chat. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
         return;
       }
 
@@ -770,8 +774,14 @@ class MatchDetailScreen extends ConsumerWidget {
       print('🔄 [MatchDetail] Refreshing contacts to ensure contact is available...');
       await chatViewModel.refreshContacts();
       
+      // Check if widget is still mounted
+      if (!context.mounted) return;
+      
       // Wait a moment for state to propagate
       await Future.delayed(const Duration(milliseconds: 300));
+
+      // Check if widget is still mounted before reading state
+      if (!context.mounted) return;
 
       // Step 4: Verify contact is in the list before navigating
       final chatState = ref.read(chatViewModelProvider);
@@ -781,6 +791,10 @@ class MatchDetailScreen extends ConsumerWidget {
         print('⚠️ [MatchDetail] Contact not in list yet, waiting...');
         // Wait a bit more and check again
         await Future.delayed(const Duration(milliseconds: 500));
+        
+        // Check if widget is still mounted
+        if (!context.mounted) return;
+        
         final updatedState = ref.read(chatViewModelProvider);
         if (!updatedState.contacts.any((c) => c.id == contact.id)) {
           // Still not found - manually add it
@@ -789,12 +803,7 @@ class MatchDetailScreen extends ConsumerWidget {
         }
       }
 
-      // Step 5: Close loading dialog
-      if (context.mounted) {
-        Navigator.of(context).pop(); // Close loading dialog
-      }
-
-      // Step 6: Navigate to chat detail screen
+      // Step 5: Navigate to chat detail screen
       if (context.mounted) {
         print('✅ [MatchDetail] Chat created, navigating to chat: ${contact.id}');
         // Navigate to chat detail using GoRouter

@@ -405,48 +405,80 @@ class ChatService {
   // Helper: Extract other user's name from description
   String _extractOtherUserNameFromDescription(String description, Map<String, dynamic>? currentUserData) {
     if (description.contains('between')) {
-      // Description format: "Personal chat between be and Abrsh"
+      // Description format: "Personal chat between be and Abrsh" or "Personal chat between be and be"
       final parts = description.split(' and ');
       if (parts.length >= 2) {
         // Get both names
         final firstPart = parts[0].replaceAll('Personal chat between', '').trim();
         final secondPart = parts[1].trim();
         
-        // Get current user's username/name
+        // Get current user's username/name/email for comparison
         final currentUserName = currentUserData?['username']?.toString().toLowerCase() ?? 
                                 currentUserData?['first_name']?.toString().toLowerCase() ?? '';
+        final currentUserEmail = currentUserData?['email']?.toString().toLowerCase() ?? '';
+        final currentUserFullName = currentUserData?['fullName']?.toString().toLowerCase() ?? '';
         
         print('💬 [ChatService] Description: $description');
         print('💬 [ChatService] First part: $firstPart, Second part: $secondPart');
-        print('💬 [ChatService] Current user name: $currentUserName');
+        print('💬 [ChatService] Current user name: $currentUserName, email: $currentUserEmail');
         
         // Determine which name is NOT the current user
         // Check if first part matches current user (more flexible matching)
         final firstPartLower = firstPart.toLowerCase();
+        final secondPartLower = secondPart.toLowerCase();
         final currentUserNameLower = currentUserName.toLowerCase();
         
         bool firstPartIsCurrentUser = false;
+        bool secondPartIsCurrentUser = false;
         
         // Check various ways the name might match
-        if (firstPartLower == currentUserNameLower ||
-            firstPartLower.contains(currentUserNameLower) ||
-            currentUserNameLower.contains(firstPartLower) ||
-            (currentUserData?['email']?.toString().toLowerCase().contains(firstPartLower) ?? false)) {
-          firstPartIsCurrentUser = true;
+        if (currentUserNameLower.isNotEmpty) {
+          firstPartIsCurrentUser = firstPartLower == currentUserNameLower ||
+              firstPartLower.contains(currentUserNameLower) ||
+              currentUserNameLower.contains(firstPartLower);
+          
+          secondPartIsCurrentUser = secondPartLower == currentUserNameLower ||
+              secondPartLower.contains(currentUserNameLower) ||
+              currentUserNameLower.contains(secondPartLower);
         }
         
-        if (firstPartIsCurrentUser) {
+        // Also check email prefix
+        if (currentUserEmail.isNotEmpty && !firstPartIsCurrentUser) {
+          final emailPrefix = currentUserEmail.split('@')[0].toLowerCase();
+          firstPartIsCurrentUser = firstPartLower == emailPrefix ||
+              firstPartLower.contains(emailPrefix) ||
+              emailPrefix.contains(firstPartLower);
+        }
+        
+        if (currentUserEmail.isNotEmpty && !secondPartIsCurrentUser) {
+          final emailPrefix = currentUserEmail.split('@')[0].toLowerCase();
+          secondPartIsCurrentUser = secondPartLower == emailPrefix ||
+              secondPartLower.contains(emailPrefix) ||
+              emailPrefix.contains(secondPartLower);
+        }
+        
+        // If both parts match current user (edge case), return the longer one or second part
+        if (firstPartIsCurrentUser && secondPartIsCurrentUser) {
+          print('💬 [ChatService] Both parts match current user, using second part: "$secondPart"');
+          return secondPart.trim();
+        } else if (firstPartIsCurrentUser) {
           // First part is current user, so second part is the other user
           print('💬 [ChatService] First part "$firstPart" is current user, using second part: "$secondPart"');
           return secondPart.trim();
-        } else {
-          // First part is the other user
-          print('💬 [ChatService] First part "$firstPart" is other user, using it');
+        } else if (secondPartIsCurrentUser) {
+          // Second part is current user, so first part is the other user
+          print('💬 [ChatService] Second part "$secondPart" is current user, using first part: "$firstPart"');
           return firstPart.trim();
+        } else {
+          // Neither matches, return the second part (usually the other user)
+          print('💬 [ChatService] Neither part matches current user, using second part: "$secondPart"');
+          return secondPart.trim();
         }
       }
     }
-    return 'Unknown';
+    
+    // Fallback: return a default name
+    return 'Unknown User';
   }
 
   // Helper: Get user information by ID
@@ -460,30 +492,33 @@ class ChatService {
       
       print('💬 [ChatService] Fetching user info for ID: $userId');
       
-      // Try profile endpoint first
+      // Use the user_profile endpoint: /api/auth/{id}/user_profile/
+      final url = '${AppConstants.authBaseUrl}/$userId/user_profile/';
+      print('📡 [ChatService] GET: $url');
+      
       final response = await _httpClient.get(
-        Uri.parse('${AppConstants.apiBaseUrl}/auth/profile/$userId/'),
+        Uri.parse(url),
       );
+      
+      print('📥 [ChatService] Response status: ${response.statusCode}');
+      print('📥 [ChatService] Response body: ${response.body}');
       
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        String userName = 'Unknown';
-        
-        // Try different field names for the name
-        if (data['fullName'] != null) {
-          userName = data['fullName'].toString();
-        } else if (data['first_name'] != null && data['last_name'] != null) {
-          userName = '${data['first_name']} ${data['last_name']}';
-        } else if (data['username'] != null) {
-          userName = data['username'].toString();
-        } else if (data['email'] != null) {
-          userName = data['email'].toString().split('@')[0]; // Use email prefix as fallback
-        }
+        final userData = data['data'] ?? data;
+        final fullName = userData['fullName']?.toString().trim();
+        final firstName = userData['first_name'] ?? '';
+        final lastName = userData['last_name'] ?? '';
+        final userName = fullName ?? 
+                        (firstName.isNotEmpty || lastName.isNotEmpty 
+                         ? '$firstName $lastName'.trim() 
+                         : userData['username'] ?? 'Unknown');
+        final avatar = userData['profileImageUrl'] ?? userData['profile_image_url'];
         
         print('✅ [ChatService] Fetched user info: $userName (ID: $userId)');
         return {
           'name': userName,
-          'avatar': data['profileImageUrl'] ?? data['profileImage'],
+          'avatar': avatar,
         };
       } else {
         print('⚠️ [ChatService] Failed to fetch user info: ${response.statusCode}');
