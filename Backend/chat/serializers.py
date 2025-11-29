@@ -40,6 +40,7 @@ class ChatRoomSerializer(serializers.ModelSerializer):
 
 class MessageSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
+    room = serializers.PrimaryKeyRelatedField(read_only=True)
 
     class Meta:
         model = Message

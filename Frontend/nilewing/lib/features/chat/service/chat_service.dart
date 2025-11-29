@@ -234,6 +234,9 @@ class ChatService {
 
       final url = '${AppConstants.chatMessagesEndpoint}/$roomId/messages/';
       
+      print('📡 [ChatService] Sending message via HTTP to: $url');
+      print('📡 [ChatService] Message: $message');
+      
       final response = await _httpClient.post(
         Uri.parse(url),
         body: json.encode({
@@ -242,12 +245,21 @@ class ChatService {
         }),
       );
 
+      print('📥 [ChatService] HTTP response status: ${response.statusCode}');
+      print('📥 [ChatService] HTTP response body: ${response.body}');
+
       if (response.statusCode == 201 || response.statusCode == 200) {
         final data = json.decode(response.body);
+        print('✅ [ChatService] Message saved via HTTP');
         return _messageFromJson(data);
+      } else {
+        // Log error details
+        final errorBody = response.body;
+        print('❌ [ChatService] HTTP error response: $errorBody');
+        throw Exception('Failed to send message: ${response.statusCode} - $errorBody');
       }
-      throw Exception('Failed to send message: ${response.statusCode}');
     } catch (e) {
+      print('❌ [ChatService] Error sending message via HTTP: $e');
       throw Exception('Error sending message via HTTP: $e');
     }
   }
