@@ -1,294 +1,420 @@
-// features/matches/services/match_service.dart
-
-import 'package:nilewing/features/match/model/match_model.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:nilewing/core/utils/app_constants.dart';
+import 'package:nilewing/core/utils/token_storage.dart';
+import 'package:nilewing/core/utils/http_client.dart';
+import '../model/match_model.dart';
 
 class MatchService {
-  Future<List<Match>> getMatches() async {
-    await Future.delayed(const Duration(milliseconds: 1000));
-    return _getMockMatches();
+  static final MatchService _instance = MatchService._internal();
+  factory MatchService() => _instance;
+  MatchService._internal();
+
+  final TokenStorage _tokenStorage = TokenStorage();
+  final HttpClient _httpClient = HttpClient();
+
+  Future<String?> _getAuthToken() async {
+    return await _tokenStorage.getAccessToken();
   }
 
-  Future<List<Match>> getMatchesByFilters(MatchFilters filters) async {
-    await Future.delayed(const Duration(milliseconds: 800));
-    final allMatches = _getMockMatches();
-    return _applyFilters(allMatches, filters);
+  // Find new matches
+  Future<List<Match>> findMatches({String? flightId}) async {
+    try {
+      print('🔍 [MatchService] Finding matches...');
+      if (flightId != null) {
+        print('🔍 [MatchService] For flight ID: $flightId');
+      }
+      final token = await _getAuthToken();
+      if (token == null) {
+        print('❌ [MatchService] No auth token found');
+        throw Exception('Not authenticated');
+      }
+
+      String url = AppConstants.findMatchesEndpoint;
+      if (flightId != null) {
+        url += '?flight_id=$flightId';
+      }
+
+      print('📡 [MatchService] Calling: $url');
+      final response = await _httpClient.get(Uri.parse(url));
+
+      print('📥 [MatchService] Response status: ${response.statusCode}');
+      print('📥 [MatchService] Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        
+        // Handle new response format with debug info
+        List<dynamic> matchesData;
+        if (responseData is Map<String, dynamic>) {
+          if (responseData.containsKey('matches')) {
+            matchesData = responseData['matches'] as List<dynamic>? ?? [];
+            // Log debug info if available
+            if (responseData.containsKey('message')) {
+              print('ℹ️ [MatchService] ${responseData['message']}');
+            }
+            if (responseData.containsKey('debug')) {
+              final debug = responseData['debug'] as Map<String, dynamic>?;
+              if (debug != null) {
+                print('🔍 [MatchService] Debug info:');
+                debug.forEach((key, value) {
+                  print('   $key: $value');
+                });
+              }
+            }
+          } else {
+            // Old format - direct array
+            matchesData = responseData as List<dynamic>;
+          }
+        } else {
+          // Old format - direct array
+          matchesData = responseData as List<dynamic>;
+        }
+        
+        print('✅ [MatchService] Found ${matchesData.length} matches');
+        final matches = matchesData.map((json) => _matchFromJson(json)).toList();
+        return matches;
+      }
+      print('❌ [MatchService] Failed with status: ${response.statusCode}');
+      throw Exception('Failed to find matches: ${response.statusCode}');
+    } catch (e) {
+      print('❌ [MatchService] Error finding matches: $e');
+      throw Exception('Error finding matches: $e');
+    }
   }
 
-  Future<void> sendMatchRequest(String matchId) async {
-    await Future.delayed(const Duration(milliseconds: 500));
+  // Get user's matches
+  Future<List<Match>> getUserMatches() async {
+    try {
+      final token = await _getAuthToken();
+      if (token == null) {
+        throw Exception('Not authenticated');
+      }
+
+      final response = await http.get(
+        Uri.parse('${AppConstants.matchesEndpoint}/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        return data.map((json) => _matchFromJson(json)).toList();
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
   }
 
-  Future<void> acceptMatch(String matchId) async {
-    await Future.delayed(const Duration(milliseconds: 500));
+  // Like a match
+  Future<Match> likeMatch(String matchId) async {
+    try {
+      print('❤️ [MatchService] Liking match: $matchId');
+      final token = await _getAuthToken();
+      if (token == null) {
+        print('❌ [MatchService] No auth token found');
+        throw Exception('Not authenticated');
+      }
+
+      final url = '${AppConstants.matchesEndpoint}/$matchId/like/';
+      print('📡 [MatchService] POST to: $url');
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      print('📥 [MatchService] Response status: ${response.statusCode}');
+      print('📥 [MatchService] Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        print('✅ [MatchService] Match liked successfully');
+        return _matchFromJson(data);
+      } else {
+        final errorData = json.decode(response.body);
+        print(
+          '❌ [MatchService] Error: ${errorData['error'] ?? 'Unknown error'}',
+        );
+        throw Exception(errorData['error'] ?? 'Failed to like match');
+      }
+    } catch (e) {
+      print('❌ [MatchService] Error liking match: $e');
+      throw Exception('Error liking match: $e');
+    }
   }
 
-  Future<void> declineMatch(String matchId) async {
-    await Future.delayed(const Duration(milliseconds: 500));
+  // Reject a match
+  Future<void> rejectMatch(String matchId) async {
+    try {
+      final token = await _getAuthToken();
+      if (token == null) {
+        throw Exception('Not authenticated');
+      }
+
+      final response = await http.post(
+        Uri.parse('${AppConstants.matchesEndpoint}/$matchId/reject/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception('Failed to reject match');
+      }
+    } catch (e) {
+      throw Exception('Error rejecting match: $e');
+    }
   }
 
-  Future<User> getUserDetail(String userId) async {
-    await Future.delayed(const Duration(milliseconds: 800));
-    return _getMockUserDetail(userId);
+  // View a match (mark as viewed)
+  Future<void> viewMatch(String matchId) async {
+    try {
+      final token = await _getAuthToken();
+      if (token == null) {
+        throw Exception('Not authenticated');
+      }
+
+      final response = await http.post(
+        Uri.parse('${AppConstants.matchesEndpoint}/$matchId/view/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode != 200) {
+        // Not critical, just log
+        print('Failed to mark match as viewed');
+      }
+    } catch (e) {
+      // Not critical, just log
+      print('Error viewing match: $e');
+    }
   }
 
-  List<Match> _applyFilters(List<Match> matches, MatchFilters filters) {
-    // ... (keep existing filter logic)
-    return matches;
+  // Get match filters
+  Future<Map<String, dynamic>> getMatchFilters() async {
+    try {
+      final token = await _getAuthToken();
+      if (token == null) {
+        throw Exception('Not authenticated');
+      }
+
+      final response = await http.get(
+        Uri.parse('${AppConstants.matchFiltersEndpoint}/my_filters/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body) as Map<String, dynamic>;
+      }
+      return {};
+    } catch (e) {
+      return {};
+    }
   }
 
-  List<Match> _getMockMatches() {
-    return [
-      Match(
-        id: '1',
-        user: User(
-          id: 'user1',
-          name: 'Danei Tadesse',
-          age: 29,
-          nationality: 'Ethiopian',
-          gender: 'Male',
-          languages: ['Amharic', 'English'],
-          interests: ['Coffee', 'Travel', 'Photography', 'Culture', 'Business'],
-          verified: true,
-          bio:
-              'Love exploring new cultures and meeting people from around the world. Always up for a good coffee chat!',
-          rating: 4.8,
-          reviewCount: 23,
-          isOnline: true,
-          currentLocation: 'Charles de Gaulle Airport - Terminal 2E',
-          locationAccuracy: const LocationAccuracy(accuracy: 10.0),
-          lastSeen: DateTime.now(),
-          mutualConnections: 3,
-          travelStats: const TravelStats(
-            countriesVisited: 34,
-            totalFlights: 87,
-            flightsThisYear: 12,
-            frequentFlyerTier: 'Gold',
-          ),
-          favoriteDestination: 'Tokyo, Japan',
+  // Update match filters
+  Future<Map<String, dynamic>> updateMatchFilters(
+    Map<String, dynamic> filters,
+  ) async {
+    try {
+      final token = await _getAuthToken();
+      if (token == null) {
+        throw Exception('Not authenticated');
+      }
+
+      final response = await http.put(
+        Uri.parse('${AppConstants.matchFiltersEndpoint}/my_filters/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: json.encode(filters),
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body) as Map<String, dynamic>;
+      } else {
+        final errorData = json.decode(response.body);
+        throw Exception(errorData['message'] ?? 'Failed to update filters');
+      }
+    } catch (e) {
+      throw Exception('Error updating filters: $e');
+    }
+  }
+
+  // Helper: Convert JSON to Match model
+  Match _matchFromJson(Map<String, dynamic> json) {
+    final user2Data = json['user2_data'] ?? {};
+    final flight2Data = json['flight2_data'];
+
+    // Determine which user is the "other" user (not current user)
+    // For now, assume user2 is the match
+    final otherUserData = user2Data;
+    final otherFlightData = flight2Data;
+
+    // Parse match type
+    final matchTypeStr = json['match_type'] ?? '';
+    MatchType matchType = MatchType.sameRoute;
+    if (matchTypeStr.contains('layover')) {
+      matchType = MatchType.sameLayover;
+    } else if (matchTypeStr.contains('departure')) {
+      matchType = MatchType.departureMatch;
+    } else if (matchTypeStr.contains('destination')) {
+      matchType = MatchType.destinationMatch;
+    }
+
+    // Build flight info
+    FlightInfo? flightInfo;
+    if (otherFlightData != null) {
+      flightInfo = FlightInfo(
+        departure: otherFlightData['departure_airport'] ?? '',
+        departureCity: otherFlightData['departure_city'] ?? '',
+        arrival: otherFlightData['arrival_airport'] ?? '',
+        arrivalCity: otherFlightData['arrival_city'] ?? '',
+        layover: otherFlightData['layover_airport'],
+        layoverCity: otherFlightData['layover_city'],
+        airline: otherFlightData['airline'] ?? '',
+        flightNumber: otherFlightData['flight_number'] ?? '',
+        departureTime: otherFlightData['departure_datetime'] != null
+            ? DateTime.parse(otherFlightData['departure_datetime'])
+            : DateTime.now(),
+        arrivalTime: otherFlightData['arrival_datetime'] != null
+            ? DateTime.parse(otherFlightData['arrival_datetime'])
+            : DateTime.now(),
+        duration: otherFlightData['duration_hours'] != null
+            ? '${otherFlightData['duration_hours'].toStringAsFixed(1)}h'
+            : '',
+        gate: otherFlightData['departure_gate'],
+        tripPurpose: null,
+      );
+    }
+
+    // Calculate compatibility score (0-100)
+    final matchScore = json['match_score']?.toDouble() ?? 0.0;
+    final compatibility = (matchScore * 20).clamp(0, 100).toInt();
+
+    // Build description
+    final overlapHours = json['overlap_duration_hours']?.toDouble() ?? 0.0;
+    final matchingAirport = json['matching_airport'] ?? '';
+    String description = '';
+    if (matchType == MatchType.sameLayover) {
+      description =
+          'Same layover at $matchingAirport - ${overlapHours.toStringAsFixed(1)}h overlap';
+    } else if (matchType == MatchType.sameRoute) {
+      description =
+          'Same route - Perfect for meeting during layover or sharing transport!';
+    } else {
+      description =
+          'Match at $matchingAirport - ${overlapHours.toStringAsFixed(1)}h overlap';
+    }
+
+    return Match(
+      id: json['id'].toString(),
+      user: User(
+        id: otherUserData['id']?.toString() ?? '0',
+        name: otherUserData['fullName'] ?? 'User',
+        avatar:
+            otherUserData['profileImageUrl'] ?? otherUserData['profileImage'],
+        age: otherUserData['age'] ?? 0,
+        nationality: otherUserData['nationality'] ?? '',
+        gender: otherUserData['gender'] ?? 'other',
+        languages: otherUserData['language'] != null
+            ? [otherUserData['language']]
+            : [],
+        interests:
+            (json['common_interests'] as List<dynamic>?)
+                ?.map((e) => e.toString())
+                .toList() ??
+            [],
+        verified: false,
+        bio: '',
+        rating: 0.0,
+        reviewCount: 0,
+        isOnline: false,
+        currentLocation: json['matching_city'] != null
+            ? '${json['matching_city']} Airport'
+            : null,
+        locationAccuracy: null,
+        lastSeen: null,
+        mutualConnections: 0,
+        travelStats: const TravelStats(
+          countriesVisited: 0,
+          totalFlights: 0,
+          flightsThisYear: 0,
+          frequentFlyerTier: '',
         ),
-        flightInfo: FlightInfo(
-          departure: 'ADD',
-          departureCity: 'Addis Ababa',
-          arrival: 'LHR',
-          arrivalCity: 'London',
-          layover: 'DXB',
-          layoverCity: 'Dubai',
-          airline: 'Ethiopian Airlines',
-          flightNumber: 'ET701',
-          departureTime: DateTime.now().add(const Duration(days: 1)),
-          arrivalTime: DateTime.now().add(const Duration(days: 2)),
-          duration: '15h 30m',
-          gate: 'B12',
-          tripPurpose: 'Business trip to London',
-        ),
-        compatibility: 92,
-        compatibilityText: 'Same Route',
-        description:
-            'Same layover in Dubai & same destination London - Perfect for coffee meetup and shared taxi!',
-        overlapTime: '3h 15m overlap',
-        sharedSegments: ['DXB LHR'],
-        suggestedActivities: [
-          'Coffee at Dubai Terminal 3 Airport lounge',
-          'Share taxi from Heathrow',
-        ],
-        status: 'Pre-flight match request sent - awaiting response',
-        matchTime: DateTime.now().subtract(const Duration(hours: 2)),
-        matchType: MatchType.sameRoute,
-        commonInterests: ['Business', 'Coffee', 'Travel'],
-        tripPurpose: 'Business trip to London',
+        favoriteDestination: null,
       ),
-      Match(
-        id: '2',
-        user: User(
-          id: 'user2',
-          name: 'Mariam Wanjiku',
-          age: 26,
-          nationality: 'Kenyan',
-          gender: 'Female',
-          languages: ['Swahili', 'English'],
-          interests: ['Coffee', 'Culture', 'Art', 'Photography'],
-          verified: true,
-          bio:
-              'Art enthusiast traveling to explore contemporary art scenes around the world. Love cultural exchanges over coffee.',
-          rating: 4.7,
-          reviewCount: 18,
-          isOnline: false,
-          currentLocation: 'Dubai International Airport - Terminal 3',
-          locationAccuracy: const LocationAccuracy(accuracy: 15.0),
-          lastSeen: DateTime.now().subtract(const Duration(minutes: 30)),
-          mutualConnections: 2,
-          travelStats: const TravelStats(
-            countriesVisited: 28,
-            totalFlights: 67,
-            flightsThisYear: 18,
-            frequentFlyerTier: 'Silver',
+      flightInfo:
+          flightInfo ??
+          FlightInfo(
+            departure: '',
+            departureCity: '',
+            arrival: '',
+            arrivalCity: '',
+            airline: '',
+            flightNumber: '',
+            departureTime: DateTime.now(),
+            arrivalTime: DateTime.now(),
+            duration: '',
           ),
-          favoriteDestination: 'Paris, France',
-        ),
-        flightInfo: FlightInfo(
-          departure: 'NBO',
-          departureCity: 'Nairobi',
-          arrival: 'LHR',
-          arrivalCity: 'London',
-          layover: 'DXB',
-          layoverCity: 'Dubai',
-          airline: 'Kenya Airways',
-          flightNumber: 'KQ700',
-          departureTime: DateTime.now().add(const Duration(days: 1)),
-          arrivalTime: DateTime.now().add(const Duration(days: 2)),
-          duration: '14h 45m',
-          gate: 'C8',
-          tripPurpose: 'Art exhibition visit in London',
-        ),
-        compatibility: 88,
-        compatibilityText: 'Same Route',
-        description:
-            'Long layover in Dubai, same flight to London - Perfect for coffee and cultural exchange!',
-        overlapTime: '3h 15m overlap',
-        sharedSegments: ['DXB LHR'],
-        suggestedActivities: [
-          'Coffee meeting at Terminal 3',
-          'Dubai city tour',
-          'Share taxi in London',
-        ],
-        status: 'Meeting confirmed Costa Coffee Terminal 3 at 13:00',
-        matchTime: DateTime.now().subtract(const Duration(hours: 5)),
-        matchType: MatchType.sameRoute,
-        commonInterests: ['Coffee', 'Culture', 'Art'],
-        tripPurpose: 'Art exhibition visit in London',
+      compatibility: compatibility,
+      compatibilityText: matchType.displayName,
+      description: description,
+      overlapTime: '${overlapHours.toStringAsFixed(1)}h overlap',
+      sharedSegments: matchingAirport.isNotEmpty ? [matchingAirport] : [],
+      suggestedActivities: _getSuggestedActivities(
+        matchType,
+        json['matching_city'] ?? '',
       ),
-      Match(
-        id: '3',
-        user: User(
-          id: 'user3',
-          name: 'Amira Hassan',
-          age: 24,
-          nationality: 'Moroccan',
-          gender: 'Female',
-          languages: ['Arabic', 'French', 'English'],
-          interests: ['Photography', 'Food', 'Culture', 'Travel'],
-          verified: false,
-          bio:
-              'Food enthusiast and amateur photographer exploring culinary traditions around the world.',
-          rating: 4.5,
-          reviewCount: 12,
-          isOnline: true,
-          currentLocation: 'Istanbul Airport - Terminal I',
-          locationAccuracy: const LocationAccuracy(accuracy: 20.0),
-          lastSeen: DateTime.now(),
-          mutualConnections: 1,
-          travelStats: const TravelStats(
-            countriesVisited: 18,
-            totalFlights: 45,
-            flightsThisYear: 8,
-            frequentFlyerTier: 'Silver',
-          ),
-          favoriteDestination: 'Istanbul, Turkey',
-        ),
-        flightInfo: FlightInfo(
-          departure: 'CMN',
-          departureCity: 'Casablanca',
-          arrival: 'DXB',
-          arrivalCity: 'Dubai',
-          layover: 'IST',
-          layoverCity: 'Istanbul',
-          airline: 'Turkish Airlines',
-          flightNumber: 'TK120',
-          departureTime: DateTime.now().add(const Duration(days: 2)),
-          arrivalTime: DateTime.now().add(const Duration(days: 2)),
-          duration: '8h 30m',
-          gate: 'D12',
-          tripPurpose: 'Culinary exploration in Dubai',
-        ),
-        compatibility: 67,
-        compatibilityText: 'Same Layover',
-        description:
-            'Connecting through Istanbul - great opportunity to explore the airport together!',
-        overlapTime: '2h 45m overlap',
-        sharedSegments: ['IST Layover'],
-        suggestedActivities: [
-          'Turkish coffee tasting',
-          'Airport shopping',
-          'Cultural exchange',
-        ],
-        status: 'Connect',
-        matchTime: DateTime.now().subtract(const Duration(minutes: 1)),
-        matchType: MatchType.sameLayover,
-        commonInterests: ['Food', 'Culture', 'Travel'],
-        tripPurpose: 'Culinary exploration in Dubai',
-      ),
-      Match(
-        id: '4',
-        user: User(
-          id: 'user4',
-          name: 'Elena Rodriguez',
-          age: 28,
-          nationality: 'Spanish',
-          gender: 'Female',
-          languages: ['Spanish', 'English', 'French'],
-          interests: [
-            'Photography',
-            'Food',
-            'Culture',
-            'Art',
-            'Travel',
-            'Music',
-            'Architecture',
-          ],
-          verified: true,
-          bio:
-              'Passionate photographer and food enthusiast exploring the world one flight at a time. Love connecting with fellow travelers and sharing cultural experiences. Currently on a journey to document the beauty of different cultures through my lens.',
-          rating: 4.9,
-          reviewCount: 31,
-          isOnline: true,
-          currentLocation: 'Charles de Gaulle Airport - Terminal 2E',
-          locationAccuracy: const LocationAccuracy(accuracy: 10.0),
-          lastSeen: DateTime.now(),
-          mutualConnections: 3,
-          travelStats: const TravelStats(
-            countriesVisited: 34,
-            totalFlights: 87,
-            flightsThisYear: 12,
-            frequentFlyerTier: 'Gold',
-          ),
-          favoriteDestination: 'Tokyo, Japan',
-        ),
-        flightInfo: FlightInfo(
-          departure: 'MAD',
-          departureCity: 'Madrid',
-          arrival: 'LAX',
-          arrivalCity: 'Los Angeles',
-          airline: 'Iberia',
-          flightNumber: 'IB6275',
-          departureTime: DateTime.now().add(const Duration(hours: 3)),
-          arrivalTime: DateTime.now().add(const Duration(hours: 15)),
-          duration: '12h 45m',
-          gate: 'B12',
-          tripPurpose: 'Photography project in California',
-        ),
-        compatibility: 85,
-        compatibilityText: 'Destination Match',
-        description:
-            'Both photography enthusiasts heading to California - great opportunity to collaborate!',
-        overlapTime: 'Same destination',
-        sharedSegments: ['LAX'],
-        suggestedActivities: [
-          'Photography walk in LA',
-          'Food tour exploration',
-          'Cultural sites visit',
-        ],
-        status: 'Connect',
-        matchTime: DateTime.now().subtract(const Duration(hours: 1)),
-        matchType: MatchType.destinationMatch,
-        commonInterests: ['Photography', 'Food', 'Culture'],
-        tripPurpose: 'Photography project in California',
-      ),
-    ];
+      status: json['status'] == 'matched' ? 'Matched!' : 'Connect',
+      matchTime: json['created_at'] != null
+          ? DateTime.parse(json['created_at'])
+          : DateTime.now(),
+      matchType: matchType,
+      commonInterests:
+          (json['common_interests'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
+      tripPurpose: null,
+    );
   }
 
-  User _getMockUserDetail(String userId) {
-    final matches = _getMockMatches();
-    final match = matches.firstWhere((m) => m.user.id == userId);
-    return match.user;
+  List<String> _getSuggestedActivities(MatchType matchType, String city) {
+    switch (matchType) {
+      case MatchType.sameLayover:
+        return [
+          'Coffee at airport lounge',
+          'Explore $city airport',
+          'Share travel stories',
+        ];
+      case MatchType.sameRoute:
+        return [
+          'Meet during layover',
+          'Share taxi from airport',
+          'Explore destination together',
+        ];
+      case MatchType.departureMatch:
+        return [
+          'Coffee before departure',
+          'Share travel tips',
+          'Network before flight',
+        ];
+      default:
+        return ['Connect and explore'];
+    }
   }
 }

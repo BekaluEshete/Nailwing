@@ -247,9 +247,26 @@ class ChatConsumer(AsyncWebsocketConsumer):
         """Get user from JWT token - LAZY IMPORT"""
         try:
             from authentication.models import CustomUser
+            from rest_framework_simplejwt.tokens import UntypedToken
+            from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
+            from django.contrib.auth import get_user_model
 
+            # Validate token using Simple JWT
+            try:
+                UntypedToken(token)
+            except (InvalidToken, TokenError) as e:
+                print(f"Token validation failed: {e}")
+                return None
+
+            # Decode token to get user_id
+            # Simple JWT uses SECRET_KEY for signing
             payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
             user_id = payload.get("user_id")
+            
+            if not user_id:
+                print("No user_id in token payload")
+                return None
+                
             return CustomUser.objects.get(id=user_id)
         except (jwt.ExpiredSignatureError, jwt.DecodeError, Exception) as e:
             print(f"Token validation failed: {e}")

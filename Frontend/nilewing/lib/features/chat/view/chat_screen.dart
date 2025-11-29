@@ -207,7 +207,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          contact.name.split(' ')[0],
+                          contact.name.split(' ').isNotEmpty 
+                              ? contact.name.split(' ')[0] 
+                              : contact.name,
                           style: const TextStyle(
                             fontSize: 12,
                             color: Colors.grey,
@@ -384,6 +386,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   String _getInitials(String name) {
-    return name.split(' ').map((n) => n[0]).take(2).join().toUpperCase();
+    if (name.isEmpty) return '?';
+    final parts = name.split(' ').where((n) => n.isNotEmpty).toList();
+    if (parts.isEmpty) return '?';
+    return parts.map((n) => n[0]).take(2).join().toUpperCase();
   }
 }

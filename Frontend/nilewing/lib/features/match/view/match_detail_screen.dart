@@ -390,7 +390,7 @@ class MatchDetailScreen extends ConsumerWidget {
           const SizedBox(width: 12),
           if (match.status.toLowerCase().contains('connect'))
             ElevatedButton(
-              onPressed: () => viewModel.sendMatchRequest(match.id),
+              onPressed: () => viewModel.likeMatch(match.id),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blue,
                 foregroundColor: Colors.white,

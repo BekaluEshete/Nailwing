@@ -9,7 +9,7 @@ final myFlightsViewModelProvider = ChangeNotifierProvider<MyFlightsViewModel>(
 );
 
 class MyFlightsViewModel with ChangeNotifier {
-  final MyFlightsService _service = MyFlightsService();
+  final FlightService _service = FlightService();
 
   List<Flight> _flights = [];
   bool _isLoading = false;
@@ -43,7 +43,7 @@ class MyFlightsViewModel with ChangeNotifier {
     notifyListeners();
 
     try {
-      _flights = await _service.getUserFlights("current_user_id");
+      _flights = await _service.getUserFlights();
     } catch (e) {
       print('Error loading flights: $e');
     } finally {
@@ -75,17 +75,132 @@ class MyFlightsViewModel with ChangeNotifier {
   // Add this method to your existing MyFlightsViewModel
   Future<void> addFlight(Flight newFlight) async {
     try {
-      // Add to local state immediately for better UX
-      _flights.insert(0, newFlight);
+      print('✈️ [FlightViewModel] Adding flight: ${newFlight.flightNumber}');
+      
+      // Convert Flight to backend format
+      final flightData = _convertFlightToBackendFormat(newFlight);
+      print('📤 [FlightViewModel] Flight data: $flightData');
+      
+      // Call API to create flight
+      final createdFlight = await _service.createFlight(flightData);
+      print('✅ [FlightViewModel] Flight created: ${createdFlight.id}');
+      
+      // Add to local state
+      _flights.insert(0, createdFlight);
       notifyListeners();
-
-      // TODO: Implement API call to save flight
-      // await _service.addFlight(newFlight);
     } catch (e) {
-      // Remove from local state if API call fails
-      _flights.remove(newFlight);
-      notifyListeners();
+      print('❌ [FlightViewModel] Error adding flight: $e');
       rethrow;
+    }
+  }
+
+  // Helper: Convert frontend Flight to backend format
+  Map<String, dynamic> _convertFlightToBackendFormat(Flight flight) {
+    // Parse departure datetime
+    final departureDateTime = _parseDateTime(
+      flight.departure.date,
+      flight.departure.time,
+    );
+    
+    // Parse arrival datetime
+    final arrivalDateTime = _parseDateTime(
+      flight.arrival.date,
+      flight.arrival.time,
+    );
+    
+    final flightData = <String, dynamic>{
+      'flight_number': flight.flightNumber,
+      'airline': flight.airline,
+      'departure_airport': flight.departure.airport,
+      'departure_city': flight.departure.city,
+      'departure_terminal': flight.departure.terminal,
+      'departure_datetime': departureDateTime.toIso8601String(),
+      'arrival_airport': flight.arrival.airport,
+      'arrival_city': flight.arrival.city,
+      'arrival_terminal': flight.arrival.terminal,
+      'arrival_datetime': arrivalDateTime.toIso8601String(),
+      'aircraft': flight.aircraft,
+      'seat': flight.seat,
+      'departure_gate': flight.gate,
+      'status': _convertStatusToBackend(flight.status),
+      'is_visible': flight.isVisible,
+      'looking_for_company': false,
+      'open_to_meeting': true,
+    };
+    
+    // Add layover info if exists
+    if (flight.transitAirport != null && flight.transitAirport!.isNotEmpty) {
+      flightData['has_layover'] = true;
+      flightData['layover_airport'] = flight.transitAirport;
+      // Calculate layover times (simplified - you may need to adjust)
+      if (departureDateTime.isBefore(arrivalDateTime)) {
+        final layoverStart = departureDateTime.add(Duration(hours: 1));
+        final layoverEnd = arrivalDateTime.subtract(Duration(hours: 1));
+        flightData['layover_start'] = layoverStart.toIso8601String();
+        flightData['layover_end'] = layoverEnd.toIso8601String();
+      }
+    } else {
+      flightData['has_layover'] = false;
+    }
+    
+    return flightData;
+  }
+
+  DateTime _parseDateTime(String dateStr, String timeStr) {
+    try {
+      // Try to parse date
+      DateTime date;
+      if (dateStr.toLowerCase() == 'today') {
+        date = DateTime.now();
+      } else if (dateStr.toLowerCase() == 'tomorrow') {
+        date = DateTime.now().add(Duration(days: 1));
+      } else {
+        // Try to parse date string (mm/dd/yyyy or similar)
+        final parts = dateStr.split('/');
+        if (parts.length == 3) {
+          date = DateTime(
+            int.parse(parts[2]),
+            int.parse(parts[0]),
+            int.parse(parts[1]),
+          );
+        } else {
+          date = DateTime.now();
+        }
+      }
+      
+      // Parse time
+      final timeParts = timeStr.split(':');
+      if (timeParts.length == 2) {
+        final hour = int.parse(timeParts[0]);
+        final minute = int.parse(timeParts[1]);
+        return DateTime(
+          date.year,
+          date.month,
+          date.day,
+          hour,
+          minute,
+        );
+      }
+      
+      return date;
+    } catch (e) {
+      print('⚠️ [FlightViewModel] Error parsing datetime: $e');
+      return DateTime.now();
+    }
+  }
+
+  String _convertStatusToBackend(FlightStatus status) {
+    switch (status) {
+      case FlightStatus.upcoming:
+        return 'scheduled';
+      case FlightStatus.boarding:
+        return 'boarding';
+      case FlightStatus.delayed:
+        return 'delayed';
+      case FlightStatus.completed:
+        return 'landed';
+      case FlightStatus.cancelled:
+        return 'cancelled';
     }
   }
 

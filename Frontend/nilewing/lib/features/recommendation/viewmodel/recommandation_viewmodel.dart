@@ -7,10 +7,10 @@ import 'package:nilewing/features/recommendation/model/recommendation_model.dart
 import 'package:nilewing/features/recommendation/services/recommendation_service.dart';
 
 class RecommendationsViewModel with ChangeNotifier {
-  final RecommendationsService _service;
+  final RecommendationService _service;
 
-  RecommendationsViewModel({RecommendationsService? service})
-    : _service = service ?? RecommendationsService();
+  RecommendationsViewModel({RecommendationService? service})
+    : _service = service ?? RecommendationService();
 
   RecommendationsState _state = RecommendationsState(
     places: [],
@@ -30,13 +30,11 @@ class RecommendationsViewModel with ChangeNotifier {
     _updateState(state.copyWith(isLoading: true, error: null));
 
     try {
-      final airport = await _service.getCurrentAirport();
-      final places = await _service.getPlacesNearAirport(airport.code);
-      final users = await _service.getNearbyUsers(airport.code);
+      // Get personalized recommendations from backend (already converted to Places)
+      final places = await _service.getRecommendations();
 
-      _currentAirport = airport; // This is now fine since both are Airport?
       _updateState(
-        state.copyWith(places: places, nearbyUsers: users, isLoading: false),
+        state.copyWith(places: places, nearbyUsers: [], isLoading: false),
       );
     } catch (e) {
       _updateState(
@@ -71,21 +69,15 @@ class RecommendationsViewModel with ChangeNotifier {
   }
 
   Future<void> connectWithUser(String userId) async {
-    try {
-      await _service.connectWithUser(userId);
-      // You could update the user state here if needed
-    } catch (e) {
-      _updateState(state.copyWith(error: 'Failed to connect with user: $e'));
-    }
+    // TODO: Implement user connection (could navigate to chat or match screen)
+    // For now, just log
+    print('Connect with user: $userId');
   }
 
   Future<void> getDirections(Place place) async {
-    try {
-      await _service.getDirections(place);
-      // Handle directions opening
-    } catch (e) {
-      _updateState(state.copyWith(error: 'Failed to get directions: $e'));
-    }
+    // TODO: Implement directions (could use maps URL or navigation)
+    // For now, just log
+    print('Get directions to: ${place.name}');
   }
 
   void clearError() {

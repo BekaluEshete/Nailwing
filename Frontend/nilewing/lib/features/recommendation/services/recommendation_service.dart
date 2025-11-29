@@ -1,179 +1,265 @@
-// features/recommendations/services/recommendations_service.dart
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:nilewing/core/utils/app_constants.dart';
+import 'package:nilewing/core/utils/token_storage.dart';
+import '../model/recommendation_model.dart';
 
-import 'package:nilewing/features/recommendation/model/recommendation_model.dart';
+// Backend Place model (simplified)
+class _BackendPlace {
+  final String id;
+  final String name;
+  final String type;
+  final String airportCode;
+  final String terminal;
+  final String description;
+  final double rating;
+  final String priceRange;
+  final String openingHours;
+  final bool is24Hours;
+  final double? latitude;
+  final double? longitude;
+  final double? distance;
 
-class RecommendationsService {
-  static final Airport _currentAirport = Airport(
-    code: 'BDR',
-    name: 'Belay  Zeleke International Airport',
-    city: 'Bahirdar',
-    country: 'Ethiopia',
-  );
+  _BackendPlace({
+    required this.id,
+    required this.name,
+    required this.type,
+    required this.airportCode,
+    required this.terminal,
+    required this.description,
+    required this.rating,
+    required this.priceRange,
+    required this.openingHours,
+    required this.is24Hours,
+    this.latitude,
+    this.longitude,
+    this.distance,
+  });
+}
 
-  Future<Airport> getCurrentAirport() async {
-    // In real app, this would fetch from API based on user location
-    await Future.delayed(const Duration(milliseconds: 500));
-    return _currentAirport;
+// Backend Recommendation model
+class _BackendRecommendation {
+  final String id;
+  final _BackendPlace place;
+  final String reason;
+  final double? distance;
+  final bool isViewed;
+
+  _BackendRecommendation({
+    required this.id,
+    required this.place,
+    required this.reason,
+    this.distance,
+    required this.isViewed,
+  });
+}
+
+class RecommendationService {
+  static final RecommendationService _instance = RecommendationService._internal();
+  factory RecommendationService() => _instance;
+  RecommendationService._internal();
+
+  final TokenStorage _tokenStorage = TokenStorage();
+
+  Future<String?> _getAuthToken() async {
+    return await _tokenStorage.getAccessToken();
   }
 
-  Future<List<Place>> getPlacesNearAirport(String airportCode) async {
-    // Mock API call - replace with actual API
-    await Future.delayed(const Duration(milliseconds: 1000));
+  // Get airport places
+  Future<List<Place>> getAirportPlaces({
+    String? airportCode,
+    String? placeType,
+  }) async {
+    try {
+      final token = await _getAuthToken();
+      if (token == null) {
+        throw Exception('Not authenticated');
+      }
 
-    return [
-      Place(
-        id: '1',
-        name: 'Sheraton Paris Airport Hotel',
-        type: PlaceType.hotel,
-        rating: 4.2,
-        reviewCount: 1847,
-        priceLevel: 3,
-        distance: '0.2 km',
-        walkTime: '3 min walk',
-        openNow: true,
-        openingHours: ['Open 24 hours'],
-        address:
-            'Terminal 2, Charles de Gaulle Airport, 95716 Roissy-en-France',
-        phoneNumber: '+33 1 49 19 70 70',
-        website: 'sheraton.com/paris-airport',
-        photos: ['hotel1.jpg', 'hotel2.jpg'],
-        amenities: [
-          'Free WiFi',
-          'Fitness Center',
-          'Restaurant',
-          'Bar',
-          'Business Center',
-          'Airport Shuttle',
-        ],
-        description:
-            'Modern hotel directly connected to Terminal 2 at CDG Airport. Perfect for layovers with soundproof rooms and 24/7 dining options.',
-        popularTimes: {'06:00': 20, '12:00': 60, '18:00': 80, '22:00': 40},
-        averageSpend: '€180-250/night',
-        roomPrice: '€210/night',
-        wifi: true,
-        parking: true,
-        coordinates: Coordinates(lat: 49.0047, lng: 2.5710),
-      ),
-      Place(
-        id: '2',
-        name: 'Café Paris',
-        type: PlaceType.cafe,
-        rating: 4.5,
-        reviewCount: 892,
-        priceLevel: 2,
-        distance: '0.1 km',
-        walkTime: '2 min walk',
-        openNow: true,
-        openingHours: ['5:30 AM - 11:00 PM'],
-        address: 'Terminal 2E, Level 2, Charles de Gaulle Airport',
-        phoneNumber: '+33 1 48 16 14 24',
-        photos: ['cafe1.jpg', 'cafe2.jpg'],
-        amenities: [
-          'Free WiFi',
-          'Power Outlets',
-          'Quick Service',
-          'Pastries',
-          'Coffee',
-        ],
-        description:
-            'Authentic Parisian café experience in the airport with fresh croissants, premium coffee, and a cozy atmosphere.',
-        popularTimes: {'06:00': 80, '12:00': 90, '18:00': 70, '22:00': 30},
-        averageSpend: '€8-15',
-        specialties: ['Croissants', 'Espresso', 'Macarons', 'Quiche'],
-        wifi: true,
-        parking: false,
-        coordinates: Coordinates(lat: 49.0043, lng: 2.5718),
-      ),
-      Place(
-        id: '3',
-        name: 'La Brasserie Air France',
-        type: PlaceType.restaurant,
-        rating: 4.1,
-        reviewCount: 654,
-        priceLevel: 3,
-        distance: '0.3 km',
-        walkTime: '5 min walk',
-        openNow: true,
-        openingHours: ['6:00 AM - 10:00 PM'],
-        address: 'Terminal 2F, Charles de Gaulle Airport, Roissy-en-France',
-        phoneNumber: '+33 1 48 16 58 00',
-        website: 'airfrance-restaurants.com',
-        photos: ['restaurant1.jpg', 'restaurant2.jpg'],
-        amenities: [
-          'Full Bar',
-          'Table Service',
-          'French Cuisine',
-          'Wine Selection',
-          'Business Seating',
-        ],
-        description:
-            'Elegant French brasserie offering traditional cuisine and an extensive wine list. Perfect for a leisurely meal during long layovers.',
-        popularTimes: {'06:00': 40, '12:00': 85, '18:00': 95, '22:00': 20},
-        averageSpend: '€25-45',
-        specialties: [
-          'Coq au Vin',
-          'French Onion Soup',
-          'Cheese Selection',
-          'Bordeaux Wines',
-        ],
-        wifi: true,
-        parking: false,
-        coordinates: Coordinates(lat: 49.0039, lng: 2.5725),
-      ),
-    ];
+      String url = AppConstants.placesEndpoint;
+      final queryParams = <String>[];
+      if (airportCode != null) {
+        queryParams.add('airport=$airportCode');
+      }
+      if (placeType != null) {
+        queryParams.add('type=$placeType');
+      }
+      if (queryParams.isNotEmpty) {
+        url += '?${queryParams.join('&')}';
+      }
+
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        return data.map((json) => _placeFromJson(json)).toList();
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
   }
 
-  Future<List<NearbyUser>> getNearbyUsers(String airportCode) async {
-    // Mock API call - replace with actual API
-    await Future.delayed(const Duration(milliseconds: 800));
+  // Get personalized recommendations (returns Places, not Recommendations)
+  Future<List<Place>> getRecommendations() async {
+    try {
+      print('📍 [RecommendationService] Getting recommendations...');
+      final token = await _getAuthToken();
+      if (token == null) {
+        print('❌ [RecommendationService] No auth token found');
+        throw Exception('Not authenticated');
+      }
 
-    return [
-      NearbyUser(
-        id: '1',
-        name: 'Sophie Laurent',
-        avatar: null,
-        age: 29,
-        nationality: 'French',
-        currentLocation: 'Terminal 2E Lounge',
-        distanceFromAirport: '0.1 km',
-        interests: ['Food', 'Photography', 'Local Culture', 'Art'],
-        isOnline: true,
-        mutualConnections: 2,
-        currentActivity: 'Having coffee at Café Paris',
-        localRecommendations: [
-          'Visit Montmartre',
-          'Try macarons at Ladurée',
-          'Seine river cruise',
-        ],
-      ),
-      NearbyUser(
-        id: '2',
-        name: 'Pierre Dubois',
-        avatar: null,
-        age: 34,
-        nationality: 'French',
-        currentLocation: 'Sheraton Hotel Lobby',
-        distanceFromAirport: '0.2 km',
-        interests: ['Business', 'Wine', 'History', 'Architecture'],
-        isOnline: true,
-        mutualConnections: 1,
-        currentActivity: 'Working in hotel business center',
-        localRecommendations: [
-          'Louvre Museum',
-          'Wine tasting in Marais',
-          'Notre-Dame area walk',
-        ],
-      ),
-    ];
+      final url = '${AppConstants.recommendationsEndpoint}get_recommendations/';
+      print('📡 [RecommendationService] Calling: $url');
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      print('📥 [RecommendationService] Response status: ${response.statusCode}');
+      print('📥 [RecommendationService] Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        print('✅ [RecommendationService] Found ${data.length} recommendations');
+        final places = data.map((json) {
+          final rec = _recommendationFromJson(json);
+          return _recommendationToPlace(rec);
+        }).toList();
+        return places;
+      }
+      print('⚠️ [RecommendationService] No recommendations (status: ${response.statusCode})');
+      return [];
+    } catch (e) {
+      print('❌ [RecommendationService] Error: $e');
+      return [];
+    }
   }
 
-  Future<void> connectWithUser(String userId) async {
-    // Mock API call for connecting with user
-    await Future.delayed(const Duration(milliseconds: 500));
+  // Get places by type
+  Future<List<Place>> getRestaurants(String airportCode) async {
+    return getAirportPlaces(airportCode: airportCode, placeType: 'restaurant');
   }
 
-  Future<void> getDirections(Place place) async {
-    // Mock API call for getting directions
-    await Future.delayed(const Duration(milliseconds: 300));
+  Future<List<Place>> getCafes(String airportCode) async {
+    return getAirportPlaces(airportCode: airportCode, placeType: 'cafe');
+  }
+
+  Future<List<Place>> getLounges(String airportCode) async {
+    return getAirportPlaces(airportCode: airportCode, placeType: 'lounge');
+  }
+
+  Future<List<Place>> getChargingStations(String airportCode) async {
+    return getAirportPlaces(airportCode: airportCode, placeType: 'charging_station');
+  }
+
+  // Helper: Convert JSON to backend Place model
+  _BackendPlace _backendPlaceFromJson(Map<String, dynamic> json) {
+    return _BackendPlace(
+      id: json['id'].toString(),
+      name: json['name'] ?? '',
+      type: json['type'] ?? '',
+      airportCode: json['airport_code'] ?? '',
+      terminal: json['terminal'] ?? '',
+      description: json['description'] ?? '',
+      rating: (json['rating'] ?? 0.0).toDouble(),
+      priceRange: json['price_range'] ?? '',
+      openingHours: json['opening_hours'] ?? '',
+      is24Hours: json['is_24_hours'] ?? false,
+      latitude: json['latitude']?.toDouble(),
+      longitude: json['longitude']?.toDouble(),
+      distance: json['distance_meters']?.toDouble(),
+    );
+  }
+
+  // Helper: Convert backend Place to frontend Place
+  Place _placeFromBackend(_BackendPlace backendPlace) {
+    PlaceType placeType = PlaceType.cafe;
+    switch (backendPlace.type) {
+      case 'restaurant':
+        placeType = PlaceType.restaurant;
+        break;
+      case 'cafe':
+        placeType = PlaceType.cafe;
+        break;
+      case 'lounge':
+      case 'hotel':
+        placeType = PlaceType.hotel;
+        break;
+      default:
+        placeType = PlaceType.cafe;
+    }
+
+    int priceLevel = 2;
+    if (backendPlace.priceRange.contains('\$')) {
+      priceLevel = backendPlace.priceRange.split('\$').length - 1;
+    }
+
+    return Place(
+      id: backendPlace.id,
+      name: backendPlace.name,
+      type: placeType,
+      rating: backendPlace.rating,
+      reviewCount: 0,
+      priceLevel: priceLevel,
+      distance: backendPlace.distance != null
+          ? '${(backendPlace.distance! / 1000).toStringAsFixed(1)} km'
+          : 'Nearby',
+      walkTime: backendPlace.distance != null
+          ? '${(backendPlace.distance! / 80).toStringAsFixed(0)} min walk'
+          : 'Nearby',
+      openNow: backendPlace.is24Hours || true,
+      openingHours: backendPlace.openingHours.isNotEmpty
+          ? [backendPlace.openingHours]
+          : ['Open 24 hours'],
+      address: '${backendPlace.terminal.isNotEmpty ? 'Terminal ${backendPlace.terminal}, ' : ''}${backendPlace.airportCode} Airport',
+      phoneNumber: '',
+      website: null,
+      photos: [],
+      amenities: [],
+      description: backendPlace.description,
+      popularTimes: {},
+      averageSpend: backendPlace.priceRange.isNotEmpty ? backendPlace.priceRange : 'Varies',
+      specialties: null,
+      roomPrice: null,
+      wifi: true,
+      parking: false,
+      coordinates: backendPlace.latitude != null && backendPlace.longitude != null
+          ? Coordinates(lat: backendPlace.latitude!, lng: backendPlace.longitude!)
+          : Coordinates(lat: 0, lng: 0),
+    );
+  }
+
+  // Helper: Convert JSON to Place model (for direct places endpoint)
+  Place _placeFromJson(Map<String, dynamic> json) {
+    final backendPlace = _backendPlaceFromJson(json);
+    return _placeFromBackend(backendPlace);
+  }
+
+  // Helper: Convert JSON to Recommendation model
+  _BackendRecommendation _recommendationFromJson(Map<String, dynamic> json) {
+    final placeData = json['place'] ?? {};
+    return _BackendRecommendation(
+      id: json['id'].toString(),
+      place: _backendPlaceFromJson(placeData),
+      reason: json['reason'] ?? '',
+      distance: json['distance_meters']?.toDouble(),
+      isViewed: json['is_viewed'] ?? false,
+    );
+  }
+
+  // Convert backend recommendation to frontend Place
+  Place _recommendationToPlace(_BackendRecommendation rec) {
+    return _placeFromBackend(rec.place);
   }
 }

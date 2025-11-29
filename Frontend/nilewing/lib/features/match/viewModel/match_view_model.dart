@@ -146,11 +146,11 @@ class MatchViewModel extends StateNotifier<MatchState> {
   List<Match> get filteredMatches => state.filteredMatches;
 
   // Actions
-  Future<void> loadMatches() async {
+  Future<void> loadMatches({String? flightId}) async {
     state = state.copyWith(isLoading: true, error: null);
 
     try {
-      final matches = await _service.getMatches();
+      final matches = await _service.findMatches(flightId: flightId);
       state = state.copyWith(matches: matches, isLoading: false);
     } catch (e) {
       state = state.copyWith(
@@ -164,8 +164,12 @@ class MatchViewModel extends StateNotifier<MatchState> {
     state = state.copyWith(isLoadingUserDetail: true, error: null);
 
     try {
-      final user = await _service.getUserDetail(userId);
-      state = state.copyWith(selectedUser: user, isLoadingUserDetail: false);
+      // Find user from existing matches
+      final match = state.matches.firstWhere(
+        (m) => m.user.id == userId,
+        orElse: () => throw Exception('User not found'),
+      );
+      state = state.copyWith(selectedUser: match.user, isLoadingUserDetail: false);
     } catch (e) {
       state = state.copyWith(
         error: 'Failed to load user details: $e',
@@ -190,47 +194,40 @@ class MatchViewModel extends StateNotifier<MatchState> {
     state = state.copyWith(selectedUser: null);
   }
 
-  Future<void> sendMatchRequest(String matchId) async {
+  Future<void> likeMatch(String matchId) async {
     try {
-      await _service.sendMatchRequest(matchId);
+      await _service.likeMatch(matchId);
       final updatedMatches = state.matches.map((match) {
         if (match.id == matchId) {
-          return match.copyWith(status: 'Request sent');
+          return match.copyWith(status: 'Liked');
         }
         return match;
       }).toList();
 
       state = state.copyWith(matches: updatedMatches);
     } catch (e) {
-      state = state.copyWith(error: 'Failed to send match request: $e');
+      state = state.copyWith(error: 'Failed to like match: $e');
     }
   }
 
-  Future<void> acceptMatch(String matchId) async {
+  Future<void> rejectMatch(String matchId) async {
     try {
-      await _service.acceptMatch(matchId);
-      final updatedMatches = state.matches.map((match) {
-        if (match.id == matchId) {
-          return match.copyWith(status: 'Accepted');
-        }
-        return match;
-      }).toList();
-
-      state = state.copyWith(matches: updatedMatches);
-    } catch (e) {
-      state = state.copyWith(error: 'Failed to accept match: $e');
-    }
-  }
-
-  Future<void> declineMatch(String matchId) async {
-    try {
-      await _service.declineMatch(matchId);
+      await _service.rejectMatch(matchId);
       final updatedMatches = state.matches
           .where((match) => match.id != matchId)
           .toList();
       state = state.copyWith(matches: updatedMatches);
     } catch (e) {
-      state = state.copyWith(error: 'Failed to decline match: $e');
+      state = state.copyWith(error: 'Failed to reject match: $e');
+    }
+  }
+
+  Future<void> viewMatch(String matchId) async {
+    try {
+      await _service.viewMatch(matchId);
+    } catch (e) {
+      // Not critical, just log
+      print('Error viewing match: $e');
     }
   }
 

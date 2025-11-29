@@ -185,7 +185,10 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
   }
 
   String _getInitials(String name) {
-    return name.split(' ').map((n) => n[0]).take(2).join().toUpperCase();
+    if (name.isEmpty) return '?';
+    final parts = name.split(' ').where((n) => n.isNotEmpty).toList();
+    if (parts.isEmpty) return '?';
+    return parts.map((n) => n[0]).take(2).join().toUpperCase();
   }
 
   Widget _buildMessageBubble(ChatMessage message) {

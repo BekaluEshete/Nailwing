@@ -316,8 +316,8 @@ class RegistrationViewModel with ChangeNotifier {
       
       if (response.success && response.data != null) {
         _errorMessage = null;
-        notifyListeners();
-        return true;
+      notifyListeners();
+      return true;
       } else {
         // Handle errors from backend
         if (response.errors != null && response.errors!.isNotEmpty) {

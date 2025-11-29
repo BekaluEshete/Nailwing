@@ -157,11 +157,14 @@ class ChatState {
   }
 
   ChatContact? get selectedContact {
-    if (selectedChatId == null) return null;
-    return contacts.firstWhere(
-      (contact) => contact.id == selectedChatId,
-      orElse: () => contacts.first,
-    );
+    if (selectedChatId == null || contacts.isEmpty) return null;
+    try {
+      return contacts.firstWhere(
+        (contact) => contact.id == selectedChatId,
+      );
+    } catch (e) {
+      return null;
+    }
   }
 
   List<ChatMessage> get selectedMessages {

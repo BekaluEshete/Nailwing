@@ -1,225 +1,473 @@
-// features/my_flights/services/my_flights_service.dart
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:nilewing/core/utils/app_constants.dart';
+import 'package:nilewing/core/utils/token_storage.dart';
 import '../model/flight_model.dart';
 
-class MyFlightsService {
-  static final MyFlightsService _instance = MyFlightsService._internal();
-  factory MyFlightsService() => _instance;
-  MyFlightsService._internal();
+class FlightService {
+  static final FlightService _instance = FlightService._internal();
+  factory FlightService() => _instance;
+  FlightService._internal();
 
-  // Get user's flights
-  Future<List<Flight>> getUserFlights(String userId) async {
-    await Future.delayed(Duration(milliseconds: 800));
+  final TokenStorage _tokenStorage = TokenStorage();
 
-    return [
-      Flight(
-        id: '1',
-        flightNumber: 'ET302',
-        airline: 'Ethiopian Airlines',
-        route: 'ADD → CDG',
-        departure: FlightLeg(
-          airport: 'ADD',
-          city: 'Addis Ababa',
-          time: '23:35',
-          date: 'Today',
-          terminal: 'T2',
-        ),
-        arrival: FlightLeg(
-          airport: 'CDG',
-          city: 'Paris',
-          time: '06:50+1',
-          date: 'Tomorrow',
-          terminal: '2E',
-        ),
-        duration: '7h 15m',
-        aircraft: 'Boeing 787-9',
-        seat: '12A',
-        gate: 'B7',
-        status: FlightStatus.upcoming,
-        hasPost: false,
-        isVisible: true,
-      ),
-      Flight(
-        id: '2',
-        flightNumber: 'AF1234',
-        airline: 'Air France',
-        route: 'CDG → JFK',
-        departure: FlightLeg(
-          airport: 'CDG',
-          city: 'Paris',
-          time: '14:30',
-          date: 'Dec 28',
-          terminal: '2E',
-        ),
-        arrival: FlightLeg(
-          airport: 'JFK',
-          city: 'New York',
-          time: '17:45',
-          date: 'Dec 28',
-          terminal: '4',
-        ),
-        duration: '8h 15m',
-        aircraft: 'Airbus A350',
-        seat: '8C',
-        gate: 'E12',
-        status: FlightStatus.completed,
-        rating: 5,
-        postTitle: 'Amazing transatlantic flight experience!',
-        postContent:
-            'The Air France A350 service was exceptional. Great entertainment system and delicious meals...',
-        likes: 45,
-        comments: 12,
-        hasPost: true,
-        isVisible: true,
-      ),
-      Flight(
-        id: '3',
-        flightNumber: 'LH440',
-        airline: 'Lufthansa',
-        route: 'FRA → LAX',
-        departure: FlightLeg(
-          airport: 'FRA',
-          city: 'Frankfurt',
-          time: '11:20',
-          date: 'Dec 15',
-          terminal: '1',
-        ),
-        arrival: FlightLeg(
-          airport: 'LAX',
-          city: 'Los Angeles',
-          time: '14:35',
-          date: 'Dec 15',
-          terminal: 'B',
-        ),
-        duration: '11h 15m',
-        aircraft: 'Boeing 747-8',
-        seat: '14K',
-        gate: 'A23',
-        status: FlightStatus.delayed,
-        delayTime: '2h 30m',
-        hasPost: false,
-        isVisible: true,
-      ),
-      Flight(
-        id: '4',
-        flightNumber: 'EK203',
-        airline: 'Emirates',
-        route: 'DXB → LHR',
-        departure: FlightLeg(
-          airport: 'DXB',
-          city: 'Dubai',
-          time: '03:35',
-          date: 'Dec 10',
-          terminal: '3',
-        ),
-        arrival: FlightLeg(
-          airport: 'LHR',
-          city: 'London',
-          time: '08:20',
-          date: 'Dec 10',
-          terminal: '3',
-        ),
-        duration: '7h 45m',
-        aircraft: 'Airbus A380',
-        seat: '2A',
-        gate: 'A8',
-        status: FlightStatus.completed,
-        transitTime: '4h 20m',
-        transitAirport: 'DXB',
-        rating: 5,
-        postTitle: 'Emirates A380 First Class - Worth Every Penny!',
-        postContent:
-            'Incredible shower spa, private suite, and world-class service. The onboard lounge was amazing...',
-        likes: 127,
-        comments: 28,
-        hasPost: true,
-        isVisible: true,
-      ),
-    ];
+  Future<String?> _getAuthToken() async {
+    return await _tokenStorage.getAccessToken();
   }
 
-  // Get flight details
-  Future<FlightDetail> getFlightDetail(String flightId) async {
-    await Future.delayed(Duration(milliseconds: 600));
+  // Get all user flights
+  Future<List<Flight>> getUserFlights() async {
+    try {
+      print('🛫 [FlightService] Getting user flights...');
+      final token = await _getAuthToken();
+      if (token == null) {
+        print('❌ [FlightService] No auth token found');
+        throw Exception('Not authenticated');
+      }
 
-    return FlightDetail(
-      id: flightId,
-      flightNumber: 'ET302',
-      airline: 'Ethiopian Airlines',
-      departure: FlightLegDetail(
-        airport: 'ADD',
-        city: 'Addis Ababa',
-        country: 'Ethiopia',
-        time: '23:35',
-        date: 'Today, Dec 22',
-        terminal: 'T2',
-        gate: 'B7',
-      ),
-      arrival: FlightLegDetail(
-        airport: 'CDG',
-        city: 'Paris',
-        country: 'France',
-        time: '06:50+1',
-        date: 'Tomorrow, Dec 23',
-        terminal: '2E',
-        gate: 'A12',
-      ),
-      duration: '7h 15m',
-      aircraft: 'Boeing 787-9',
-      seat: '12A',
-      bookingReference: 'ET9X7K',
-      eTicketNumber: '123-4567890123',
-      status: 'On Time',
-      flightClass: 'Economy',
-      price: '\$675',
-      baggage: Baggage(
-        checkedBags: '1 x 23kg',
-        carryOn: '1 x 8kg',
-        personalItem: '1 x 3kg',
-      ),
-      passenger: Passenger(
-        name: 'Markos Tesfaye',
-        frequentFlyer: 'ShebaMiles Gold',
-        specialRequests: ['Window Seat', 'Vegetarian Meal'],
-      ),
-      checkIn: CheckIn(
-        opensAt: '21:35 (2 hours before)',
-        closesAt: '22:35 (1 hour before)',
-        status: 'Available',
-      ),
-      amenities: ['WiFi', 'Entertainment', 'Meals', 'USB Power'],
-      timeline: [
-        FlightTimeline(
-          time: '21:35',
-          event: 'Check-in opens',
-          status: 'upcoming',
-        ),
-        FlightTimeline(
-          time: '22:35',
-          event: 'Check-in closes',
-          status: 'upcoming',
-        ),
-        FlightTimeline(
-          time: '23:00',
-          event: 'Boarding begins',
-          status: 'upcoming',
-        ),
-        FlightTimeline(time: '23:35', event: 'Departure', status: 'upcoming'),
-      ],
-    );
+      print('📡 [FlightService] Calling: ${AppConstants.flightsEndpoint}');
+      final response = await http.get(
+        Uri.parse(AppConstants.flightsEndpoint),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      print('📥 [FlightService] Response status: ${response.statusCode}');
+      print('📥 [FlightService] Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        print('✅ [FlightService] Parsed ${data.length} flights');
+        final flights = data.map((json) => _flightFromJson(json)).toList();
+        return flights;
+      }
+      print('❌ [FlightService] Failed with status: ${response.statusCode}');
+      throw Exception('Failed to load flights: ${response.statusCode}');
+    } catch (e) {
+      print('❌ [FlightService] Error: $e');
+      throw Exception('Error loading flights: $e');
+    }
+  }
+
+  // Get upcoming flights
+  Future<List<Flight>> getUpcomingFlights() async {
+    try {
+      final token = await _getAuthToken();
+      if (token == null) {
+        throw Exception('Not authenticated');
+      }
+
+      final response = await http.get(
+        Uri.parse(AppConstants.upcomingFlightsEndpoint),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        return data.map((json) => _flightFromJson(json)).toList();
+      }
+      throw Exception('Failed to load upcoming flights: ${response.statusCode}');
+    } catch (e) {
+      throw Exception('Error loading upcoming flights: $e');
+    }
+  }
+
+  // Get current flight
+  Future<Flight?> getCurrentFlight() async {
+    try {
+      final token = await _getAuthToken();
+      if (token == null) {
+        throw Exception('Not authenticated');
+      }
+
+      final response = await http.get(
+        Uri.parse(AppConstants.currentFlightEndpoint),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        if (data.isNotEmpty) {
+          return _flightFromJson(data[0]);
+        }
+        return null;
+      }
+      throw Exception('Failed to load current flight: ${response.statusCode}');
+    } catch (e) {
+      throw Exception('Error loading current flight: $e');
+    }
+  }
+
+  // Create a new flight
+  Future<Flight> createFlight(Map<String, dynamic> flightData) async {
+    try {
+      print('✈️ [FlightService] Creating flight...');
+      print('📤 [FlightService] Flight data: $flightData');
+      final token = await _getAuthToken();
+      if (token == null) {
+        print('❌ [FlightService] No auth token found');
+        throw Exception('Not authenticated');
+      }
+
+      print('📡 [FlightService] POST to: ${AppConstants.flightsEndpoint}');
+      final response = await http.post(
+        Uri.parse(AppConstants.flightsEndpoint),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: json.encode(flightData),
+      );
+
+      print('📥 [FlightService] Response status: ${response.statusCode}');
+      print('📥 [FlightService] Response body: ${response.body}');
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        final data = json.decode(response.body);
+        print('✅ [FlightService] Flight created successfully');
+        return _flightFromJson(data);
+      } else {
+        final errorData = json.decode(response.body);
+        print('❌ [FlightService] Error: ${errorData['message'] ?? 'Unknown error'}');
+        throw Exception(errorData['message'] ?? 'Failed to create flight');
+      }
+    } catch (e) {
+      print('❌ [FlightService] Error creating flight: $e');
+      throw Exception('Error creating flight: $e');
+    }
+  }
+
+  // Update flight
+  Future<Flight> updateFlight(String flightId, Map<String, dynamic> flightData) async {
+    try {
+      final token = await _getAuthToken();
+      if (token == null) {
+        throw Exception('Not authenticated');
+      }
+
+      final response = await http.patch(
+        Uri.parse('${AppConstants.flightsEndpoint}$flightId/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: json.encode(flightData),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return _flightFromJson(data);
+      } else {
+        final errorData = json.decode(response.body);
+        throw Exception(errorData['message'] ?? 'Failed to update flight');
+      }
+    } catch (e) {
+      throw Exception('Error updating flight: $e');
+    }
+  }
+
+  // Update flight status
+  Future<Flight> updateFlightStatus(String flightId, String status, {int? delayMinutes}) async {
+    try {
+      final token = await _getAuthToken();
+      if (token == null) {
+        throw Exception('Not authenticated');
+      }
+
+      final response = await http.patch(
+        Uri.parse('${AppConstants.flightsEndpoint}$flightId/update_status/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: json.encode({
+          'status': status,
+          if (delayMinutes != null) 'delay_minutes': delayMinutes,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return _flightFromJson(data);
+      } else {
+        final errorData = json.decode(response.body);
+        throw Exception(errorData['message'] ?? 'Failed to update flight status');
+      }
+    } catch (e) {
+      throw Exception('Error updating flight status: $e');
+    }
+  }
+
+  // Add user interest
+  Future<void> addInterest(String interest) async {
+    try {
+      final token = await _getAuthToken();
+      if (token == null) {
+        throw Exception('Not authenticated');
+      }
+
+      final response = await http.post(
+        Uri.parse(AppConstants.interestsEndpoint),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: json.encode({'interest': interest}),
+      );
+
+      if (response.statusCode != 201 && response.statusCode != 200) {
+        throw Exception('Failed to add interest');
+      }
+    } catch (e) {
+      throw Exception('Error adding interest: $e');
+    }
+  }
+
+  // Get user interests
+  Future<List<String>> getUserInterests() async {
+    try {
+      final token = await _getAuthToken();
+      if (token == null) {
+        throw Exception('Not authenticated');
+      }
+
+      final response = await http.get(
+        Uri.parse(AppConstants.interestsEndpoint),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        return data.map((item) => item['interest'] as String).toList();
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
   }
 
   // Cancel flight
   Future<bool> cancelFlight(String flightId) async {
-    await Future.delayed(Duration(seconds: 2));
-    return true;
+    try {
+      final token = await _getAuthToken();
+      if (token == null) {
+        throw Exception('Not authenticated');
+      }
+
+      final response = await http.delete(
+        Uri.parse('${AppConstants.flightsEndpoint}$flightId/'),
+        headers: {
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      return response.statusCode == 204 || response.statusCode == 200;
+    } catch (e) {
+      throw Exception('Error cancelling flight: $e');
+    }
   }
 
   // Update flight delay
-  Future<bool> updateFlightDelay(
-    String flightId,
-    DelayFormData delayData,
-  ) async {
-    await Future.delayed(Duration(seconds: 1));
-    return true;
+  Future<bool> updateFlightDelay(String flightId, DelayFormData delayData) async {
+    try {
+      final token = await _getAuthToken();
+      if (token == null) {
+        throw Exception('Not authenticated');
+      }
+
+      final response = await http.patch(
+        Uri.parse('${AppConstants.flightsEndpoint}$flightId/update_status/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: json.encode({
+          'status': 'delayed',
+          'delay_minutes': delayData.delayDuration.isNotEmpty
+              ? int.tryParse(delayData.delayDuration.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0
+              : 0,
+        }),
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      throw Exception('Error updating flight delay: $e');
+    }
+  }
+
+  // Delete interest
+  Future<void> deleteInterest(String interestId) async {
+    try {
+      final token = await _getAuthToken();
+      if (token == null) {
+        throw Exception('Not authenticated');
+      }
+
+      final response = await http.delete(
+        Uri.parse('${AppConstants.interestsEndpoint}$interestId/'),
+        headers: {
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode != 204 && response.statusCode != 200) {
+        throw Exception('Failed to delete interest');
+      }
+    } catch (e) {
+      throw Exception('Error deleting interest: $e');
+    }
+  }
+
+  // Get travel preferences
+  Future<Map<String, dynamic>> getTravelPreferences() async {
+    try {
+      final token = await _getAuthToken();
+      if (token == null) {
+        throw Exception('Not authenticated');
+      }
+
+      final response = await http.get(
+        Uri.parse('${AppConstants.preferencesEndpoint}my_preferences/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body) as Map<String, dynamic>;
+      }
+      return {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  // Update travel preferences
+  Future<Map<String, dynamic>> updateTravelPreferences(Map<String, dynamic> preferences) async {
+    try {
+      final token = await _getAuthToken();
+      if (token == null) {
+        throw Exception('Not authenticated');
+      }
+
+      final response = await http.put(
+        Uri.parse('${AppConstants.preferencesEndpoint}my_preferences/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: json.encode(preferences),
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body) as Map<String, dynamic>;
+      } else {
+        final errorData = json.decode(response.body);
+        throw Exception(errorData['message'] ?? 'Failed to update preferences');
+      }
+    } catch (e) {
+      throw Exception('Error updating preferences: $e');
+    }
+  }
+
+  // Helper: Convert JSON to Flight model
+  Flight _flightFromJson(Map<String, dynamic> json) {
+    return Flight(
+      id: json['id'].toString(),
+      flightNumber: json['flight_number'] ?? '',
+      airline: json['airline'] ?? '',
+      route: json['route'] ?? '',
+      departure: FlightLeg(
+        airport: json['departure_airport'] ?? '',
+        city: json['departure_city'] ?? '',
+        time: _formatTime(json['departure_datetime']),
+        date: _formatDate(json['departure_datetime']),
+        terminal: json['departure_terminal'] ?? '',
+      ),
+      arrival: FlightLeg(
+        airport: json['arrival_airport'] ?? '',
+        city: json['arrival_city'] ?? '',
+        time: _formatTime(json['arrival_datetime']),
+        date: _formatDate(json['arrival_datetime']),
+        terminal: json['arrival_terminal'] ?? '',
+      ),
+      duration: json['duration_hours'] != null 
+          ? '${json['duration_hours'].toStringAsFixed(1)}h'
+          : '',
+      aircraft: json['aircraft'] ?? '',
+      seat: json['seat'] ?? '',
+      gate: json['departure_gate'] ?? '',
+      status: _parseFlightStatus(json['status']),
+      delayTime: json['delay_minutes'] != null && json['delay_minutes'] > 0
+          ? '${json['delay_minutes']} min'
+          : null,
+      transitTime: json['layover_duration_hours'] != null
+          ? '${json['layover_duration_hours'].toStringAsFixed(1)}h'
+          : null,
+      transitAirport: json['layover_airport'],
+      rating: null,
+      postTitle: null,
+      postContent: null,
+      likes: 0,
+      comments: 0,
+      hasPost: false,
+      isVisible: json['is_visible'] ?? true,
+    );
+  }
+
+  String _formatTime(String? datetimeStr) {
+    if (datetimeStr == null) return '';
+    try {
+      final dt = DateTime.parse(datetimeStr);
+      return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    } catch (e) {
+      return '';
+    }
+  }
+
+  String _formatDate(String? datetimeStr) {
+    if (datetimeStr == null) return '';
+    try {
+      final dt = DateTime.parse(datetimeStr);
+      final now = DateTime.now();
+      if (dt.year == now.year && dt.month == now.month && dt.day == now.day) {
+        return 'Today';
+      } else if (dt.year == now.year && dt.month == now.month && dt.day == now.day + 1) {
+        return 'Tomorrow';
+      }
+      return '${dt.day}/${dt.month}/${dt.year}';
+    } catch (e) {
+      return '';
+    }
+  }
+
+  FlightStatus _parseFlightStatus(String? status) {
+    switch (status) {
+      case 'scheduled':
+        return FlightStatus.upcoming;
+      case 'boarding':
+        return FlightStatus.boarding;
+      case 'delayed':
+        return FlightStatus.delayed;
+      case 'in_flight':
+      case 'landed':
+        return FlightStatus.completed;
+      case 'cancelled':
+        return FlightStatus.cancelled;
+      default:
+        return FlightStatus.upcoming;
+    }
   }
 }
