@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .models import Match, MatchFilter
 from authentication.serializers import UserProfileSerializer
 from flights.serializers import FlightSerializer
+from .matching_service import MatchingService
 
 
 class MatchSerializer(serializers.ModelSerializer):
@@ -9,6 +10,7 @@ class MatchSerializer(serializers.ModelSerializer):
     user2_data = UserProfileSerializer(source='user2', read_only=True)
     flight1_data = FlightSerializer(source='flight1', read_only=True)
     flight2_data = FlightSerializer(source='flight2', read_only=True)
+    common_interests = serializers.SerializerMethodField()
     
     class Meta:
         model = Match
@@ -25,6 +27,24 @@ class MatchSerializer(serializers.ModelSerializer):
             'id', 'user1', 'user2', 'created_at', 'updated_at',
             'matched_at', 'match_score',
         ]
+    
+    def get_common_interests(self, obj):
+        """Recalculate common interests dynamically to ensure they're always current"""
+        try:
+            # Recalculate common interests on-the-fly (case-insensitive)
+            common = MatchingService.calculate_common_interests(obj.user1, obj.user2)
+            print(f"🔍 [MatchSerializer] Calculated common interests for match {obj.id}: {common}")
+            
+            # Return calculated interests (don't save during serialization for performance)
+            return common if common else []
+        except Exception as e:
+            print(f"⚠️ [MatchSerializer] Error calculating common interests: {e}")
+            import traceback
+            traceback.print_exc()
+            # Return stored value as fallback
+            stored = obj.common_interests or []
+            print(f"📦 [MatchSerializer] Using stored common_interests as fallback: {stored}")
+            return stored
 
 
 class MatchFilterSerializer(serializers.ModelSerializer):

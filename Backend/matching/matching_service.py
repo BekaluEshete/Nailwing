@@ -15,6 +15,46 @@ class MatchingService:
     """Service for finding and creating matches between users"""
 
     @staticmethod
+    def calculate_common_interests(user1, user2):
+        """
+        Calculate common interests between two users (case-insensitive)
+        Returns list of common interests with original casing preserved
+        """
+        user1_interests_list = list(user1.interests.values_list("interest", flat=True))
+        user2_interests_list = list(user2.interests.values_list("interest", flat=True))
+
+        # Normalize interests to lowercase for case-insensitive comparison
+        user1_interests_normalized = {
+            i.lower().strip() for i in user1_interests_list if i
+        }
+        user2_interests_normalized = {
+            i.lower().strip() for i in user2_interests_list if i
+        }
+
+        # Find common interests (case-insensitive)
+        common_normalized = user1_interests_normalized & user2_interests_normalized
+
+        # Get original casing from user1's interests for display
+        common_interests = []
+        for normalized_interest in common_normalized:
+            # Try to find original casing from user1's interests first
+            for interest in user1_interests_list:
+                if interest and interest.lower().strip() == normalized_interest:
+                    common_interests.append(interest.strip())
+                    break
+            else:
+                # If not found in user1's, try user2's interests
+                for interest in user2_interests_list:
+                    if interest and interest.lower().strip() == normalized_interest:
+                        common_interests.append(interest.strip())
+                        break
+                else:
+                    # Fallback: use normalized version with title case
+                    common_interests.append(normalized_interest.title())
+
+        return common_interests
+
+    @staticmethod
     def find_matches_for_user(user, flight=None):
         """
         Find all potential matches for a user based on their flight(s)
@@ -535,23 +575,31 @@ class MatchingService:
             except TravelPreference.DoesNotExist:
                 pass
 
-            # Common interests - Boost score
-            user_interests = set(user.interests.values_list("interest", flat=True))
-            other_interests = set(
-                other_user.interests.values_list("interest", flat=True)
+            # Common interests - Boost score (case-insensitive comparison)
+            common_interests = MatchingService.calculate_common_interests(
+                user, other_user
             )
-            common = user_interests & other_interests
 
             # Always set common_interests, even if empty
-            match["common_interests"] = list(common)
+            match["common_interests"] = common_interests
 
-            if common:
-                score *= 1 + len(common) * 0.2  # Boost score for common interests
-                print(f"   ✅ Common interests with {other_user.email}: {list(common)}")
+            if common_interests:
+                score *= (
+                    1 + len(common_interests) * 0.2
+                )  # Boost score for common interests
+                print(
+                    f"   ✅ Common interests with {other_user.email}: {common_interests}"
+                )
             else:
+                user_interests_list = list(
+                    user.interests.values_list("interest", flat=True)
+                )
+                other_interests_list = list(
+                    other_user.interests.values_list("interest", flat=True)
+                )
                 print(f"   ℹ️ No common interests with {other_user.email}")
-                print(f"      User interests: {list(user_interests)}")
-                print(f"      Other interests: {list(other_interests)}")
+                print(f"      User interests: {user_interests_list}")
+                print(f"      Other interests: {other_interests_list}")
 
             match["match_score"] = score
             filtered.append(match)

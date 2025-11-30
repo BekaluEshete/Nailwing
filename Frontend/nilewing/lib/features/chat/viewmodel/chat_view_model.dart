@@ -72,7 +72,12 @@ class ChatViewModel extends StateNotifier<ChatState> {
       final updatedMessages = Map<String, List<ChatMessage>>.from(
         state.messages,
       );
-      updatedMessages[contactId] = messages.map((msg) {
+
+      // Get existing messages for this chat (might have optimistic messages)
+      final existingMessages = updatedMessages[contactId] ?? [];
+
+      // Map database messages
+      final dbMessages = messages.map((msg) {
         // Determine if message is from current user
         final isMe = _currentUserId != null && msg.senderId == _currentUserId;
         return ChatMessage(
@@ -84,20 +89,62 @@ class ChatViewModel extends StateNotifier<ChatState> {
         );
       }).toList();
 
-      state = state.copyWith(messages: updatedMessages);
+      // Preserve optimistic messages (temp IDs) that aren't in database yet
+      final dbMessageIds = dbMessages.map((m) => m.id).toSet();
+      final optimisticMessages = existingMessages.where((msg) {
+        // Keep messages with temp IDs (not UUID format) that are from "me"
+        return msg.senderId == 'me' &&
+            !_isUuidFormat(msg.id) &&
+            !dbMessageIds.contains(msg.id);
+      }).toList();
 
-      // Connect to WebSocket for real-time messages (non-blocking)
-      _chatService.connectToRoom(
-        _currentRoomName!,
-        _handleWebSocketMessage,
-      ).then((channel) {
-        if (channel != null) {
-          // Connection successful - clear any previous connection errors
-          if (state.error != null && state.error!.contains('connection')) {
-            state = state.copyWith(error: null);
+      // Combine: database messages first, then optimistic messages
+      updatedMessages[contactId] = [...dbMessages, ...optimisticMessages];
+
+      // Remove duplicates by ID (keep the one with UUID if both exist)
+      final uniqueMessages = <String, ChatMessage>{};
+      for (final msg in updatedMessages[contactId]!) {
+        // If duplicate exists, prefer UUID (server) version over temp ID
+        if (!uniqueMessages.containsKey(msg.id)) {
+          uniqueMessages[msg.id] = msg;
+        } else {
+          // If we have a UUID version, prefer it over temp ID
+          if (_isUuidFormat(msg.id) &&
+              !_isUuidFormat(uniqueMessages[msg.id]!.id)) {
+            uniqueMessages[msg.id] = msg;
           }
         }
-      });
+      }
+      updatedMessages[contactId] = uniqueMessages.values.toList();
+
+      state = state.copyWith(messages: updatedMessages);
+
+      // Connect to WebSocket for real-time messages (non-blocking, only if not already connected)
+      if (!_chatService.isConnected(_currentRoomName!)) {
+        _chatService
+            .connectToRoom(
+              _currentRoomName!,
+              _handleWebSocketMessage,
+              isManualRetry: true,
+            )
+            .then((channel) {
+              if (channel != null) {
+                // Connection successful - clear any previous connection errors
+                if (state.error != null &&
+                    state.error!.contains('connection')) {
+                  state = state.copyWith(error: null);
+                }
+              }
+            })
+            .catchError((error) {
+              print(
+                '⚠️ [ChatViewModel] WebSocket connection failed (non-critical): $error',
+              );
+              // Don't show error - HTTP fallback will work
+            });
+      } else {
+        print('ℹ️ [ChatViewModel] WebSocket already connected for $contactId');
+      }
 
       // Update contact's unread count
       final updatedContacts = state.contacts.map((contact) {
@@ -123,33 +170,85 @@ class ChatViewModel extends StateNotifier<ChatState> {
           data['user_id'] != null &&
           data['user_id'].toString() == _currentUserId;
 
-      final newMessage = ChatMessage(
-        id:
-            data['message_id']?.toString() ??
-            DateTime.now().millisecondsSinceEpoch.toString(),
-        senderId: isMe ? 'me' : data['user_id']?.toString() ?? 'unknown',
-        content: data['message'] ?? '',
-        timestamp: _formatTimestamp(data['timestamp']),
-        type: _parseMessageType(data['message_type'] ?? 'text'),
-      );
+      final serverMessageId = data['message_id']?.toString();
+      final messageContent = data['message'] ?? '';
 
-      // Update state with new message (optimized duplicate check)
+      // Update state with new message
       final updatedMessages = Map<String, List<ChatMessage>>.from(
         state.messages,
       );
-      final currentMessages = updatedMessages[state.selectedChatId!] ?? [];
+      final currentMessages = List<ChatMessage>.from(
+        updatedMessages[state.selectedChatId!] ?? [],
+      );
 
-      // Avoid duplicates using Set for O(1) lookup
-      final existingIds = currentMessages.map((m) => m.id).toSet();
-      if (!existingIds.contains(newMessage.id)) {
-        updatedMessages[state.selectedChatId!] = [
-          ...currentMessages,
-          newMessage,
-        ];
-        state = state.copyWith(messages: updatedMessages);
+      if (isMe && serverMessageId != null) {
+        // This is our own message coming back from server
+        // Find and replace the optimistic message (with temp ID) with server message
+        final messageIndex = currentMessages.indexWhere(
+          (msg) =>
+              msg.senderId == 'me' &&
+              msg.content == messageContent &&
+              !_isUuidFormat(msg.id),
+        ); // Temp IDs are timestamps, not UUIDs
+
+        if (messageIndex != -1) {
+          // Replace optimistic message with server-confirmed message
+          currentMessages[messageIndex] = ChatMessage(
+            id: serverMessageId,
+            senderId: 'me',
+            content: messageContent,
+            timestamp: _formatTimestamp(data['timestamp']),
+            type: _parseMessageType(data['message_type'] ?? 'text'),
+          );
+        } else {
+          // If we couldn't find the optimistic message, check if server message already exists
+          final existingIds = currentMessages.map((m) => m.id).toSet();
+          if (!existingIds.contains(serverMessageId)) {
+            // Add as new message if it doesn't exist
+            currentMessages.add(
+              ChatMessage(
+                id: serverMessageId,
+                senderId: 'me',
+                content: messageContent,
+                timestamp: _formatTimestamp(data['timestamp']),
+                type: _parseMessageType(data['message_type'] ?? 'text'),
+              ),
+            );
+          }
+        }
+      } else {
+        // Message from other user - check for duplicates
+        final existingIds = currentMessages.map((m) => m.id).toSet();
+        final messageId =
+            serverMessageId ?? DateTime.now().millisecondsSinceEpoch.toString();
+
+        if (!existingIds.contains(messageId)) {
+          currentMessages.add(
+            ChatMessage(
+              id: messageId,
+              senderId: data['user_id']?.toString() ?? 'unknown',
+              content: messageContent,
+              timestamp: _formatTimestamp(data['timestamp']),
+              type: _parseMessageType(data['message_type'] ?? 'text'),
+            ),
+          );
+        }
       }
+
+      updatedMessages[state.selectedChatId!] = currentMessages;
+      state = state.copyWith(messages: updatedMessages);
     }
     // Typing indicators and user join/leave can be handled here if needed
+  }
+
+  // Helper to check if ID is UUID format (server-generated) vs timestamp (temp ID)
+  bool _isUuidFormat(String id) {
+    // UUID format: 8-4-4-4-12 hex characters
+    final uuidRegex = RegExp(
+      r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+      caseSensitive: false,
+    );
+    return uuidRegex.hasMatch(id);
   }
 
   void clearSelectedChat() {
@@ -165,7 +264,12 @@ class ChatViewModel extends StateNotifier<ChatState> {
   }
 
   Future<void> sendMessage(String message) async {
-    if (message.trim().isEmpty || state.selectedChatId == null) return;
+    if (message.trim().isEmpty || state.selectedChatId == null) {
+      print(
+        '⚠️ [ChatViewModel] Cannot send message: empty or no chat selected',
+      );
+      return;
+    }
 
     final tempId = DateTime.now().millisecondsSinceEpoch.toString();
     final trimmedMessage = message.trim();
@@ -177,19 +281,44 @@ class ChatViewModel extends StateNotifier<ChatState> {
       type: MessageType.text,
     );
 
-    // Update local state immediately for better UX
-    final updatedMessages = Map<String, List<ChatMessage>>.from(
-      state.messages,
+    print(
+      '💬 [ChatViewModel] Adding optimistic message: $tempId - "$trimmedMessage"',
     );
-    final currentMessages = updatedMessages[state.selectedChatId!] ?? [];
-    updatedMessages[state.selectedChatId!] = [...currentMessages, newMessage];
+    print('💬 [ChatViewModel] Selected chat ID: ${state.selectedChatId}');
+    print(
+      '💬 [ChatViewModel] Current messages count: ${state.messages[state.selectedChatId!]?.length ?? 0}',
+    );
+
+    // Update local state immediately for better UX
+    final updatedMessages = Map<String, List<ChatMessage>>.from(state.messages);
+    final currentMessages = List<ChatMessage>.from(
+      updatedMessages[state.selectedChatId!] ?? [],
+    );
+
+    // Add new message at the end
+    currentMessages.add(newMessage);
+    updatedMessages[state.selectedChatId!] = currentMessages;
+
+    print(
+      '💬 [ChatViewModel] Updated messages count: ${currentMessages.length}',
+    );
+
     state = state.copyWith(messages: updatedMessages);
+
+    // Verify message was added
+    final verifyMessages = state.messages[state.selectedChatId!] ?? [];
+    print(
+      '💬 [ChatViewModel] Verified messages count after state update: ${verifyMessages.length}',
+    );
+    if (verifyMessages.isEmpty || !verifyMessages.any((m) => m.id == tempId)) {
+      print('❌ [ChatViewModel] ERROR: Message was not persisted in state!');
+    }
 
     // Send to server - try WebSocket first, fallback to HTTP
     // IMPORTANT: Keep the message in state even if sending fails initially
     // The message will be saved to database via HTTP if WebSocket fails
     bool messageSent = false;
-    
+
     try {
       if (_currentRoomName != null) {
         // Try to send via WebSocket first
@@ -207,7 +336,9 @@ class ChatViewModel extends StateNotifier<ChatState> {
       } else {
         // Get room name first
         try {
-          final roomName = await _chatService.getRoomName(state.selectedChatId!);
+          final roomName = await _chatService.getRoomName(
+            state.selectedChatId!,
+          );
           if (roomName.isNotEmpty) {
             _currentRoomName = roomName;
             try {
@@ -217,7 +348,9 @@ class ChatViewModel extends StateNotifier<ChatState> {
                 state = state.copyWith(error: null);
               }
             } catch (e) {
-              print('⚠️ [ChatViewModel] WebSocket send failed, trying HTTP: $e');
+              print(
+                '⚠️ [ChatViewModel] WebSocket send failed, trying HTTP: $e',
+              );
             }
           }
         } catch (e) {
@@ -236,12 +369,16 @@ class ChatViewModel extends StateNotifier<ChatState> {
           state.selectedChatId!,
           trimmedMessage,
         );
-        
+
         // Update the message ID with the one from database
         final updatedMessages = Map<String, List<ChatMessage>>.from(
           state.messages,
         );
-        final currentMessages = updatedMessages[state.selectedChatId!] ?? [];
+        final currentMessages = List<ChatMessage>.from(
+          updatedMessages[state.selectedChatId!] ?? [],
+        );
+
+        // Find and replace temp message with saved message
         final messageIndex = currentMessages.indexWhere((m) => m.id == tempId);
         if (messageIndex != -1) {
           currentMessages[messageIndex] = ChatMessage(
@@ -251,18 +388,54 @@ class ChatViewModel extends StateNotifier<ChatState> {
             timestamp: savedMessage.timestamp,
             type: savedMessage.type,
           );
-          updatedMessages[state.selectedChatId!] = currentMessages;
-          state = state.copyWith(messages: updatedMessages);
+        } else {
+          // If temp message not found, add the saved message
+          currentMessages.add(
+            ChatMessage(
+              id: savedMessage.id,
+              senderId: 'me',
+              content: savedMessage.content,
+              timestamp: savedMessage.timestamp,
+              type: savedMessage.type,
+            ),
+          );
         }
-        
+
+        updatedMessages[state.selectedChatId!] = currentMessages;
+        state = state.copyWith(messages: updatedMessages);
+
+        // Reload messages to ensure we have the latest from database
+        try {
+          final reloadedMessages = await _chatService.getMessages(
+            state.selectedChatId!,
+          );
+          final reloadedFormatted = reloadedMessages.map((msg) {
+            final isMe =
+                _currentUserId != null && msg.senderId == _currentUserId;
+            return ChatMessage(
+              id: msg.id,
+              senderId: isMe ? 'me' : msg.senderId,
+              content: msg.content,
+              timestamp: msg.timestamp,
+              type: msg.type,
+            );
+          }).toList();
+
+          updatedMessages[state.selectedChatId!] = reloadedFormatted;
+          state = state.copyWith(messages: updatedMessages);
+        } catch (e) {
+          print('⚠️ [ChatViewModel] Could not reload messages: $e');
+        }
+
         // Clear error
         state = state.copyWith(error: null);
-        print('✅ [ChatViewModel] Message saved via HTTP');
+        print('✅ [ChatViewModel] Message saved via HTTP and state updated');
       } catch (e) {
         // HTTP also failed - keep message in state but show error
         print('❌ [ChatViewModel] HTTP fallback also failed: $e');
         state = state.copyWith(
-          error: 'Message saved locally. Will sync when connection is restored.',
+          error:
+              'Message saved locally. Will sync when connection is restored.',
         );
       }
     }

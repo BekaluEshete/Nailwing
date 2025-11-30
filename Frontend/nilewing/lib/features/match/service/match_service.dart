@@ -480,34 +480,44 @@ class MatchService {
           'Match at $matchingAirport - ${overlapHours.toStringAsFixed(1)}h overlap';
     }
 
-    // Extract common interests from JSON
+    // Extract common interests from JSON - Enhanced parsing
     final commonInterestsList = json['common_interests'];
     List<String> commonInterests = [];
+    
+    print('🔍 [MatchService] Raw common_interests from JSON: $commonInterestsList (type: ${commonInterestsList.runtimeType})');
     
     if (commonInterestsList != null) {
       if (commonInterestsList is List) {
         commonInterests = commonInterestsList
-            .map((e) => e.toString().trim())
+            .map((e) => e?.toString().trim() ?? '')
             .where((e) => e.isNotEmpty)
             .toList();
+        print('🔍 [MatchService] Parsed as List: $commonInterests');
       } else if (commonInterestsList is String) {
         // Handle case where it might be a JSON string
         try {
           final parsed = jsonDecode(commonInterestsList) as List;
           commonInterests = parsed
-              .map((e) => e.toString().trim())
+              .map((e) => e?.toString().trim() ?? '')
               .where((e) => e.isNotEmpty)
               .toList();
+          print('🔍 [MatchService] Parsed as JSON string: $commonInterests');
         } catch (e) {
           // If parsing fails, treat as single interest
-          if (commonInterestsList.toString().trim().isNotEmpty) {
-            commonInterests = [commonInterestsList.toString().trim()];
+          final trimmed = commonInterestsList.toString().trim();
+          if (trimmed.isNotEmpty) {
+            commonInterests = [trimmed];
+            print('🔍 [MatchService] Treated as single interest: $commonInterests');
           }
         }
+      } else {
+        print('⚠️ [MatchService] Unknown type for common_interests: ${commonInterestsList.runtimeType}');
       }
+    } else {
+      print('⚠️ [MatchService] common_interests is null or missing in JSON');
     }
     
-    print('🔍 [MatchService] Common interests parsed: $commonInterests');
+    print('🔍 [MatchService] Final common interests parsed: $commonInterests (count: ${commonInterests.length})');
     
     // Get user's own interests (not common interests) - this should come from user data
     // For now, we'll use an empty list or try to get from user2_data if available
