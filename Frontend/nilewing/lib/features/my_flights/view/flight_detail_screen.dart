@@ -1,6 +1,8 @@
 // features/my_flights/screens/flight_detail_screen.dart
 import 'package:flutter/material.dart';
 import 'package:nilewing/core/theme/app_colors.dart';
+import '../model/flight_model.dart';
+import '../services/flight_service.dart';
 
 class FlightDetailScreen extends StatefulWidget {
   final String flightId;
@@ -17,6 +19,11 @@ class FlightDetailScreen extends StatefulWidget {
 }
 
 class _FlightDetailScreenState extends State<FlightDetailScreen> {
+  final FlightService _flightService = FlightService();
+  Flight? _flight;
+  bool _isLoading = true;
+  String? _error;
+
   final Map<String, String> _delayForm = {
     'newDepartureTime': '',
     'newArrivalTime': '',
@@ -34,76 +41,138 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
     'Other',
   ];
 
-  // Mock flight data - in real app, fetch based on flightId
+  @override
+  void initState() {
+    super.initState();
+    _loadFlightDetail();
+  }
+
+  Future<void> _loadFlightDetail() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final flight = await _flightService.getFlightById(widget.flightId);
+      setState(() {
+        _flight = flight;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'Failed to load flight details: $e';
+        _isLoading = false;
+      });
+    }
+  }
+
+  // Get flight detail map from Flight model
   Map<String, dynamic> get _flightDetail {
+    if (_flight == null) {
+      return {
+        'id': widget.flightId,
+        'flightNumber': '',
+        'airline': '',
+        'departure': {
+          'airport': '',
+          'city': '',
+          'country': '',
+          'time': '',
+          'date': '',
+          'terminal': '',
+          'gate': '',
+        },
+        'arrival': {
+          'airport': '',
+          'city': '',
+          'country': '',
+          'time': '',
+          'date': '',
+          'terminal': '',
+          'gate': '',
+        },
+        'duration': '',
+        'aircraft': '',
+        'seat': '',
+        'bookingReference': '',
+        'status': '',
+        'class': '',
+      };
+    }
+
+    final f = _flight!;
     return {
-      'id': widget.flightId,
-      'flightNumber': 'ET302',
-      'airline': 'Ethiopian Airlines',
+      'id': f.id,
+      'flightNumber': f.flightNumber,
+      'airline': f.airline,
       'departure': {
-        'airport': 'ADD',
-        'city': 'Addis Ababa',
-        'country': 'Ethiopia',
-        'time': '23:35',
-        'date': 'Today, Dec 22',
-        'terminal': 'T2',
-        'gate': 'B7',
+        'airport': f.departure.airport,
+        'city': f.departure.city,
+        'country': '',
+        'time': f.departure.time,
+        'date': f.departure.date,
+        'terminal': f.departure.terminal,
+        'gate': f.gate,
       },
       'arrival': {
-        'airport': 'CDG',
-        'city': 'Paris',
-        'country': 'France',
-        'time': '06:50+1',
-        'date': 'Tomorrow, Dec 23',
-        'terminal': '2E',
-        'gate': 'A12',
+        'airport': f.arrival.airport,
+        'city': f.arrival.city,
+        'country': '',
+        'time': f.arrival.time,
+        'date': f.arrival.date,
+        'terminal': f.arrival.terminal,
+        'gate': '',
       },
-      'duration': '7h 15m',
-      'aircraft': 'Boeing 787-9',
-      'seat': '12A',
-      'bookingReference': 'ET9X7K',
-      'eTicketNumber': '123-4567890123',
-      'status': 'On Time',
-      'class': 'Economy',
-      'price': '\$675',
-      'baggage': {
-        'checkedBags': '1 x 23kg',
-        'carryOn': '1 x 8kg',
-        'personalItem': '1 x 3kg',
-      },
-      'passenger': {
-        'name': 'Markos Tesfaye',
-        'frequentFlyer': 'ShebaMiles Gold',
-        'specialRequests': ['Window Seat', 'Vegetarian Meal'],
-      },
-      'checkIn': {
-        'opensAt': '21:35 (2 hours before)',
-        'closesAt': '22:35 (1 hour before)',
-        'status': 'Available',
-      },
-      'amenities': ['WiFi', 'Entertainment', 'Meals', 'USB Power'],
-      'timeline': [
-        {'time': '21:35', 'event': 'Check-in opens', 'status': 'upcoming'},
-        {'time': '22:35', 'event': 'Check-in closes', 'status': 'upcoming'},
-        {'time': '23:00', 'event': 'Boarding begins', 'status': 'upcoming'},
-        {'time': '23:35', 'event': 'Departure', 'status': 'upcoming'},
-      ],
+      'duration': f.duration,
+      'aircraft': f.aircraft,
+      'seat': f.seat,
+      'bookingReference': '',
+      'status': _getStatusText(f.status),
+      'class': '',
+      'delayTime': f.delayTime,
     };
   }
-
-  void _handleCancelFlight() {
-    // In a real app, this would make an API call to cancel the flight
-    _showSnackBar(
-      'Flight cancelled successfully. Post has been removed from public view.',
-    );
-
-    // Navigate back after a short delay
-    Future.delayed(const Duration(seconds: 2), () {
-      widget.onNavigateBack();
-    });
+  
+  String _getStatusText(FlightStatus status) {
+    switch (status) {
+      case FlightStatus.upcoming:
+        return 'Scheduled';
+      case FlightStatus.boarding:
+        return 'Boarding';
+      case FlightStatus.delayed:
+        return 'Delayed';
+      case FlightStatus.completed:
+        return 'Completed';
+      case FlightStatus.cancelled:
+        return 'Cancelled';
+    }
   }
 
-  void _handleDelayFlight() {
+  Future<void> _handleCancelFlight() async {
+    if (_flight == null) return;
+
+    try {
+      final success = await _flightService.cancelFlight(_flight!.id);
+      if (success) {
+        _showSnackBar(
+          'Flight cancelled successfully. Post has been removed from public view.',
+        );
+        // Navigate back after a short delay
+        Future.delayed(const Duration(seconds: 2), () {
+          widget.onNavigateBack();
+        });
+      } else {
+        _showSnackBar('Failed to cancel flight. Please try again.');
+      }
+    } catch (e) {
+      _showSnackBar('Error cancelling flight: $e');
+    }
+  }
+
+  Future<void> _handleDelayFlight() async {
+    if (_flight == null) return;
+
     if (_delayForm['newDepartureTime']!.isEmpty ||
         _delayForm['delayReason']!.isEmpty ||
         _delayForm['delayDuration']!.isEmpty) {
@@ -111,20 +180,31 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
       return;
     }
 
-    // In a real app, this would make an API call to update the flight
-    _showSnackBar(
-      'Flight delay updated successfully. Notifications sent to connected travelers.',
-    );
+    try {
+      final delayMinutes = int.tryParse(
+        _delayForm['delayDuration']!.replaceAll(RegExp(r'[^0-9]'), ''),
+      ) ?? 0;
 
-    // Reset form
-    setState(() {
-      _delayForm.updateAll((key, value) => '');
-    });
+      await _flightService.updateFlightStatus(
+        _flight!.id,
+        'delayed',
+        delayMinutes: delayMinutes,
+      );
 
-    // Navigate back after a short delay
-    Future.delayed(const Duration(seconds: 2), () {
-      widget.onNavigateBack();
-    });
+      _showSnackBar(
+        'Flight delay updated successfully. Notifications sent to connected travelers.',
+      );
+
+      // Reload flight data
+      await _loadFlightDetail();
+
+      // Reset form
+      setState(() {
+        _delayForm.updateAll((key, value) => '');
+      });
+    } catch (e) {
+      _showSnackBar('Error updating flight delay: $e');
+    }
   }
 
   void _showSnackBar(String message) {
@@ -135,6 +215,61 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        body: SafeArea(
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(height: 16),
+                Text(
+                  'Loading flight details...',
+                  style: TextStyle(color: Colors.grey[600]),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (_error != null || _flight == null) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        body: SafeArea(
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
+                const SizedBox(height: 16),
+                Text(
+                  _error ?? 'Flight not found',
+                  style: TextStyle(color: Colors.grey[600]),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () {
+                    _loadFlightDetail();
+                  },
+                  child: const Text('Retry'),
+                ),
+                const SizedBox(height: 16),
+                TextButton(
+                  onPressed: widget.onNavigateBack,
+                  child: const Text('Go Back'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
@@ -157,23 +292,11 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
                     // Route Information
                     _buildRouteCard(),
                     const SizedBox(height: 16),
-                    // Passenger Information
-                    _buildPassengerCard(),
-                    const SizedBox(height: 16),
                     // Booking Information
                     _buildBookingCard(),
                     const SizedBox(height: 16),
-                    // Baggage Information
-                    _buildBaggageCard(),
-                    const SizedBox(height: 16),
-                    // Check-in Information
-                    _buildCheckInCard(),
-                    const SizedBox(height: 16),
                     // Flight Timeline
                     _buildTimelineCard(),
-                    const SizedBox(height: 16),
-                    // Amenities
-                    _buildAmenitiesCard(),
                     const SizedBox(height: 16),
                   ],
                 ),
@@ -189,7 +312,10 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [AppColors.primary, AppColors.accent ?? AppColors.primary],
+          colors: [
+            AppColors.primary,
+            AppColors.accent,
+          ],
           begin: Alignment.centerLeft,
           end: Alignment.centerRight,
         ),
@@ -631,153 +757,6 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
     );
   }
 
-  Widget _buildPassengerCard() {
-    final passenger = _flightDetail['passenger'];
-
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.people, size: 20, color: AppColors.primary),
-                const SizedBox(width: 8),
-                const Text(
-                  'Passenger Details',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Name',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      Text(
-                        passenger['name'],
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Seat',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      Text(
-                        _flightDetail['seat'],
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Class',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      Text(
-                        _flightDetail['class'],
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Frequent Flyer',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      Text(
-                        passenger['frequentFlyer'],
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            const Divider(),
-            const SizedBox(height: 16),
-            const Text(
-              'Special Requests',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: (passenger['specialRequests'] as List).map((request) {
-                return Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[100],
-                    border: Border.all(color: Colors.grey[300]!),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Text(request, style: const TextStyle(fontSize: 12)),
-                );
-              }).toList(),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildBookingCard() {
     return Card(
       elevation: 2,
@@ -788,27 +767,33 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Booking Information',
+              'Flight Information',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             Column(
               children: [
-                _buildInfoRow(
-                  'Booking Reference',
-                  _flightDetail['bookingReference'],
-                ),
-                const SizedBox(height: 12),
-                _buildInfoRow(
-                  'E-Ticket Number',
-                  _flightDetail['eTicketNumber'],
-                ),
-                const SizedBox(height: 12),
-                _buildInfoRow(
-                  'Total Price',
-                  _flightDetail['price'],
-                  isPrice: true,
-                ),
+                if (_flight != null && _flight!.seat.isNotEmpty)
+                  _buildInfoRow('Seat', _flight!.seat),
+                if (_flight != null && _flight!.aircraft.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _buildInfoRow('Aircraft', _flight!.aircraft),
+                ],
+                if (_flight != null && _flight!.delayTime != null) ...[
+                  const SizedBox(height: 12),
+                  _buildInfoRow('Delay', _flight!.delayTime!),
+                ],
+                if (_flight != null && _flight!.transitAirport != null) ...[
+                  const SizedBox(height: 12),
+                  _buildInfoRow(
+                    'Transit Airport',
+                    _flight!.transitAirport!,
+                  ),
+                  if (_flight!.transitTime != null) ...[
+                    const SizedBox(height: 12),
+                    _buildInfoRow('Transit Time', _flight!.transitTime!),
+                  ],
+                ],
               ],
             ),
           ],
@@ -834,102 +819,28 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
     );
   }
 
-  Widget _buildBaggageCard() {
-    final baggage = _flightDetail['baggage'];
-
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.luggage, size: 20, color: AppColors.primary),
-                const SizedBox(width: 8),
-                const Text(
-                  'Baggage Allowance',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Column(
-              children: [
-                _buildInfoRow('Checked Bags', baggage['checkedBags']),
-                const SizedBox(height: 8),
-                _buildInfoRow('Carry-on', baggage['carryOn']),
-                const SizedBox(height: 8),
-                _buildInfoRow('Personal Item', baggage['personalItem']),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCheckInCard() {
-    final checkIn = _flightDetail['checkIn'];
-
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.blue[50]!, Colors.cyan[50]!],
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-          ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Check-in',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              Column(
-                children: [
-                  _buildInfoRow('Opens', checkIn['opensAt']),
-                  const SizedBox(height: 8),
-                  _buildInfoRow('Closes', checkIn['closesAt']),
-                ],
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () {
-                  _showSnackBar('Mobile Check-in opened');
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(double.infinity, 48),
-                ),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.qr_code, size: 16),
-                    SizedBox(width: 8),
-                    Text('Mobile Check-in'),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildTimelineCard() {
-    final timeline = _flightDetail['timeline'] as List;
+    if (_flight == null) return const SizedBox.shrink();
+
+    final departure = _flightDetail['departure'];
+    final arrival = _flightDetail['arrival'];
+    final List<Map<String, String>> timeline = [];
+
+    // Build timeline from actual flight data
+    if (departure['time'].isNotEmpty) {
+      timeline.add({
+        'event': 'Departure from ${departure['airport']}',
+        'time': '${departure['time']} - ${departure['date']}',
+      });
+    }
+    if (arrival['time'].isNotEmpty) {
+      timeline.add({
+        'event': 'Arrival at ${arrival['airport']}',
+        'time': '${arrival['time']} - ${arrival['date']}',
+      });
+    }
+
+    if (timeline.isEmpty) return const SizedBox.shrink();
 
     return Card(
       elevation: 2,
@@ -969,15 +880,17 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              item['event'],
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
+                            Expanded(
+                              child: Text(
+                                item['event']!,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
                             ),
                             Text(
-                              item['time'],
+                              item['time']!,
                               style: const TextStyle(
                                 fontSize: 14,
                                 color: Colors.grey,
@@ -988,46 +901,6 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
                       ),
                     ],
                   ),
-                );
-              }).toList(),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAmenitiesCard() {
-    final amenities = _flightDetail['amenities'] as List;
-
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Flight Amenities',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: amenities.map((amenity) {
-                return Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[100],
-                    border: Border.all(color: Colors.grey[300]!),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Text(amenity, style: const TextStyle(fontSize: 12)),
                 );
               }).toList(),
             ),

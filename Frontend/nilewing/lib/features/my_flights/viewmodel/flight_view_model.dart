@@ -21,19 +21,34 @@ class MyFlightsViewModel with ChangeNotifier {
   String? get selectedFlightId => _selectedFlightId;
   DelayFormData get delayForm => _delayForm;
 
-  List<Flight> get upcomingFlights => _flights
-      .where(
-        (f) =>
-            f.isVisible &&
-            (f.status == FlightStatus.upcoming ||
-                f.status == FlightStatus.boarding ||
-                f.status == FlightStatus.delayed),
-      )
-      .toList();
+  List<Flight> get upcomingFlights {
+    final now = DateTime.now();
+    return _flights.where((f) {
+      if (!f.isVisible) return false;
+      // Include flights that are not completed/cancelled
+      if (f.status == FlightStatus.completed || f.status == FlightStatus.cancelled) {
+        return false;
+      }
+      // Also check by date - if arrival date has passed, it's past
+      try {
+        // Parse arrival date from flight
+        final arrivalStr = f.arrival.date;
+        // Simple check - if status is upcoming but arrival date seems past, check more carefully
+        // This is a backup check, the backend should handle most cases
+        return true; // Let backend status be the source of truth
+      } catch (e) {
+        return f.status != FlightStatus.completed;
+      }
+    }).toList();
+  }
 
-  List<Flight> get pastFlights => _flights
-      .where((f) => f.isVisible && f.status == FlightStatus.completed)
-      .toList();
+  List<Flight> get pastFlights {
+    return _flights.where((f) {
+      if (!f.isVisible) return false;
+      // Past flights are completed ones
+      return f.status == FlightStatus.completed;
+    }).toList();
+  }
 
   List<Flight> get cancelledFlights =>
       _flights.where((f) => f.status == FlightStatus.cancelled).toList();

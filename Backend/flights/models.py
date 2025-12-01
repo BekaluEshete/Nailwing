@@ -87,6 +87,42 @@ class Flight(models.Model):
             delta = self.arrival_datetime - self.departure_datetime
             return delta.total_seconds() / 3600
         return None
+    
+    def calculate_status_based_on_datetime(self):
+        """Calculate flight status based on current datetime and flight times"""
+        now = timezone.now()
+        
+        # Don't override cancelled status
+        if self.status == 'cancelled':
+            return self.status
+        
+        # If arrival has passed, flight is landed/completed
+        if self.arrival_datetime and self.arrival_datetime < now:
+            return 'landed'
+        
+        # If departure has passed but arrival hasn't, flight is in progress
+        if self.departure_datetime and self.departure_datetime < now:
+            if self.arrival_datetime and self.arrival_datetime > now:
+                return 'in_flight'
+            return 'landed'  # Shouldn't happen but fallback
+        
+        # If departure is within 2 hours, flight is boarding
+        if self.departure_datetime:
+            time_until_departure = self.departure_datetime - now
+            if time_until_departure.total_seconds() <= 7200:  # 2 hours
+                return 'boarding'
+        
+        # Otherwise, flight is scheduled
+        return 'scheduled'
+    
+    def save(self, *args, **kwargs):
+        # Auto-update status based on datetime if still in scheduled state
+        if self.status in ['scheduled', 'boarding', 'delayed']:
+            calculated_status = self.calculate_status_based_on_datetime()
+            # Only auto-update if flight has definitely passed
+            if calculated_status in ['in_flight', 'landed']:
+                self.status = calculated_status
+        super().save(*args, **kwargs)
 
 
 class UserInterest(models.Model):

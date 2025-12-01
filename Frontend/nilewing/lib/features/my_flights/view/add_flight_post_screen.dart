@@ -181,6 +181,83 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
     });
   }
 
+  // Date/Time picker helpers
+  String _getDate(bool isDeparture) {
+    return isDeparture
+        ? _formData.departureDate
+        : _formData.arrivalDate;
+  }
+
+  String _getTime(bool isDeparture) {
+    return isDeparture
+        ? _formData.departureTime
+        : _formData.arrivalTime;
+  }
+
+  String _getDateDisplay(bool isDeparture) {
+    final date = _getDate(isDeparture);
+    if (date.isEmpty) return 'Select date';
+    return date;
+  }
+
+  String _getTimeDisplay(bool isDeparture) {
+    final time = _getTime(isDeparture);
+    if (time.isEmpty) return 'Select time';
+    return time;
+  }
+
+  Future<void> _selectDate(BuildContext context, bool isDeparture) async {
+    final initialDate = DateTime.now();
+    final firstDate = DateTime.now();
+    final lastDate = DateTime.now().add(const Duration(days: 365 * 2));
+
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: firstDate,
+      lastDate: lastDate,
+      helpText: isDeparture ? 'Select Departure Date' : 'Select Arrival Date',
+    );
+
+    if (pickedDate != null) {
+      setState(() {
+        final formattedDate =
+            '${pickedDate.month.toString().padLeft(2, '0')}/${pickedDate.day.toString().padLeft(2, '0')}/${pickedDate.year}';
+        if (isDeparture) {
+          _formData.departureDate = formattedDate;
+          _errors.remove('departureDate');
+        } else {
+          _formData.arrivalDate = formattedDate;
+          _errors.remove('arrivalDate');
+        }
+      });
+    }
+  }
+
+  Future<void> _selectTime(BuildContext context, bool isDeparture) async {
+    final initialTime = TimeOfDay.now();
+
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: initialTime,
+      helpText: isDeparture ? 'Select Departure Time' : 'Select Arrival Time',
+    );
+
+    if (pickedTime != null) {
+      setState(() {
+        final formattedTime =
+            '${pickedTime.hour.toString().padLeft(2, '0')}:${pickedTime.minute.toString().padLeft(2, '0')}';
+        if (isDeparture) {
+          _formData.departureTime = formattedTime;
+          _errors.remove('departureTime');
+        } else {
+          _formData.arrivalTime = formattedTime;
+          _errors.remove('arrivalTime');
+        }
+      });
+    }
+  }
+
   bool _validateStep(int step) {
     final newErrors = <String, String>{};
 
@@ -194,8 +271,12 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
           newErrors['departureAirport'] = 'Departure airport is required';
         if (_formData.arrivalAirport.isEmpty)
           newErrors['arrivalAirport'] = 'Arrival airport is required';
+        if (_formData.departureDate.isEmpty)
+          newErrors['departureDate'] = 'Departure date is required';
         if (_formData.departureTime.isEmpty)
           newErrors['departureTime'] = 'Departure time is required';
+        if (_formData.arrivalDate.isEmpty)
+          newErrors['arrivalDate'] = 'Arrival date is required';
         if (_formData.arrivalTime.isEmpty)
           newErrors['arrivalTime'] = 'Arrival time is required';
         break;
@@ -684,30 +765,40 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Time *',
+                    'Date *',
                     style: TextStyle(fontWeight: FontWeight.w500),
                   ),
                   const SizedBox(height: 4),
-                  TextFormField(
-                    decoration: InputDecoration(
-                      hintText: 'HH:MM',
-                      border: const OutlineInputBorder(),
-                      errorText:
-                          _errors[isDeparture
-                              ? 'departureTime'
-                              : 'arrivalTime'],
+                  GestureDetector(
+                    onTap: () => _selectDate(context, isDeparture),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 16,
+                      ),
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: Colors.grey.shade300,
+                        ),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              _getDateDisplay(isDeparture),
+                              style: TextStyle(
+                                color: _getDate(isDeparture).isEmpty
+                                    ? Colors.grey.shade500
+                                    : Colors.black,
+                              ),
+                            ),
+                          ),
+                          Icon(Icons.calendar_today,
+                              size: 20, color: Colors.grey.shade600),
+                        ],
+                      ),
                     ),
-                    onChanged: (value) {
-                      setState(() {
-                        if (isDeparture) {
-                          _formData.departureTime = value;
-                          _errors.remove('departureTime');
-                        } else {
-                          _formData.arrivalTime = value;
-                          _errors.remove('arrivalTime');
-                        }
-                      });
-                    },
                   ),
                 ],
               ),
@@ -718,25 +809,58 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Date',
+                    'Time *',
                     style: TextStyle(fontWeight: FontWeight.w500),
                   ),
                   const SizedBox(height: 4),
-                  TextFormField(
-                    decoration: const InputDecoration(
-                      hintText: 'mm/dd/yyyy',
-                      border: OutlineInputBorder(),
+                  GestureDetector(
+                    onTap: () => _selectTime(context, isDeparture),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 16,
+                      ),
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: _errors.containsKey(
+                                  isDeparture
+                                      ? 'departureTime'
+                                      : 'arrivalTime')
+                              ? Colors.red
+                              : Colors.grey.shade300,
+                        ),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              _getTimeDisplay(isDeparture),
+                              style: TextStyle(
+                                color: _getTime(isDeparture).isEmpty
+                                    ? Colors.grey.shade500
+                                    : Colors.black,
+                              ),
+                            ),
+                          ),
+                          Icon(Icons.access_time,
+                              size: 20, color: Colors.grey.shade600),
+                        ],
+                      ),
                     ),
-                    onChanged: (value) {
-                      setState(() {
-                        if (isDeparture) {
-                          _formData.departureDate = value;
-                        } else {
-                          _formData.arrivalDate = value;
-                        }
-                      });
-                    },
                   ),
+                  if (_errors.containsKey(
+                      isDeparture ? 'departureTime' : 'arrivalTime'))
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        _errors[isDeparture
+                                ? 'departureTime'
+                                : 'arrivalTime'] ??
+                            '',
+                        style: const TextStyle(color: Colors.red, fontSize: 12),
+                      ),
+                    ),
                 ],
               ),
             ),

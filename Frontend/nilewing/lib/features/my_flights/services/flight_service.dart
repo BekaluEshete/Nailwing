@@ -106,6 +106,41 @@ class FlightService {
     }
   }
 
+  // Get a single flight by ID
+  Future<Flight> getFlightById(String flightId) async {
+    try {
+      print('🛫 [FlightService] Getting flight by ID: $flightId');
+      final token = await _getAuthToken();
+      if (token == null) {
+        print('❌ [FlightService] No auth token found');
+        throw Exception('Not authenticated');
+      }
+
+      print('📡 [FlightService] Calling: ${AppConstants.flightsEndpoint}$flightId/');
+      final response = await http.get(
+        Uri.parse('${AppConstants.flightsEndpoint}$flightId/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      print('📥 [FlightService] Response status: ${response.statusCode}');
+      print('📥 [FlightService] Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        print('✅ [FlightService] Flight loaded successfully');
+        return _flightFromJson(data);
+      }
+      print('❌ [FlightService] Failed with status: ${response.statusCode}');
+      throw Exception('Failed to load flight: ${response.statusCode}');
+    } catch (e) {
+      print('❌ [FlightService] Error: $e');
+      throw Exception('Error loading flight: $e');
+    }
+  }
+
   // Create a new flight
   Future<Flight> createFlight(Map<String, dynamic> flightData) async {
     try {
@@ -384,6 +419,17 @@ class FlightService {
 
   // Helper: Convert JSON to Flight model
   Flight _flightFromJson(Map<String, dynamic> json) {
+    // Determine status - check if flight is past and update accordingly
+    String? status = json['status'];
+    final arrivalDatetime = json['arrival_datetime'];
+    
+    // If arrival has passed and status is still upcoming/boarding, mark as completed
+    if (_isFlightPast(arrivalDatetime) && 
+        status != null && 
+        ['scheduled', 'boarding', 'delayed'].contains(status.toLowerCase())) {
+      status = 'landed';
+    }
+    
     return Flight(
       id: json['id'].toString(),
       flightNumber: json['flight_number'] ?? '',
@@ -404,12 +450,12 @@ class FlightService {
         terminal: json['arrival_terminal'] ?? '',
       ),
       duration: json['duration_hours'] != null 
-          ? '${json['duration_hours'].toStringAsFixed(1)}h'
+          ? _formatDuration(json['duration_hours'])
           : '',
       aircraft: json['aircraft'] ?? '',
       seat: json['seat'] ?? '',
       gate: json['departure_gate'] ?? '',
-      status: _parseFlightStatus(json['status']),
+      status: _parseFlightStatus(status),
       delayTime: json['delay_minutes'] != null && json['delay_minutes'] > 0
           ? '${json['delay_minutes']} min'
           : null,
@@ -425,6 +471,15 @@ class FlightService {
       hasPost: false,
       isVisible: json['is_visible'] ?? true,
     );
+  }
+  
+  String _formatDuration(double hours) {
+    final h = hours.floor();
+    final m = ((hours - h) * 60).round();
+    if (m > 0) {
+      return '${h}h ${m}m';
+    }
+    return '${h}h';
   }
 
   String _formatTime(String? datetimeStr) {
@@ -454,7 +509,9 @@ class FlightService {
   }
 
   FlightStatus _parseFlightStatus(String? status) {
-    switch (status) {
+    if (status == null) return FlightStatus.upcoming;
+    
+    switch (status.toLowerCase()) {
       case 'scheduled':
         return FlightStatus.upcoming;
       case 'boarding':
@@ -468,6 +525,17 @@ class FlightService {
         return FlightStatus.cancelled;
       default:
         return FlightStatus.upcoming;
+    }
+  }
+  
+  // Helper to determine if flight is past based on datetime
+  bool _isFlightPast(String? arrivalDatetime) {
+    if (arrivalDatetime == null) return false;
+    try {
+      final arrival = DateTime.parse(arrivalDatetime);
+      return arrival.isBefore(DateTime.now());
+    } catch (e) {
+      return false;
     }
   }
 }
