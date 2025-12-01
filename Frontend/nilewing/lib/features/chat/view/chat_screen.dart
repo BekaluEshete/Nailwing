@@ -46,9 +46,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         onBack: () {
           print('ChatDetailScreen onBack called');
           chatViewModel.clearSelectedChat();
-          ref.refresh(chatViewModelProvider);
-
-          // Force a rebuild if needed
+          // Force a rebuild
+          ref.invalidate(chatViewModelProvider);
         },
       );
     }
@@ -75,7 +74,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [AppColors.primary, AppColors.accent ?? AppColors.primary],
+          colors: [AppColors.primary, AppColors.accent],
           begin: Alignment.centerLeft,
           end: Alignment.centerRight,
         ),
@@ -146,7 +145,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   Widget _buildActiveConversations(ChatState chatState) {
-    final onlineContacts = chatState.onlineContacts;
+    // Show all contacts (active conversations) instead of just online ones
+    final allContacts = chatState.contacts;
+
+    // Hide section if there are no conversations at all
+    if (allContacts.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     return Container(
       color: Colors.white.withOpacity(0.9),
@@ -154,18 +159,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Active Conversations',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Active Conversations',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              ),
+              Text(
+                '${allContacts.length}',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 8),
           SizedBox(
             height: 85,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
-              itemCount: onlineContacts.length,
+              itemCount: allContacts.length,
               itemBuilder: (context, index) {
-                final contact = onlineContacts[index];
+                final contact = allContacts[index];
                 return GestureDetector(
                   onTap: () => ref
                       .read(chatViewModelProvider.notifier)
@@ -179,40 +197,84 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             CircleAvatar(
                               radius: 24,
                               backgroundColor: AppColors.primary,
-                              child: Text(
-                                _getInitials(contact.name),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
+                              backgroundImage:
+                                  contact.avatar != null &&
+                                      contact.avatar!.isNotEmpty
+                                  ? NetworkImage(contact.avatar!)
+                                  : null,
+                              child:
+                                  contact.avatar == null ||
+                                      contact.avatar!.isEmpty
+                                  ? Text(
+                                      _getInitials(contact.name),
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    )
+                                  : null,
                             ),
-                            Positioned(
-                              bottom: 0,
-                              right: 0,
-                              child: Container(
-                                width: 12,
-                                height: 12,
-                                decoration: BoxDecoration(
-                                  color: Colors.green,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: Colors.white,
-                                    width: 2,
+                            // Show online indicator only if actually online
+                            if (contact.isOnline)
+                              Positioned(
+                                bottom: 0,
+                                right: 0,
+                                child: Container(
+                                  width: 12,
+                                  height: 12,
+                                  decoration: BoxDecoration(
+                                    color: Colors.green,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 2,
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
+                            // Show unread badge if there are unread messages
+                            if (contact.unreadCount > 0)
+                              Positioned(
+                                top: -2,
+                                right: -2,
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: const BoxDecoration(
+                                    color: Colors.red,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  constraints: const BoxConstraints(
+                                    minWidth: 16,
+                                    minHeight: 16,
+                                  ),
+                                  child: Text(
+                                    contact.unreadCount > 9
+                                        ? '9+'
+                                        : '${contact.unreadCount}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                              ),
                           ],
                         ),
                         const SizedBox(height: 4),
-                        Text(
-                          contact.name.split(' ').isNotEmpty 
-                              ? contact.name.split(' ')[0] 
-                              : contact.name,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
+                        SizedBox(
+                          width: 60,
+                          child: Text(
+                            contact.name.split(' ').isNotEmpty
+                                ? contact.name.split(' ')[0]
+                                : contact.name,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
                           ),
                         ),
                       ],

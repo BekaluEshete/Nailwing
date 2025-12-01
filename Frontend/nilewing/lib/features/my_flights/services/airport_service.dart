@@ -2,11 +2,15 @@ import 'dart:convert';
 import 'package:csv/csv.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 import '../model/flight_post_model.dart'; // Adjust path as needed
 
 class AirportService {
   // Cache for airlines
   static List<String>? _cachedAirlines;
+  
+  // Cache for airports loaded from CSV
+  static List<Airport>? _cachedAirports;
 
   // Hardcoded fallback list
   static final List<String> popularAirlines = [
@@ -87,29 +91,315 @@ class AirportService {
     print('Filtered ${filtered.length} airlines for query: $query');
     return filtered;
   }
+  
+  // Helper to clean string values from CSV
+  static String? _cleanString(dynamic value) {
+    if (value == null) return null;
+    try {
+      final str = value.toString().trim();
+      if (str.isEmpty || str == '\\N' || str == 'N/A' || str.toLowerCase() == 'null') {
+        return null;
+      }
+      // Remove quotes if present
+      return str.replaceAll('"', '').trim();
+    } catch (e) {
+      return null;
+    }
+  }
+  
+  // Helper to safely get CSV row value
+  static dynamic _safeGetRowValue(List<dynamic> row, int index) {
+    if (row == null || index < 0 || index >= row.length) {
+      return null;
+    }
+    try {
+      return row[index];
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // Load airports from API and cache
+  static Future<List<Airport>> _loadAirportsFromAPI({bool forceRefresh = false}) async {
+    if (forceRefresh) {
+      print('🔄 Force refresh requested - clearing cache...');
+      _cachedAirports = null;
+      await clearAirportCache();
+    } else if (_cachedAirports != null && _cachedAirports!.isNotEmpty) {
+      // Validate cache quality - if less than 100 airports, it's invalid
+      if (_cachedAirports!.length >= 100) {
+        print('✅ Using in-memory cached airports: ${_cachedAirports!.length} airports');
+        return _cachedAirports!;
+      } else {
+        print('⚠️ Invalid in-memory cache detected (${_cachedAirports!.length} airports), forcing refresh...');
+        _cachedAirports = null;
+        await clearAirportCache();
+        forceRefresh = true; // Force refresh after clearing
+      }
+    }
+
+    // Try to load from SharedPreferences cache first
+    final prefs = await SharedPreferences.getInstance();
+    try {
+      final cachedJson = prefs.getString('airports_cache');
+      final cacheTimestamp = prefs.getInt('airports_cache_timestamp') ?? 0;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      // Cache valid for 7 days
+      final cacheValidDuration = 7 * 24 * 60 * 60 * 1000;
+      
+      if (cachedJson != null && 
+          cachedJson.isNotEmpty && 
+          (now - cacheTimestamp) < cacheValidDuration) {
+        final List<dynamic> cached = json.decode(cachedJson);
+        final cachedAirportsList = cached.map((item) => Airport(
+          code: item['code'] ?? '',
+          name: item['name'] ?? '',
+          city: item['city'] ?? '',
+          country: item['country'] ?? '',
+        )).where((a) => a.code.isNotEmpty).toList();
+        
+        // If cache has too few airports (< 100), it's invalid - force refresh
+        if (cachedAirportsList.length < 100) {
+          print('⚠️ Cache has only ${cachedAirportsList.length} airports, forcing refresh...');
+          await clearAirportCache();
+        } else {
+          _cachedAirports = cachedAirportsList;
+          print('✅ Loaded ${_cachedAirports!.length} airports from cache');
+          return _cachedAirports!;
+        }
+      }
+    } catch (e) {
+      print('⚠️ Error loading airports from cache: $e');
+      // Clear bad cache
+      await clearAirportCache();
+    }
+
+    // Try to fetch from free public airport APIs
+    try {
+      print('🌐 Fetching airports from API...');
+      
+      // Method 1: Try OpenFlights GitHub (primary source)
+      List<Airport>? airports = await _fetchFromApiNinjas();
+      
+      // Method 2: Try public GitHub-hosted JSON as fallback
+      if (airports == null || airports.isEmpty || airports.length < 100) {
+        print('🔄 Trying public JSON endpoint...');
+        airports = await _fetchFromPublicJSON();
+      }
+      
+      // Method 3: Try RapidAPI free endpoint as last resort
+      if (airports == null || airports.isEmpty || airports.length < 100) {
+        airports = await _fetchFromRapidAPI();
+      }
+
+      if (airports != null && airports.isNotEmpty) {
+        // Remove duplicates (by IATA code)
+        final uniqueAirports = <String, Airport>{};
+        for (var airport in airports) {
+          if (airport.code.isNotEmpty && !uniqueAirports.containsKey(airport.code)) {
+            uniqueAirports[airport.code] = airport;
+          }
+        }
+        final deduplicated = uniqueAirports.values.toList();
+        
+        // Sort by airport code for better UX
+        deduplicated.sort((a, b) => a.code.compareTo(b.code));
+        
+        _cachedAirports = deduplicated;
+        
+        // Cache in SharedPreferences as JSON
+        final airportsJson = json.encode(deduplicated.map((a) => {
+          'code': a.code,
+          'name': a.name,
+          'city': a.city,
+          'country': a.country,
+        }).toList());
+        await prefs.setString('airports_cache', airportsJson);
+        await prefs.setInt('airports_cache_timestamp', DateTime.now().millisecondsSinceEpoch);
+        
+        print('✅ Loaded ${deduplicated.length} unique airports from API');
+        return deduplicated;
+      }
+    } catch (e) {
+      print('⚠️ Error loading airports from API: $e');
+    }
+
+    // Fallback to hardcoded list
+    print('⚠️ Using hardcoded airport list as fallback');
+    _cachedAirports = _majorAirports;
+    return _majorAirports;
+  }
+  
+  // Fetch from API Ninjas (free tier)
+  static Future<List<Airport>?> _fetchFromApiNinjas() async {
+    try {
+      // API Ninjas has a free tier - we can fetch all airports
+      // Using a public JSON endpoint that doesn't require API key
+      final response = await http.get(
+        Uri.parse('https://raw.githubusercontent.com/jpatokal/openflights/master/data/airports.dat'),
+      ).timeout(const Duration(seconds: 30));
+      
+      if (response.statusCode == 200) {
+        final csvString = response.body;
+        print('📥 Received ${csvString.length} characters from OpenFlights API');
+        
+        final csv = const CsvToListConverter(
+          eol: '\n',
+          fieldDelimiter: ',',
+          textDelimiter: '"',
+          textEndDelimiter: '"',
+        ).convert(csvString);
+        
+        print('📊 Parsed ${csv.length} CSV rows');
+        
+        final airports = <Airport>[];
+        int validCount = 0;
+        int skippedCount = 0;
+        
+        for (var row in csv) {
+          try {
+            // Skip null or empty rows
+            if (row == null || !(row is List) || row.isEmpty) {
+              skippedCount++;
+              continue;
+            }
+            
+            // Safely check row length and access indices
+            if (row.length >= 6) {
+              // Use safe getter to access array indices
+              final iataCode = _cleanString(_safeGetRowValue(row, 4));
+              final name = _cleanString(_safeGetRowValue(row, 1)) ?? '';
+              final city = _cleanString(_safeGetRowValue(row, 2)) ?? '';
+              final country = _cleanString(_safeGetRowValue(row, 3)) ?? '';
+              
+              if (iataCode != null && 
+                  iataCode.isNotEmpty &&
+                  iataCode.length == 3 && 
+                  iataCode != 'N/A' &&
+                  iataCode != '\\N' &&
+                  !iataCode.contains('null') &&
+                  name.isNotEmpty) {
+                airports.add(Airport(
+                  code: iataCode.toUpperCase(),
+                  name: name,
+                  city: city.isNotEmpty ? city : name,
+                  country: country.isNotEmpty ? country : 'Unknown',
+                ));
+                validCount++;
+              } else {
+                skippedCount++;
+              }
+            } else {
+              skippedCount++;
+            }
+          } catch (e) {
+            skippedCount++;
+            // Log error for debugging but continue
+            if (skippedCount % 100 == 0) {
+              print('⚠️ Skipped $skippedCount rows so far (last error: $e)');
+            }
+            continue;
+          }
+        }
+        
+        print('✅ Valid airports: $validCount, Skipped: $skippedCount');
+        
+        if (airports.length >= 100) {
+          print('✅ Fetched ${airports.length} airports from OpenFlights GitHub');
+          return airports;
+        } else {
+          print('⚠️ Only ${airports.length} valid airports found (expected 100+), trying next source...');
+        }
+      } else {
+        print('⚠️ OpenFlights API returned status code: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('⚠️ Error fetching from OpenFlights: $e');
+    }
+    return null;
+  }
+  
+  // Fetch from RapidAPI (alternative)
+  static Future<List<Airport>?> _fetchFromRapidAPI() async {
+    // RapidAPI endpoints typically require API keys
+    // This is a placeholder for future implementation
+    return null;
+  }
+  
+  // Fetch from public JSON endpoint
+  static Future<List<Airport>?> _fetchFromPublicJSON() async {
+    try {
+      // Try a public JSON endpoint with airport data
+      final response = await http.get(
+        Uri.parse('https://raw.githubusercontent.com/mwgg/Airports/master/airports.json'),
+      ).timeout(const Duration(seconds: 30));
+      
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = json.decode(response.body);
+        final airports = <Airport>[];
+        
+        data.forEach((code, airportData) {
+          try {
+            if (airportData is Map && 
+                code.length == 3 && 
+                airportData['name'] != null) {
+              airports.add(Airport(
+                code: code.toUpperCase(),
+                name: airportData['name'] ?? '',
+                city: airportData['city'] ?? airportData['name'] ?? '',
+                country: airportData['country'] ?? 'Unknown',
+              ));
+            }
+          } catch (e) {
+            // Skip invalid entries
+          }
+        });
+        
+        if (airports.isNotEmpty) {
+          print('✅ Fetched ${airports.length} airports from public JSON');
+          return airports;
+        }
+      }
+    } catch (e) {
+      print('⚠️ Error fetching from public JSON: $e');
+    }
+    return null;
+  }
+  
 
   // Existing airport-related methods
   static Future<AirportSearchResponse> searchAirports(String query) async {
     try {
-      if (query.length < 2) {
-        return AirportSearchResponse(airports: _filterLocalAirports(query));
+      final allAirports = await _loadAirportsFromAPI();
+      print('🔍 Searching through ${allAirports.length} total airports');
+      
+      List<Airport> filtered;
+      if (query.isEmpty) {
+        // Show ALL airports when no query (user can scroll/search)
+        // No limit - show everything for maximum selection
+        filtered = allAirports;
+      } else {
+        // Search through ALL airports when user types
+        filtered = _filterAirports(allAirports, query);
+        print('🔍 Found ${filtered.length} airports matching "$query"');
       }
-      return AirportSearchResponse(airports: _filterLocalAirports(query));
+      return AirportSearchResponse(airports: filtered);
     } catch (e) {
-      print('Error searching airports: $e');
+      print('❌ Error searching airports: $e');
       return AirportSearchResponse(
-        airports: _filterLocalAirports(query),
-        error: 'Using local airport database',
+        airports: _filterAirports(_majorAirports, query),
+        error: 'Using fallback airport database',
       );
     }
   }
 
-  static List<Airport> _filterLocalAirports(String query) {
+  static List<Airport> _filterAirports(List<Airport> airports, String query) {
     if (query.isEmpty) {
-      return _majorAirports;
+      // Return ALL airports when no query - no limit
+      return airports;
     }
     final lowercaseQuery = query.toLowerCase();
-    return _majorAirports.where((airport) {
+    return airports.where((airport) {
       return airport.code.toLowerCase().contains(lowercaseQuery) ||
           airport.city.toLowerCase().contains(lowercaseQuery) ||
           airport.name.toLowerCase().contains(lowercaseQuery) ||
@@ -118,7 +408,31 @@ class AirportService {
   }
 
   static Future<List<Airport>> getPopularAirports() async {
-    return _majorAirports;
+    final allAirports = await _loadAirportsFromAPI();
+    // Return ALL airports for initial display - no limit
+    // Users can scroll or search to find specific airports
+    return allAirports;
+  }
+
+  // Get all airports (for searching - no limit)
+  static Future<List<Airport>> getAllAirports() async {
+    return await _loadAirportsFromAPI();
+  }
+  
+  // Clear airport cache to force fresh fetch
+  static Future<void> clearAirportCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('airports_cache');
+    await prefs.remove('airports_cache_timestamp');
+    _cachedAirports = null;
+    print('🗑️ Airport cache cleared');
+  }
+  
+  // Force refresh airports from API (clears cache and fetches fresh)
+  static Future<List<Airport>> forceRefreshAirports() async {
+    print('🔄 Forcing airport refresh from API...');
+    await clearAirportCache();
+    return await _loadAirportsFromAPI();
   }
 
   // Comprehensive airport list with major airports worldwide

@@ -360,7 +360,30 @@ class MatchCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          if (match.status.toLowerCase().contains('connect'))
+          // Show Chat button if matched/connected
+          if (match.status.toLowerCase() == 'matched' || 
+              match.status.toLowerCase() == 'connected')
+            ElevatedButton(
+              onPressed: onTap,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 6,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              child: const Text(
+                'Chat',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+            )
+          // Show Connect button for connection requests
+          else if (match.status.toLowerCase().contains('connect') ||
+                   match.status.toLowerCase() == 'connect')
             ElevatedButton(
               onPressed: onTap,
               style: ElevatedButton.styleFrom(

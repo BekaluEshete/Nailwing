@@ -407,8 +407,26 @@ class MatchDetailScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(width: 12),
+          // Show "Chat" button if connection is matched/accepted
+          if (currentMatch.status.toLowerCase() == 'matched' || 
+              currentMatch.status.toLowerCase() == 'connected')
+            ElevatedButton(
+              onPressed: () => _createChatAfterConnection(context, ref, currentMatch),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 10,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+              child: const Text('Chat'),
+            )
           // Show Connect button only if status is "Connect"
-          if (currentMatch.status.toLowerCase() == 'connect')
+          else if (currentMatch.status.toLowerCase() == 'connect')
             ElevatedButton(
               onPressed: () => _handleConnect(context, ref, viewModel, currentMatch),
               style: ElevatedButton.styleFrom(
@@ -425,7 +443,8 @@ class MatchDetailScreen extends ConsumerWidget {
               child: const Text('Connect'),
             )
           // Show Accept/Reject buttons if connection request received
-          else if (currentMatch.status.toLowerCase() == 'connection request')
+          else if (currentMatch.status.toLowerCase() == 'connection request' ||
+                   currentMatch.status.toLowerCase() == 'connection_requested')
             Row(
               children: [
                 ElevatedButton(
@@ -478,45 +497,6 @@ class MatchDetailScreen extends ConsumerWidget {
                   fontWeight: FontWeight.w500,
                 ),
               ),
-            )
-          // Show "Connected" status with "Start Chat" button
-          else if (currentMatch.status.toLowerCase() == 'connected')
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.green[50],
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    'Connected',
-                    style: TextStyle(
-                      color: Colors.green[700],
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: () => _createChatAfterConnection(context, ref, currentMatch),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                  ),
-                  child: const Text('Start Chat'),
-                ),
-              ],
             )
           // Show rejected message
           else if (currentMatch.status.toLowerCase() == 'rejected')
@@ -723,7 +703,8 @@ class MatchDetailScreen extends ConsumerWidget {
   ) async {
     try {
       // Verify connection is accepted before creating chat
-      if (match.status.toLowerCase() != 'connected') {
+      final statusLower = match.status.toLowerCase();
+      if (statusLower != 'matched' && statusLower != 'connected') {
         throw Exception('Connection must be accepted before you can chat. Please wait for the other person to accept your connection request.');
       }
 

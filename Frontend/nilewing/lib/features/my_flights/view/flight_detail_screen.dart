@@ -431,12 +431,42 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
   }
 
   String _getBoardingTime() {
-    final timeline = _flightDetail['timeline'] as List;
-    final boarding = timeline.firstWhere(
-      (item) => item['event'] == 'Boarding begins',
-      orElse: () => {'time': '--:--'},
-    );
-    return boarding['time'];
+    if (_flight == null) return 'Check with airline';
+    
+    final departure = _flightDetail['departure'] as Map<String, dynamic>?;
+    if (departure == null) return 'Check with airline';
+    
+    final departureTime = departure['time'] as String?;
+    
+    if (departureTime == null || departureTime.isEmpty) {
+      return 'Check with airline';
+    }
+    
+    try {
+      // Calculate boarding time (typically 30 minutes before departure)
+      final parts = departureTime.split(':');
+      if (parts.length == 2) {
+        final hour = int.parse(parts[0]);
+        final minute = int.parse(parts[1]);
+        var boardingHour = hour;
+        var boardingMinute = minute - 30; // 30 minutes before
+        
+        if (boardingMinute < 0) {
+          boardingMinute += 60;
+          boardingHour -= 1;
+          if (boardingHour < 0) {
+            boardingHour += 24;
+          }
+        }
+        
+        return '${boardingHour.toString().padLeft(2, '0')}:${boardingMinute.toString().padLeft(2, '0')}';
+      }
+    } catch (e) {
+      // If parsing fails, just show a generic message
+      return 'Check with airline';
+    }
+    
+    return 'Check with airline';
   }
 
   Widget _buildManagementCard() {
@@ -822,22 +852,35 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
   Widget _buildTimelineCard() {
     if (_flight == null) return const SizedBox.shrink();
 
-    final departure = _flightDetail['departure'];
-    final arrival = _flightDetail['arrival'];
+    final departure = _flightDetail['departure'] as Map<String, dynamic>?;
+    final arrival = _flightDetail['arrival'] as Map<String, dynamic>?;
     final List<Map<String, String>> timeline = [];
 
     // Build timeline from actual flight data
-    if (departure['time'].isNotEmpty) {
-      timeline.add({
-        'event': 'Departure from ${departure['airport']}',
-        'time': '${departure['time']} - ${departure['date']}',
-      });
+    if (departure != null) {
+      final depTime = departure['time'] as String? ?? '';
+      final depDate = departure['date'] as String? ?? '';
+      final depAirport = departure['airport'] as String? ?? '';
+      
+      if (depTime.isNotEmpty) {
+        timeline.add({
+          'event': 'Departure from $depAirport',
+          'time': depDate.isNotEmpty ? '$depTime - $depDate' : depTime,
+        });
+      }
     }
-    if (arrival['time'].isNotEmpty) {
-      timeline.add({
-        'event': 'Arrival at ${arrival['airport']}',
-        'time': '${arrival['time']} - ${arrival['date']}',
-      });
+    
+    if (arrival != null) {
+      final arrTime = arrival['time'] as String? ?? '';
+      final arrDate = arrival['date'] as String? ?? '';
+      final arrAirport = arrival['airport'] as String? ?? '';
+      
+      if (arrTime.isNotEmpty) {
+        timeline.add({
+          'event': 'Arrival at $arrAirport',
+          'time': arrDate.isNotEmpty ? '$arrTime - $arrDate' : arrTime,
+        });
+      }
     }
 
     if (timeline.isEmpty) return const SizedBox.shrink();

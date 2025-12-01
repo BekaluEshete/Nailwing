@@ -1,8 +1,9 @@
 // features/matches/views/user_detail_screen.dart
 import 'package:flutter/material.dart';
 import 'package:nilewing/features/match/model/match_model.dart';
+import 'package:nilewing/features/match/service/match_service.dart';
 
-class UserDetailScreen extends StatelessWidget {
+class UserDetailScreen extends StatefulWidget {
   final User user;
   final VoidCallback onNavigateBack;
 
@@ -13,12 +14,54 @@ class UserDetailScreen extends StatelessWidget {
   }) : super(key: key);
 
   @override
+  State<UserDetailScreen> createState() => _UserDetailScreenState();
+}
+
+class _UserDetailScreenState extends State<UserDetailScreen> {
+  User? _fetchedUser;
+  bool _isLoading = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserProfile();
+  }
+
+  Future<void> _loadUserProfile() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      print('👤 [UserDetailScreen] Loading profile for user: ${widget.user.id}');
+      final fetchedUser = await MatchService().getUserProfileById(widget.user.id);
+      setState(() {
+        _fetchedUser = fetchedUser;
+        _isLoading = false;
+      });
+      print('✅ [UserDetailScreen] Profile loaded successfully');
+    } catch (e) {
+      print('❌ [UserDetailScreen] Error loading profile: $e');
+      setState(() {
+        _error = e.toString();
+        _isLoading = false;
+        // Fallback to passed user data if fetch fails
+        _fetchedUser = widget.user;
+      });
+    }
+  }
+
+  User get _displayUser => _fetchedUser ?? widget.user;
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
         leading: IconButton(
-          onPressed: onNavigateBack,
+          onPressed: widget.onNavigateBack,
           icon: const Icon(Icons.arrow_back, color: Colors.black),
         ),
         title: const Text(
@@ -28,48 +71,65 @@ class UserDetailScreen extends StatelessWidget {
         backgroundColor: Colors.white,
         elevation: 0,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header with user info
-            _buildUserHeader(),
-            const SizedBox(height: 24),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null && _fetchedUser == null
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                      const SizedBox(height: 16),
+                      Text('Error loading profile: $_error'),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: _loadUserProfile,
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                )
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header with user info
+                      _buildUserHeader(),
+                      const SizedBox(height: 24),
 
-            // Online status and location
-            _buildLocationSection(),
-            const SizedBox(height: 24),
+                      // Online status and location
+                      _buildLocationSection(),
+                      const SizedBox(height: 24),
 
-            // Mutual connections
-            if (user.mutualConnections > 0) ...[
-              _buildMutualConnections(),
-              const SizedBox(height: 24),
-            ],
+                      // Mutual connections
+                      if (_displayUser.mutualConnections > 0) ...[
+                        _buildMutualConnections(),
+                        const SizedBox(height: 24),
+                      ],
 
-            // Bio
-            _buildBioSection(),
-            const SizedBox(height: 24),
+                      // Bio
+                      _buildBioSection(),
+                      const SizedBox(height: 24),
 
-            // Common interests
-            _buildInterestsSection(),
-            const SizedBox(height: 24),
+                      // Interests
+                      if (_displayUser.interests.isNotEmpty) ...[
+                        _buildInterestsSection(),
+                        const SizedBox(height: 24),
+                      ],
 
-            // Travel statistics
-            _buildTravelStats(),
-            const SizedBox(height: 24),
+                      // Travel statistics
+                      _buildTravelStats(),
+                      const SizedBox(height: 24),
 
-            // Favorite destination
-            if (user.favoriteDestination != null) ...[
-              _buildFavoriteDestination(),
-              const SizedBox(height: 24),
-            ],
-
-            // Action buttons
-            _buildActionButtons(),
-          ],
-        ),
-      ),
+                      // Favorite destination
+                      if (_displayUser.favoriteDestination != null) ...[
+                        _buildFavoriteDestination(),
+                        const SizedBox(height: 24),
+                      ],
+                    ],
+                  ),
+                ),
     );
   }
 
@@ -83,16 +143,35 @@ class UserDetailScreen extends StatelessWidget {
             color: Colors.blue,
             borderRadius: BorderRadius.circular(40),
           ),
-          child: Center(
-            child: Text(
-              user.initials,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 24,
-              ),
-            ),
-          ),
+          child: _displayUser.avatar != null && _displayUser.avatar!.isNotEmpty
+              ? ClipOval(
+                  child: Image.network(
+                    _displayUser.avatar!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Center(
+                        child: Text(
+                          _displayUser.initials,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 24,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                )
+              : Center(
+                  child: Text(
+                    _displayUser.initials,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 24,
+                    ),
+                  ),
+                ),
         ),
         const SizedBox(width: 16),
         Expanded(
@@ -100,7 +179,7 @@ class UserDetailScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                user.name,
+                _displayUser.name,
                 style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
@@ -113,33 +192,42 @@ class UserDetailScreen extends StatelessWidget {
                   vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: user.isOnline ? Colors.green[50] : Colors.grey[200],
+                  color: _displayUser.isOnline ? Colors.green[50] : Colors.grey[200],
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: user.isOnline
+                    color: _displayUser.isOnline
                         ? Colors.green[100]!
                         : Colors.grey[300]!,
                   ),
                 ),
                 child: Text(
-                  user.lastSeenText,
+                  _displayUser.lastSeenText,
                   style: TextStyle(
                     fontSize: 12,
-                    color: user.isOnline ? Colors.green[700] : Colors.grey[600],
+                    color: _displayUser.isOnline ? Colors.green[700] : Colors.grey[600],
                     fontWeight: FontWeight.w500,
                   ),
                 ),
               ),
               const SizedBox(height: 8),
-              Text(
-                '${user.nationality} • ${user.age} years old',
-                style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                user.languages.join(', '),
-                style: TextStyle(fontSize: 14, color: Colors.grey[500]),
-              ),
+              if (_displayUser.nationality.isNotEmpty || _displayUser.age > 0)
+                Text(
+                  _displayUser.nationality.isNotEmpty && _displayUser.age > 0
+                      ? '${_displayUser.nationality} • ${_displayUser.age} years old'
+                      : _displayUser.nationality.isNotEmpty
+                          ? _displayUser.nationality
+                          : _displayUser.age > 0
+                              ? '${_displayUser.age} years old'
+                              : '',
+                  style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                ),
+              if (_displayUser.languages.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  _displayUser.languages.join(', '),
+                  style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                ),
+              ],
             ],
           ),
         ),
@@ -163,16 +251,21 @@ class UserDetailScreen extends StatelessWidget {
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
-          if (user.currentLocation != null) ...[
+          if (_displayUser.currentLocation != null && _displayUser.currentLocation!.isNotEmpty) ...[
             Text(
-              user.currentLocation!,
+              _displayUser.currentLocation!,
               style: const TextStyle(fontSize: 14, color: Colors.black87),
             ),
             const SizedBox(height: 4),
-          ],
-          if (user.locationAccuracy != null)
+          ] else ...[
             Text(
-              user.locationAccuracy!.displayText,
+              'Location not available',
+              style: TextStyle(fontSize: 14, color: Colors.grey[400]),
+            ),
+          ],
+          if (_displayUser.locationAccuracy != null)
+            Text(
+              _displayUser.locationAccuracy!.displayText,
               style: TextStyle(fontSize: 12, color: Colors.grey[600]),
             ),
         ],
@@ -193,7 +286,7 @@ class UserDetailScreen extends StatelessWidget {
           Icon(Icons.people, color: Colors.blue[600], size: 20),
           const SizedBox(width: 12),
           Text(
-            'You have ${user.mutualConnections} mutual connections',
+            'You have ${_displayUser.mutualConnections} mutual connections',
             style: TextStyle(
               fontSize: 14,
               color: Colors.blue[800],
@@ -215,7 +308,7 @@ class UserDetailScreen extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          user.bio ?? 'No bio available',
+          _displayUser.bio ?? 'No bio available',
           style: const TextStyle(
             fontSize: 14,
             color: Colors.black87,
@@ -231,14 +324,14 @@ class UserDetailScreen extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Common Interests',
+          'Interests',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: user.interests.map((interest) {
+          children: _displayUser.interests.map((interest) {
             return Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
@@ -281,11 +374,11 @@ class UserDetailScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _buildStatItem(
-                '${user.travelStats.countriesVisited}',
+                '${_displayUser.travelStats.countriesVisited}',
                 'Countries Visited',
               ),
               _buildStatItem(
-                '${user.travelStats.totalFlights}',
+                '${_displayUser.travelStats.totalFlights}',
                 'Total Flights',
               ),
             ],
@@ -295,11 +388,11 @@ class UserDetailScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _buildStatItem(
-                '${user.travelStats.flightsThisYear}',
+                '${_displayUser.travelStats.flightsThisYear}',
                 'This Year',
               ),
               _buildStatItem(
-                user.travelStats.frequentFlyerTier,
+                _displayUser.travelStats.frequentFlyerTier,
                 'Frequent Flyer',
               ),
             ],
@@ -352,7 +445,7 @@ class UserDetailScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  user.favoriteDestination!,
+                  _displayUser.favoriteDestination!,
                   style: TextStyle(fontSize: 14, color: Colors.orange[800]),
                 ),
               ],
@@ -363,38 +456,4 @@ class UserDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildActionButtons() {
-    return Row(
-      children: [
-        Expanded(
-          child: OutlinedButton(
-            onPressed: () {
-              // Get directions
-            },
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              side: const BorderSide(color: Colors.blue),
-            ),
-            child: const Text(
-              'Get Directions',
-              style: TextStyle(color: Colors.blue),
-            ),
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: ElevatedButton(
-            onPressed: () {
-              // Connect action
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-            ),
-            child: const Text('Connect', style: TextStyle(color: Colors.white)),
-          ),
-        ),
-      ],
-    );
-  }
 }

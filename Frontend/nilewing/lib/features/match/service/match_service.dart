@@ -512,7 +512,7 @@ class MatchService {
         }
       } else {
         print('⚠️ [MatchService] Unknown type for common_interests: ${commonInterestsList.runtimeType}');
-      }
+          }
     } else {
       print('⚠️ [MatchService] common_interests is null or missing in JSON');
     }
@@ -654,6 +654,105 @@ class MatchService {
         ];
       default:
         return ['Connect and explore'];
+    }
+  }
+  
+  // Fetch user profile by user ID
+  Future<User> getUserProfileById(String userId) async {
+    try {
+      print('👤 [MatchService] Fetching user profile for ID: $userId');
+      final token = await _getAuthToken();
+      if (token == null) {
+        throw Exception('Not authenticated');
+      }
+
+      final url = '${AppConstants.authBaseUrl}/$userId/user_profile/';
+      print('📡 [MatchService] GET: $url');
+      
+      final response = await _httpClient.get(Uri.parse(url));
+      
+      print('📥 [MatchService] Response status: ${response.statusCode}');
+      print('📥 [MatchService] Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final userData = data['data'] ?? data;
+        
+        print('✅ [MatchService] User profile loaded successfully');
+        
+        // Parse language field
+        List<String> languages = [];
+        if (userData['language'] != null) {
+          if (userData['language'] is List) {
+            languages = (userData['language'] as List)
+                .map((e) => e.toString().trim())
+                .where((e) => e.isNotEmpty)
+                .toList();
+          } else if (userData['language'] is String) {
+            languages = [userData['language']];
+          }
+        }
+        
+        // Parse interests - check multiple possible fields
+        List<String> interests = [];
+        if (userData['interests'] != null) {
+          if (userData['interests'] is List) {
+            interests = (userData['interests'] as List)
+                .map((e) => e.toString().trim())
+                .where((e) => e.isNotEmpty)
+                .toList();
+          }
+        }
+        
+        // Calculate age from date_joined if age not provided
+        int age = userData['age'] ?? 0;
+        if (age == 0 && userData['date_joined'] != null) {
+          try {
+            final dateJoined = DateTime.parse(userData['date_joined']);
+            final now = DateTime.now();
+            age = now.year - dateJoined.year;
+            if (now.month < dateJoined.month || 
+                (now.month == dateJoined.month && now.day < dateJoined.day)) {
+              age--;
+            }
+          } catch (e) {
+            print('⚠️ [MatchService] Could not calculate age: $e');
+          }
+        }
+        
+        return User(
+          id: userData['id']?.toString() ?? userId,
+          name: userData['fullName'] ?? userData['first_name'] ?? 'User',
+          avatar: userData['profileImageUrl'] ?? userData['profileImage'],
+          age: age,
+          nationality: userData['nationality'] ?? '',
+          gender: userData['gender'] ?? 'other',
+          languages: languages,
+          interests: interests,
+          verified: false,
+          bio: userData['bio'] ?? '',
+          rating: 0.0,
+          reviewCount: 0,
+          isOnline: false,
+          currentLocation: null,
+          locationAccuracy: null,
+          lastSeen: null,
+          mutualConnections: 0,
+          travelStats: const TravelStats(
+            countriesVisited: 0,
+            totalFlights: 0,
+            flightsThisYear: 0,
+            frequentFlyerTier: '',
+          ),
+          favoriteDestination: null,
+        );
+      } else {
+        final errorData = json.decode(response.body);
+        throw Exception(errorData['error'] ?? 'Failed to load user profile');
+      }
+    } catch (e) {
+      print('❌ [MatchService] Error fetching user profile: $e');
+      rethrow;
     }
   }
 }

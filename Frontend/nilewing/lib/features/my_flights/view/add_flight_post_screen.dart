@@ -52,6 +52,7 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
     });
 
     try {
+      // Load comprehensive airport list from CSV
       final airports = await AirportService.getPopularAirports();
       setState(() {
         _popularAirports = airports;
@@ -59,6 +60,8 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
       });
     } catch (e) {
       print('Error loading airports: $e');
+      // Fallback: load airports for search
+      await _loadAirportsForSearch();
     } finally {
       setState(() {
         _isLoadingAirports = false;
@@ -107,52 +110,101 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
     });
   }
 
-  Future<void> _searchAirports(String query) async {
+  // Live/dynamic airport search - filters instantly as user types
+  void _filterAirportsLocally(String query) {
+    if (!mounted) return;
+    
+    // Filter immediately without waiting for setState
+    List<Airport> filteredResults;
     if (query.isEmpty) {
+      // Show all airports when search is empty
+      filteredResults = List<Airport>.from(_popularAirports);
+    } else {
+      // Instant local filtering - no API calls needed
+      final lowercaseQuery = query.toLowerCase();
+      filteredResults = _popularAirports.where((airport) {
+        return airport.code.toLowerCase().contains(lowercaseQuery) ||
+            airport.city.toLowerCase().contains(lowercaseQuery) ||
+            airport.name.toLowerCase().contains(lowercaseQuery) ||
+            airport.country.toLowerCase().contains(lowercaseQuery);
+      }).toList();
+    }
+    
+    // Update state immediately
+    setState(() {
+      _searchResults = filteredResults;
+    });
+  }
+  
+  // Load airports initially (async) - called when modal opens
+  Future<void> _loadAirportsForSearch() async {
+    if (!mounted) return;
+    
+    // Only show loading if we don't have airports cached yet
+    if (_popularAirports.isEmpty) {
       setState(() {
-        _searchResults = _popularAirports;
+        _isLoadingAirports = true;
       });
-      return;
     }
 
-    setState(() {
-      _isLoadingAirports = true;
-    });
-
     try {
-      final response = await AirportService.searchAirports(query);
+      print('🔍 Loading airports for search...');
+      // Load all airports from service (uses cache if available)
+      final response = await AirportService.searchAirports('');
+      
+      if (!mounted) return;
+      
       setState(() {
-        _searchResults = response.airports;
+        _popularAirports = response.airports;
+        _searchResults = response.airports; // Show all initially
+        print('✅ Loaded ${_popularAirports.length} airports for live search');
       });
     } catch (e) {
-      print('Error searching airports: $e');
-      // Fallback to local search
-      final lowercaseQuery = query.toLowerCase();
-      setState(() {
-        _searchResults = _popularAirports.where((airport) {
-          return airport.code.toLowerCase().contains(lowercaseQuery) ||
-              airport.city.toLowerCase().contains(lowercaseQuery) ||
-              airport.name.toLowerCase().contains(lowercaseQuery);
-        }).toList();
-      });
+      print('❌ Error loading airports: $e');
+      if (!mounted) return;
+      
+      // Fallback - try to use cached popular airports
+      if (_popularAirports.isEmpty) {
+        try {
+          final cached = await AirportService.getPopularAirports();
+          setState(() {
+            _popularAirports = cached;
+            _searchResults = cached;
+          });
+        } catch (e2) {
+          print('❌ Error loading cached airports: $e2');
+          setState(() {
+            _searchResults = [];
+          });
+        }
+      }
     } finally {
+      if (!mounted) return;
       setState(() {
         _isLoadingAirports = false;
       });
     }
   }
 
-  void _handleAirportSelect(Airport airport, bool isDeparture) {
+  void _handleAirportSelect(Airport airport, String airportType) {
     setState(() {
-      if (isDeparture) {
-        _formData.departureAirport = airport.code;
-        _formData.departureCity = airport.city;
-        _errors.remove('departureAirport');
-      } else {
-        _formData.arrivalAirport = airport.code;
-        _formData.arrivalCity = airport.city;
-        _formData.destinationPlace = airport.city;
-        _errors.remove('arrivalAirport');
+      switch (airportType) {
+        case 'departure':
+          _formData.departureAirport = airport.code;
+          _formData.departureCity = airport.city;
+          _errors.remove('departureAirport');
+          break;
+        case 'arrival':
+          _formData.arrivalAirport = airport.code;
+          _formData.arrivalCity = airport.city;
+          _formData.destinationPlace = airport.city;
+          _errors.remove('arrivalAirport');
+          break;
+        case 'transit':
+          _formData.transitAirport = airport.code;
+          _formData.transitCity = airport.city;
+          _errors.remove('transitAirport');
+          break;
       }
       _airportSearchController.clear();
     });
@@ -892,7 +944,7 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
         ),
         const SizedBox(height: 4),
         GestureDetector(
-          onTap: () => _showAirportSearchModal(isDeparture),
+          onTap: () => _showAirportSearchModal(isDeparture ? 'departure' : 'arrival'),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
             decoration: BoxDecoration(
@@ -934,69 +986,203 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
     );
   }
 
-  void _showAirportSearchModal(bool isDeparture) {
+  void _showAirportSearchModal(String airportType) {
+    // Clear search field
+    _airportSearchController.clear();
+    
+    // Initialize search results with empty list
+    _searchResults = [];
+    
+    // Start loading airports in background
+    _loadAirportsForSearch();
+    
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (context) => _buildAirportSearchSheet(isDeparture),
+      builder: (context) => StatefulBuilder(
+        builder: (BuildContext context, StateSetter setModalState) {
+          return _buildAirportSearchSheet(airportType, setModalState);
+        },
+      ),
     );
   }
 
-  Widget _buildAirportSearchSheet(bool isDeparture) {
+  Widget _buildAirportSearchSheet(String airportType, StateSetter setModalState) {
+    String title;
+    switch (airportType) {
+      case 'departure':
+        title = 'Select Departure Airport';
+        break;
+      case 'arrival':
+        title = 'Select Arrival Airport';
+        break;
+      case 'transit':
+        title = 'Select Transit Airport';
+        break;
+      default:
+        title = 'Select Airport';
+    }
+
+    // Get current search query
+    final searchQuery = _airportSearchController.text;
+    
+    // Use _searchResults if it's up to date, otherwise filter on the fly
+    // This ensures instant updates as user types
+    final filteredAirports = _searchResults.isNotEmpty || searchQuery.isEmpty
+        ? _searchResults
+        : _popularAirports.where((airport) {
+            final query = searchQuery.toLowerCase();
+            return airport.code.toLowerCase().contains(query) ||
+                airport.city.toLowerCase().contains(query) ||
+                airport.name.toLowerCase().contains(query) ||
+                airport.country.toLowerCase().contains(query);
+          }).toList();
+
     return Container(
       height: MediaQuery.of(context).size.height * 0.8,
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
           Text(
-            'Select ${isDeparture ? 'Departure' : 'Arrival'} Airport',
+            title,
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
           TextField(
             controller: _airportSearchController,
             decoration: const InputDecoration(
-              hintText: 'Search by airport name, city, or code...',
+              hintText: 'Type to search by airport name, city, or code...',
               prefixIcon: Icon(Icons.search),
               border: OutlineInputBorder(),
             ),
-            onChanged: _searchAirports,
+            onChanged: (value) {
+              // Update main state
+              _filterAirportsLocally(value);
+              // Trigger modal rebuild for instant UI update
+              setModalState(() {});
+            },
+            autofocus: true,
+            textInputAction: TextInputAction.search,
           ),
-          const SizedBox(height: 16),
-          if (_isLoadingAirports)
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: CircularProgressIndicator(),
-            )
-          else
-            Expanded(child: _buildAirportList(isDeparture)),
+          const SizedBox(height: 8),
+          // Show search result count when typing
+          if (searchQuery.isNotEmpty && !_isLoadingAirports)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              child: Text(
+                '${filteredAirports.length} airport${filteredAirports.length == 1 ? '' : 's'} found',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: _buildAirportListReactive(filteredAirports, airportType),
+          ),
         ],
       ),
     );
   }
-
-  Widget _buildAirportList(bool isDeparture) {
-    if (_searchResults.isEmpty) {
-      return const Center(child: Text('No airports found'));
+  
+  Widget _buildAirportListReactive(List<Airport> airports, String airportType) {
+    // Show loading only on initial load
+    if (_isLoadingAirports && _popularAirports.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(32.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Loading airports...'),
+            ],
+          ),
+        ),
+      );
+    }
+    
+    // Show no results message
+    if (airports.isEmpty && !_isLoadingAirports) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.search_off, size: 48, color: Colors.grey),
+              const SizedBox(height: 16),
+              Text(
+                _airportSearchController.text.isEmpty
+                    ? 'No airports available'
+                    : 'No airports found for "${_airportSearchController.text}"',
+                style: const TextStyle(color: Colors.grey),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
     return ListView.builder(
-      itemCount: _searchResults.length,
+      itemCount: airports.length,
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       itemBuilder: (context, index) {
-        final airport = _searchResults[index];
-        return ListTile(
-          leading: const Icon(Icons.flight_takeoff),
-          title: Text(airport.code),
-          subtitle: Text(
-            '${airport.name} - ${airport.city}, ${airport.country}',
+        final airport = airports[index];
+        
+        return Card(
+          margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+          elevation: 1,
+          child: ListTile(
+            leading: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                airport.code,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue.shade700,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+            title: Text(
+              airport.name,
+              style: const TextStyle(
+                fontWeight: FontWeight.w500,
+                fontSize: 15,
+              ),
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 4),
+                Text(
+                  '${airport.city}, ${airport.country}',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+            onTap: () {
+              _handleAirportSelect(airport, airportType);
+            },
           ),
-          onTap: () {
-            _handleAirportSelect(airport, isDeparture);
-          },
         );
       },
     );
   }
+
 
   Widget _buildTransitStatusStep() {
     return Card(
@@ -1026,7 +1212,7 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
                       ),
                       const SizedBox(height: 4),
                       GestureDetector(
-                        onTap: () => _showAirportSearchModal(false),
+                        onTap: () => _showAirportSearchModal('transit'),
                         child: Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
@@ -1175,7 +1361,7 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
                 gradient: LinearGradient(
                   colors: [
                     AppColors.primary.withOpacity(0.05),
-                    (AppColors.accent ?? AppColors.primary).withOpacity(0.05),
+                    AppColors.primary.withOpacity(0.05),
                   ],
                 ),
                 border: Border.all(color: AppColors.primary.withOpacity(0.2)),

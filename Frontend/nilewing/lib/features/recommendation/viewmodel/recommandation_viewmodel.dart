@@ -25,16 +25,43 @@ class RecommendationsViewModel with ChangeNotifier {
 
   Airport? _currentAirport;
   Airport? get currentAirport => _currentAirport;
+  
+  Map<String, dynamic>? _recommendationData;
+  Map<String, dynamic>? get recommendationData => _recommendationData;
 
   Future<void> loadRecommendations() async {
     _updateState(state.copyWith(isLoading: true, error: null));
 
     try {
-      // Get personalized recommendations from backend (already converted to Places)
-      final places = await _service.getRecommendations();
+      // Get comprehensive recommendations from backend
+      final data = await _service.getRecommendations();
+      _recommendationData = data;
+      
+      // Extract all places and people
+      final allPlaces = data['allPlaces'] as List<Place>? ?? [];
+      final peopleData = data['people'] as List<dynamic>? ?? [];
+      
+      // Convert people data to NearbyUser objects
+      final nearbyUsers = peopleData.map((json) => _nearbyUserFromJson(json)).toList();
+      
+      // Update airport info if available
+      final airportCode = data['airportCode'] as String? ?? '';
+      final airportCity = data['airportCity'] as String? ?? '';
+      if (airportCode.isNotEmpty) {
+        _currentAirport = Airport(
+          code: airportCode,
+          name: '$airportCode Airport',
+          city: airportCity,
+          country: '',
+        );
+      }
 
       _updateState(
-        state.copyWith(places: places, nearbyUsers: [], isLoading: false),
+        state.copyWith(
+          places: allPlaces,
+          nearbyUsers: nearbyUsers,
+          isLoading: false,
+        ),
       );
     } catch (e) {
       _updateState(
@@ -44,6 +71,27 @@ class RecommendationsViewModel with ChangeNotifier {
         ),
       );
     }
+  }
+  
+  // Helper: Convert API people JSON to NearbyUser
+  NearbyUser _nearbyUserFromJson(Map<String, dynamic> json) {
+    return NearbyUser(
+      id: json['user_id']?.toString() ?? json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? 'Unknown',
+      avatar: json['avatar']?.toString(),
+      age: json['age'] ?? 0,
+      nationality: json['nationality']?.toString() ?? '',
+      currentLocation: json['matching_airport']?.toString() ?? 
+          json['arrival_airport']?.toString() ?? '',
+      distanceFromAirport: 'At airport',
+      interests: (json['common_interests'] as List<dynamic>? ?? [])
+          .map((i) => i.toString())
+          .toList(),
+      isOnline: false,
+      mutualConnections: 0,
+      currentActivity: json['description']?.toString() ?? '',
+      localRecommendations: [],
+    );
   }
 
   void setSearchQuery(String query) {

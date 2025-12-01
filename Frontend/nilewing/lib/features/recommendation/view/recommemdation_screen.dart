@@ -88,9 +88,11 @@ class _RecommendationsScreenState extends ConsumerState<RecommendationsScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
 
                       children: [
-                        const Text(
-                          'Airport Recommendations',
-                          style: TextStyle(
+                        Text(
+                          viewModel.currentAirport != null
+                              ? 'Recommendations for ${viewModel.currentAirport!.code}'
+                              : 'Recommendations',
+                          style: const TextStyle(
                             color: Colors.white,
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
@@ -98,12 +100,22 @@ class _RecommendationsScreenState extends ConsumerState<RecommendationsScreen>
                         ),
                         if (viewModel.currentAirport != null)
                           Text(
-                            '${viewModel.currentAirport!.name} • ${viewModel.currentAirport!.city}',
+                            '${viewModel.currentAirport!.city} • ${viewModel.currentAirport!.code} Airport',
                             style: TextStyle(
                               color: Colors.white.withOpacity(0.8),
                               fontSize: 12,
                             ),
                           ),
+                        if (viewModel.recommendationData?['flight_info'] != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            'Arriving: ${_formatFlightDate(viewModel.recommendationData!['flight_info'])}',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.7),
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -123,12 +135,15 @@ class _RecommendationsScreenState extends ConsumerState<RecommendationsScreen>
                   Expanded(
                     child: TextField(
                       controller: _searchController,
-                      onChanged: (value) => setState(() {}),
                       style: const TextStyle(
                         color: Color.fromARGB(255, 19, 18, 18),
                       ),
+                      onChanged: (value) {
+                        setState(() {});
+                        viewModel.setSearchQuery(value);
+                      },
                       decoration: const InputDecoration(
-                        hintText: 'Search chats...',
+                        hintText: 'Search recommendations...',
                         hintStyle: TextStyle(
                           color: Color.fromARGB(153, 12, 12, 12),
                         ),
@@ -150,7 +165,10 @@ class _RecommendationsScreenState extends ConsumerState<RecommendationsScreen>
       color: Colors.white,
       child: TabBar(
         controller: _tabController,
-        onTap: viewModel.setSelectedTab,
+        onTap: (index) {
+          viewModel.setSelectedTab(index);
+          setState(() {}); // Update UI when tab changes
+        },
         labelColor: Colors.blue,
         unselectedLabelColor: Colors.grey,
         indicatorColor: Colors.blue,
@@ -230,7 +248,25 @@ class _RecommendationsScreenState extends ConsumerState<RecommendationsScreen>
     final users = viewModel.state.nearbyUsers;
 
     if (users.isEmpty) {
-      return const Center(child: Text('No nearby users found'));
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.people_outline, size: 48, color: Colors.grey),
+            const SizedBox(height: 16),
+            const Text(
+              'No people found',
+              style: TextStyle(fontSize: 16, color: Colors.grey),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'No matched people at your destination airport yet',
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
     }
 
     return ListView.builder(
@@ -244,5 +280,27 @@ class _RecommendationsScreenState extends ConsumerState<RecommendationsScreen>
         );
       },
     );
+  }
+  
+  String _formatFlightDate(Map<String, dynamic> flightInfo) {
+    try {
+      final arrivalDateTime = flightInfo['arrival_datetime']?.toString();
+      if (arrivalDateTime != null && arrivalDateTime.isNotEmpty) {
+        final dateTime = DateTime.parse(arrivalDateTime);
+        final now = DateTime.now();
+        final difference = dateTime.difference(now);
+        
+        if (difference.inDays > 0) {
+          return '${difference.inDays} day${difference.inDays == 1 ? '' : 's'}, ${dateTime.day}/${dateTime.month}';
+        } else if (difference.inHours > 0) {
+          return '${difference.inHours} hour${difference.inHours == 1 ? '' : 's'}';
+        } else {
+          return 'Today';
+        }
+      }
+    } catch (e) {
+      print('Error formatting flight date: $e');
+    }
+    return 'Upcoming';
   }
 }
