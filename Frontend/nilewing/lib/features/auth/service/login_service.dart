@@ -13,11 +13,20 @@ class LoginService {
 
   Future<LoginResponse> loginUser(LoginData loginData) async {
     try {
-      final response = await http.post(
-        Uri.parse(AppConstants.loginEndpoint),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode(loginData.toJson()),
-      );
+      final response = await http
+          .post(
+            Uri.parse(AppConstants.loginEndpoint),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode(loginData.toJson()),
+          )
+          .timeout(
+            const Duration(seconds: 30),
+            onTimeout: () {
+              throw Exception(
+                'Connection timeout. Please check your internet connection and try again.',
+              );
+            },
+          );
 
       final responseData = json.decode(response.body) as Map<String, dynamic>;
       final loginResponse = LoginResponse.fromJson(responseData);
@@ -34,10 +43,37 @@ class LoginService {
       }
 
       return loginResponse;
-    } catch (e) {
+    } on http.ClientException catch (e) {
+      String errorMessage = 'Cannot connect to server';
+      if (e.message.contains('Failed host lookup') ||
+          e.message.contains('SocketException')) {
+        errorMessage =
+            'Cannot reach the server. Please check:\n'
+            '• Your internet connection\n'
+            '• The backend server is running\n'
+            '• The server URL is correct';
+      } else if (e.message.contains('timeout')) {
+        errorMessage =
+            'Connection timeout. The server may be slow or unavailable. Please try again.';
+      }
       return LoginResponse(
         success: false,
-        message: 'Network error: ${e.toString()}',
+        message: errorMessage,
+      );
+    } catch (e) {
+      String errorMessage = 'Network error occurred';
+      final errorString = e.toString();
+      if (errorString.contains('Failed host lookup') ||
+          errorString.contains('SocketException')) {
+        errorMessage =
+            'Cannot reach the server. Please check:\n'
+            '• Your internet connection\n'
+            '• The backend server is running\n'
+            '• The server URL is correct';
+      }
+      return LoginResponse(
+        success: false,
+        message: errorMessage,
       );
     }
   }

@@ -37,25 +37,9 @@ class _BackendPlace {
   });
 }
 
-// Backend Recommendation model
-class _BackendRecommendation {
-  final String id;
-  final _BackendPlace place;
-  final String reason;
-  final double? distance;
-  final bool isViewed;
-
-  _BackendRecommendation({
-    required this.id,
-    required this.place,
-    required this.reason,
-    this.distance,
-    required this.isViewed,
-  });
-}
-
 class RecommendationService {
-  static final RecommendationService _instance = RecommendationService._internal();
+  static final RecommendationService _instance =
+      RecommendationService._internal();
   factory RecommendationService() => _instance;
   RecommendationService._internal();
 
@@ -126,27 +110,48 @@ class RecommendationService {
         },
       );
 
-      print('📥 [RecommendationService] Response status: ${response.statusCode}');
+      print(
+        '📥 [RecommendationService] Response status: ${response.statusCode}',
+      );
       print('📥 [RecommendationService] Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
         print('✅ [RecommendationService] Recommendations loaded successfully');
-        
+
         // Parse all categories
         final hotelsList = (data['hotels'] as List<dynamic>? ?? [])
-            .map((json) => _placeFromApiJson(json as Map<String, dynamic>, PlaceType.hotel))
+            .map(
+              (json) => _placeFromApiJson(
+                json as Map<String, dynamic>,
+                PlaceType.hotel,
+              ),
+            )
             .toList();
         final cafesList = (data['cafes'] as List<dynamic>? ?? [])
-            .map((json) => _placeFromApiJson(json as Map<String, dynamic>, PlaceType.cafe))
+            .map(
+              (json) => _placeFromApiJson(
+                json as Map<String, dynamic>,
+                PlaceType.cafe,
+              ),
+            )
             .toList();
         final restaurantsList = (data['restaurants'] as List<dynamic>? ?? [])
-            .map((json) => _placeFromApiJson(json as Map<String, dynamic>, PlaceType.restaurant))
+            .map(
+              (json) => _placeFromApiJson(
+                json as Map<String, dynamic>,
+                PlaceType.restaurant,
+              ),
+            )
             .toList();
-        
+
         // Combine all places
-        final allPlacesList = <Place>[...hotelsList, ...cafesList, ...restaurantsList];
-        
+        final allPlacesList = <Place>[
+          ...hotelsList,
+          ...cafesList,
+          ...restaurantsList,
+        ];
+
         return {
           'hotels': hotelsList,
           'cafes': cafesList,
@@ -158,10 +163,12 @@ class RecommendationService {
           'flightInfo': data['flight_info'] ?? {},
         };
       }
-      
+
       if (response.statusCode == 404) {
         final data = json.decode(response.body);
-        print('⚠️ [RecommendationService] ${data['message'] ?? 'No recommendations'}');
+        print(
+          '⚠️ [RecommendationService] ${data['message'] ?? 'No recommendations'}',
+        );
         return {
           'hotels': <Place>[],
           'cafes': <Place>[],
@@ -173,27 +180,32 @@ class RecommendationService {
           'flightInfo': {},
         };
       }
-      
-      print('⚠️ [RecommendationService] Failed with status: ${response.statusCode}');
+
+      print(
+        '⚠️ [RecommendationService] Failed with status: ${response.statusCode}',
+      );
       throw Exception('Failed to load recommendations: ${response.statusCode}');
     } catch (e) {
       print('❌ [RecommendationService] Error: $e');
       rethrow;
     }
   }
-  
+
   // Helper: Convert API place JSON to Place model
   Place _placeFromApiJson(Map<String, dynamic> json, PlaceType type) {
     final distance = json['distance'] ?? 0;
-    final distanceText = json['distance_text'] ?? 
-        (distance > 0 ? '${(distance / 1000).toStringAsFixed(1)} km' : 'Nearby');
-    
+    final distanceText =
+        json['distance_text'] ??
+        (distance > 0
+            ? '${(distance / 1000).toStringAsFixed(1)} km'
+            : 'Nearby');
+
     int priceLevel = 2;
     final priceRange = json['price_range']?.toString() ?? '';
     if (priceRange.contains('\$')) {
       priceLevel = priceRange.split('\$').length - 1;
     }
-    
+
     return Place(
       id: json['id']?.toString() ?? '',
       name: json['name']?.toString() ?? 'Unknown',
@@ -202,7 +214,9 @@ class RecommendationService {
       reviewCount: 0,
       priceLevel: priceLevel,
       distance: distanceText,
-      walkTime: distance > 0 ? '${(distance / 80).toStringAsFixed(0)} min walk' : 'Nearby',
+      walkTime: distance > 0
+          ? '${(distance / 80).toStringAsFixed(0)} min walk'
+          : 'Nearby',
       openNow: json['is_24_hours'] ?? true,
       openingHours: json['opening_hours']?.toString().isNotEmpty == true
           ? [json['opening_hours'].toString()]
@@ -210,7 +224,9 @@ class RecommendationService {
       address: json['address']?.toString() ?? '',
       phoneNumber: '',
       website: null,
-      photos: (json['photos'] as List<dynamic>? ?? []).map((p) => p.toString()).toList(),
+      photos: (json['photos'] as List<dynamic>? ?? [])
+          .map((p) => p.toString())
+          .toList(),
       amenities: [],
       description: json['description']?.toString() ?? '',
       popularTimes: {},
@@ -240,7 +256,10 @@ class RecommendationService {
   }
 
   Future<List<Place>> getChargingStations(String airportCode) async {
-    return getAirportPlaces(airportCode: airportCode, placeType: 'charging_station');
+    return getAirportPlaces(
+      airportCode: airportCode,
+      placeType: 'charging_station',
+    );
   }
 
   // Helper: Convert JSON to backend Place model
@@ -302,20 +321,27 @@ class RecommendationService {
       openingHours: backendPlace.openingHours.isNotEmpty
           ? [backendPlace.openingHours]
           : ['Open 24 hours'],
-      address: '${backendPlace.terminal.isNotEmpty ? 'Terminal ${backendPlace.terminal}, ' : ''}${backendPlace.airportCode} Airport',
+      address:
+          '${backendPlace.terminal.isNotEmpty ? 'Terminal ${backendPlace.terminal}, ' : ''}${backendPlace.airportCode} Airport',
       phoneNumber: '',
       website: null,
       photos: [],
       amenities: [],
       description: backendPlace.description,
       popularTimes: {},
-      averageSpend: backendPlace.priceRange.isNotEmpty ? backendPlace.priceRange : 'Varies',
+      averageSpend: backendPlace.priceRange.isNotEmpty
+          ? backendPlace.priceRange
+          : 'Varies',
       specialties: null,
       roomPrice: null,
       wifi: true,
       parking: false,
-      coordinates: backendPlace.latitude != null && backendPlace.longitude != null
-          ? Coordinates(lat: backendPlace.latitude!, lng: backendPlace.longitude!)
+      coordinates:
+          backendPlace.latitude != null && backendPlace.longitude != null
+          ? Coordinates(
+              lat: backendPlace.latitude!,
+              lng: backendPlace.longitude!,
+            )
           : Coordinates(lat: 0, lng: 0),
     );
   }
@@ -324,22 +350,5 @@ class RecommendationService {
   Place _placeFromJson(Map<String, dynamic> json) {
     final backendPlace = _backendPlaceFromJson(json);
     return _placeFromBackend(backendPlace);
-  }
-
-  // Helper: Convert JSON to Recommendation model
-  _BackendRecommendation _recommendationFromJson(Map<String, dynamic> json) {
-    final placeData = json['place'] ?? {};
-    return _BackendRecommendation(
-      id: json['id'].toString(),
-      place: _backendPlaceFromJson(placeData),
-      reason: json['reason'] ?? '',
-      distance: json['distance_meters']?.toDouble(),
-      isViewed: json['is_viewed'] ?? false,
-    );
-  }
-
-  // Convert backend recommendation to frontend Place
-  Place _recommendationToPlace(_BackendRecommendation rec) {
-    return _placeFromBackend(rec.place);
   }
 }

@@ -187,3 +187,45 @@ SIMPLE_JWT = {
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
 }
+
+# CORS Configuration
+# Note: For mobile apps (Flutter Android/iOS), CORS is less critical
+# since they're not subject to browser same-origin policy.
+# However, CORS is important for web apps and good practice in general.
+
+# Allow all origins (for development/testing)
+# For production, you should specify exact origins
+CORS_ALLOW_ALL_ORIGINS = True
+
+# Alternative: Specify exact allowed origins (more secure for production)
+# CORS_ALLOWED_ORIGINS = [
+#     "https://your-frontend-domain.com",
+#     "http://localhost:3000",  # For local web development
+#     "http://localhost:8080",
+# ]
+
+# Allow credentials (cookies, authorization headers)
+CORS_ALLOW_CREDENTIALS = True
+
+# Allowed headers
+CORS_ALLOW_HEADERS = [
+    "accept",
+    "accept-encoding",
+    "authorization",
+    "content-type",
+    "dnt",
+    "origin",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
+]
+
+# Allowed HTTP methods
+CORS_ALLOW_METHODS = [
+    "DELETE",
+    "GET",
+    "OPTIONS",
+    "PATCH",
+    "POST",
+    "PUT",
+]

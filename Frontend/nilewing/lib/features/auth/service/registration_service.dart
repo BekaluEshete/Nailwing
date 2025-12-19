@@ -131,8 +131,15 @@ class RegistrationService {
         }
       }
 
-      // Send request
-      final streamedResponse = await request.send();
+      // Send request with timeout
+      final streamedResponse = await request.send().timeout(
+            const Duration(seconds: 60),
+            onTimeout: () {
+              throw Exception(
+                'Connection timeout. Please check your internet connection and try again.',
+              );
+            },
+          );
       final response = await http.Response.fromStream(streamedResponse);
       final responseData = json.decode(response.body) as Map<String, dynamic>;
 
@@ -153,10 +160,37 @@ class RegistrationService {
       }
 
       return registrationResponse;
-    } catch (e) {
+    } on http.ClientException catch (e) {
+      String errorMessage = 'Cannot connect to server';
+      if (e.message.contains('Failed host lookup') ||
+          e.message.contains('SocketException')) {
+        errorMessage =
+            'Cannot reach the server. Please check:\n'
+            '• Your internet connection\n'
+            '• The backend server is running\n'
+            '• The server URL is correct';
+      } else if (e.message.contains('timeout')) {
+        errorMessage =
+            'Connection timeout. The server may be slow or unavailable. Please try again.';
+      }
       return RegistrationResponse(
         success: false,
-        message: 'Network error: ${e.toString()}',
+        message: errorMessage,
+      );
+    } catch (e) {
+      String errorMessage = 'Network error occurred';
+      final errorString = e.toString();
+      if (errorString.contains('Failed host lookup') ||
+          errorString.contains('SocketException')) {
+        errorMessage =
+            'Cannot reach the server. Please check:\n'
+            '• Your internet connection\n'
+            '• The backend server is running\n'
+            '• The server URL is correct';
+      }
+      return RegistrationResponse(
+        success: false,
+        message: errorMessage,
       );
     }
   }
