@@ -398,6 +398,7 @@ class MatchService {
     // Determine which user is the "other" user (not current user)
     Map<String, dynamic> otherUserData;
     Map<String, dynamic>? otherFlightData;
+    bool? currentUserIsUser1;
     
     final user1Id = user1Data['id']?.toString();
     final user2Id = user2Data['id']?.toString();
@@ -406,16 +407,19 @@ class MatchService {
       // Current user is user1, so other user is user2
       otherUserData = user2Data;
       otherFlightData = flight2Data;
+      currentUserIsUser1 = true;
       print('👤 [MatchService] Current user is user1 (ID: $currentUserId), other user is user2 (ID: $user2Id)');
     } else if (currentUserId != null && user2Id == currentUserId) {
       // Current user is user2, so other user is user1
       otherUserData = user1Data;
       otherFlightData = flight1Data;
+      currentUserIsUser1 = false;
       print('👤 [MatchService] Current user is user2 (ID: $currentUserId), other user is user1 (ID: $user1Id)');
     } else {
       // Fallback: assume user2 is the match (for backward compatibility)
       otherUserData = user2Data;
       otherFlightData = flight2Data;
+      currentUserIsUser1 = null;
       print('⚠️ [MatchService] Could not determine current user (current: $currentUserId, user1: $user1Id, user2: $user2Id), defaulting to user2');
     }
 
@@ -531,8 +535,15 @@ class MatchService {
       }
     }
     
+    // Parse user1_liked and user2_liked
+    final user1Liked = json['user1_liked'] as bool? ?? false;
+    final user2Liked = json['user2_liked'] as bool? ?? false;
+    
     return Match(
       id: json['id'].toString(),
+      currentUserIsUser1: currentUserIsUser1,
+      user1Liked: user1Liked,
+      user2Liked: user2Liked,
       user: User(
         id: otherUserData['id']?.toString() ?? '0',
         name: otherUserData['fullName'] ?? 'User',

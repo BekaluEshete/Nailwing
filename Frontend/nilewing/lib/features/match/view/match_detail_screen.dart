@@ -442,9 +442,10 @@ class MatchDetailScreen extends ConsumerWidget {
               ),
               child: const Text('Connect'),
             )
-          // Show Accept/Reject buttons if connection request received
-          else if (currentMatch.status.toLowerCase() == 'connection request' ||
-                   currentMatch.status.toLowerCase() == 'connection_requested')
+          // Show Accept/Reject buttons if connection request received (NOT sent by current user)
+          else if ((currentMatch.status.toLowerCase() == 'connection request' ||
+                   currentMatch.status.toLowerCase() == 'connection_requested') &&
+                   !currentMatch.isRequestSentByCurrentUser)
             Row(
               children: [
                 ElevatedButton(
@@ -479,8 +480,11 @@ class MatchDetailScreen extends ConsumerWidget {
                 ),
               ],
             )
-          // Show "Request Sent" status
-          else if (currentMatch.status.toLowerCase() == 'request sent')
+          // Show "Request Sent" status if connection request was sent by current user
+          else if (currentMatch.status.toLowerCase() == 'request sent' ||
+                   (currentMatch.status.toLowerCase() == 'connection request' ||
+                    currentMatch.status.toLowerCase() == 'connection_requested') &&
+                   currentMatch.isRequestSentByCurrentUser)
             Container(
               padding: const EdgeInsets.symmetric(
                 horizontal: 16,

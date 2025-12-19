@@ -158,6 +158,7 @@ class MatchingService:
         overlapping_flights = Flight.objects.filter(
             ~Q(user=flight.user),
             is_visible=True,
+            open_to_meeting=True,
             departure_airport=flight.departure_airport,
             layover_airport=flight.layover_airport,
             arrival_airport=flight.arrival_airport,
@@ -193,17 +194,16 @@ class MatchingService:
             return []
 
         matches = []
-        # More flexible time window for layover matching
-        now = timezone.now()
+        # More flexible time window for layover matching - remove absolute time filters
+        # Only filter by relative overlap between flights
         overlapping_flights = Flight.objects.filter(
             ~Q(user=flight.user),
             is_visible=True,
+            open_to_meeting=True,
             has_layover=True,
             layover_airport=flight.layover_airport,
             layover_start__lte=flight.layover_end + timedelta(hours=2),
             layover_end__gte=flight.layover_start - timedelta(hours=2),
-            layover_start__gte=now - timedelta(days=1),
-            layover_end__lte=now + timedelta(days=7),
         ).exclude(
             arrival_airport=flight.arrival_airport
         )  # Different destination
@@ -239,6 +239,7 @@ class MatchingService:
         layover_flights = Flight.objects.filter(
             ~Q(user=flight.user),
             is_visible=True,
+            open_to_meeting=True,
             has_layover=True,
             layover_airport=flight.departure_airport,
             layover_start__lte=flight.departure_datetime + timedelta(hours=2),
@@ -272,6 +273,7 @@ class MatchingService:
         arriving_flights = Flight.objects.filter(
             ~Q(user=flight.user),
             is_visible=True,
+            open_to_meeting=True,
             arrival_airport=flight.departure_airport,
             arrival_datetime__lte=flight.departure_datetime,
             arrival_datetime__gte=flight.departure_datetime - timedelta(hours=4),
@@ -303,13 +305,12 @@ class MatchingService:
     def _same_departure_different_layovers(flight):
         """Scenario 4: Same departure, different layovers"""
         matches = []
-        now = timezone.now()
+        # Remove absolute time filters - compare relative times between flights
         same_departure_flights = Flight.objects.filter(
             ~Q(user=flight.user),
             is_visible=True,
+            open_to_meeting=True,
             departure_airport=flight.departure_airport,
-            departure_datetime__gte=now - timedelta(days=1),
-            departure_datetime__lte=now + timedelta(days=7),
         ).exclude(
             Q(has_layover=True, layover_airport=flight.layover_airport)
             if flight.has_layover and flight.layover_airport
@@ -317,6 +318,13 @@ class MatchingService:
         )
 
         for other_flight in same_departure_flights:
+            # Same departure date (per documentation)
+            if (
+                flight.departure_datetime.date()
+                != other_flight.departure_datetime.date()
+            ):
+                continue
+
             # Within 4 hours of each other (per documentation)
             time_diff = abs(
                 (
@@ -356,19 +364,24 @@ class MatchingService:
             return []
 
         matches = []
-        # Expanded time window - same day or within 7 days
-        now = timezone.now()
+        # Remove absolute time filters - compare relative times between flights
         same_route_flights = Flight.objects.filter(
             ~Q(user=flight.user),
             is_visible=True,
+            open_to_meeting=True,
             has_layover=False,
             departure_airport=flight.departure_airport,
             arrival_airport=flight.arrival_airport,
-            departure_datetime__gte=now - timedelta(days=1),
-            departure_datetime__lte=now + timedelta(days=7),
         )
 
         for other_flight in same_route_flights:
+            # Same departure date (per documentation)
+            if (
+                flight.departure_datetime.date()
+                != other_flight.departure_datetime.date()
+            ):
+                continue
+
             time_diff = abs(
                 (
                     other_flight.departure_datetime - flight.departure_datetime
@@ -413,6 +426,7 @@ class MatchingService:
         same_departure_flights = Flight.objects.filter(
             ~Q(user=flight.user),
             is_visible=True,
+            open_to_meeting=True,
             departure_airport=flight.departure_airport,
             departure_datetime__gte=now - timedelta(days=1),
             departure_datetime__lte=now + timedelta(days=7),
@@ -455,6 +469,7 @@ class MatchingService:
         same_arrival_flights = Flight.objects.filter(
             ~Q(user=flight.user),
             is_visible=True,
+            open_to_meeting=True,
             arrival_airport=flight.arrival_airport,
             arrival_datetime__gte=now - timedelta(days=1),
             arrival_datetime__lte=now + timedelta(days=7),

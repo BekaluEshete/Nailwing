@@ -14,6 +14,9 @@ class Match {
   final MatchType matchType;
   final List<String> commonInterests;
   final String? tripPurpose;
+  final bool? currentUserIsUser1; // null if unknown
+  final bool? user1Liked; // null if unknown
+  final bool? user2Liked; // null if unknown
 
   Match({
     required this.id,
@@ -30,7 +33,25 @@ class Match {
     required this.matchType,
     required this.commonInterests,
     this.tripPurpose,
+    this.currentUserIsUser1,
+    this.user1Liked,
+    this.user2Liked,
   });
+
+  /// Returns true if the current user sent the connection request
+  bool get isRequestSentByCurrentUser {
+    if (currentUserIsUser1 == null || user1Liked == null || user2Liked == null) {
+      return false; // Cannot determine, default to false
+    }
+    
+    if (currentUserIsUser1 == true) {
+      // Current user is user1, sent request if user1_liked is true and user2_liked is false
+      return user1Liked == true && user2Liked == false;
+    } else {
+      // Current user is user2, sent request if user2_liked is true and user1_liked is false
+      return user2Liked == true && user1Liked == false;
+    }
+  }
 
   String get timeAgo {
     final now = DateTime.now();
@@ -58,6 +79,9 @@ class Match {
     MatchType? matchType,
     List<String>? commonInterests,
     String? tripPurpose,
+    bool? currentUserIsUser1,
+    bool? user1Liked,
+    bool? user2Liked,
   }) {
     return Match(
       id: id ?? this.id,
@@ -74,6 +98,9 @@ class Match {
       matchType: matchType ?? this.matchType,
       commonInterests: commonInterests ?? this.commonInterests,
       tripPurpose: tripPurpose ?? this.tripPurpose,
+      currentUserIsUser1: currentUserIsUser1 ?? this.currentUserIsUser1,
+      user1Liked: user1Liked ?? this.user1Liked,
+      user2Liked: user2Liked ?? this.user2Liked,
     );
   }
 }
