@@ -215,8 +215,8 @@ class MatchingService:
                 other_flight.layover_start,
                 other_flight.layover_end,
             )
-            # Reduced minimum overlap to 30 minutes
-            if overlap and overlap["duration_hours"] >= 0.5:
+            # At least 1 hour overlap required (per documentation)
+            if overlap and overlap["duration_hours"] >= 1.0:
                 matches.append(
                     {
                         "user": other_flight.user,
@@ -317,14 +317,14 @@ class MatchingService:
         )
 
         for other_flight in same_departure_flights:
-            # Expanded to 12 hours for same departure
+            # Within 4 hours of each other (per documentation)
             time_diff = abs(
                 (
                     other_flight.departure_datetime - flight.departure_datetime
                 ).total_seconds()
                 / 3600
             )
-            if time_diff <= 12.0:
+            if time_diff <= 4.0:
                 matches.append(
                     {
                         "user": other_flight.user,
@@ -375,8 +375,8 @@ class MatchingService:
                 ).total_seconds()
                 / 3600
             )
-            # Expanded to 24 hours for same route
-            if time_diff <= 24.0:
+            # Within 2 hours of each other (per documentation)
+            if time_diff <= 2.0:
                 matches.append(
                     {
                         "user": other_flight.user,
@@ -521,7 +521,17 @@ class MatchingService:
 
     @staticmethod
     def _apply_user_filters(user, matches):
-        """Apply user's matching preferences/filters - LESS STRICT"""
+        """Apply user's matching preferences/filters per documentation
+
+        Filters (exclude completely):
+        - Gender preference: Exclude if doesn't match
+        - Common interests: Exclude if require_common_interests and doesn't meet minimum
+
+        Score adjustments:
+        - Travel experience mismatch: ×0.8 multiplier
+        - Common interests: +0.2 per shared interest
+        - Guide matching: ×1.5 multiplier
+        """
         try:
             match_filter = user.match_filter
         except MatchFilter.DoesNotExist:
@@ -533,20 +543,19 @@ class MatchingService:
             other_user = match["user"]
             score = 1.0
 
-            # Gender preference - Only filter if explicitly set AND user has strong preference
-            # Don't filter out all matches if no preference is set
+            # Gender preference - EXCLUDE if doesn't match (per documentation)
             if match_filter and match_filter.preferred_gender:
                 if (
                     other_user.gender
                     and other_user.gender != match_filter.preferred_gender
                 ):
-                    # Reduce score instead of filtering out completely
-                    score *= 0.7
+                    # Exclude this match (per documentation)
                     print(
-                        f"   ⚠️ Gender mismatch: {other_user.gender} vs {match_filter.preferred_gender} (score reduced)"
+                        f"   ❌ Gender filter: Excluding {other_user.email} ({other_user.gender} vs required {match_filter.preferred_gender})"
                     )
+                    continue  # Skip this match entirely
 
-            # Travel experience preferences - Only adjust score, don't filter
+            # Travel experience preferences - Adjust score only (×0.8 for mismatch)
             try:
                 other_pref = other_user.travel_preference
                 user_pref = user.travel_preference
@@ -557,13 +566,13 @@ class MatchingService:
                         and other_pref
                         and not other_pref.is_first_international
                     ):
-                        score *= 0.9  # Slight reduction, not exclusion
+                        score *= 0.8  # Travel experience mismatch (per documentation)
                     if (
                         match_filter.prefer_experienced_travelers
                         and other_pref
                         and other_pref.is_first_international
                     ):
-                        score *= 0.9
+                        score *= 0.8  # Travel experience mismatch (per documentation)
 
                 # Guide matching - Boost score
                 if user_pref and other_pref:
@@ -583,12 +592,22 @@ class MatchingService:
             # Always set common_interests, even if empty
             match["common_interests"] = common_interests
 
+            # Check if user requires common interests filter
+            if match_filter and match_filter.require_common_interests:
+                min_interests = match_filter.min_common_interests or 1
+                if len(common_interests) < min_interests:
+                    # Exclude if doesn't meet minimum common interests requirement
+                    print(
+                        f"   ❌ Common interests filter: Excluding {other_user.email} (only {len(common_interests)} common interests, requires {min_interests})"
+                    )
+                    continue  # Skip this match entirely
+
             if common_interests:
-                score *= (
-                    1 + len(common_interests) * 0.2
-                )  # Boost score for common interests
+                # Boost score: +0.2 per shared interest (per documentation)
+                # Formula: 1.0 × (1 + len(common_interests) × 0.2)
+                score *= 1 + len(common_interests) * 0.2
                 print(
-                    f"   ✅ Common interests with {other_user.email}: {common_interests}"
+                    f"   ✅ Common interests with {other_user.email}: {common_interests} (score boost: {len(common_interests) * 0.2})"
                 )
             else:
                 user_interests_list = list(
