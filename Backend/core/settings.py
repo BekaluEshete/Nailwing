@@ -79,6 +79,8 @@ CHANNEL_LAYERS = {
         "CONFIG": {
             "hosts": [os.getenv("REDIS_URL", "redis://redis:6379/0")],
             "symmetric_encryption_keys": [os.getenv("SECRET_KEY", "unsafe-secret")],
+            "capacity": 1500,  # Maximum number of messages to buffer
+            "expiry": 10,  # Message expiry in seconds
         },
     },
 }

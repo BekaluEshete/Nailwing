@@ -18,6 +18,8 @@ class ChatViewModel extends StateNotifier<ChatState> {
   final TokenStorage _tokenStorage = TokenStorage();
   String? _currentUserId;
   String? _currentRoomName;
+  // Map to track room name to chat ID mapping
+  final Map<String, String> _roomNameToChatId = {};
 
   ChatViewModel(this._ref)
     : super(const ChatState(contacts: [], messages: {})) {
@@ -44,9 +46,32 @@ class ChatViewModel extends StateNotifier<ChatState> {
     try {
       final contacts = await _chatService.getContacts();
       state = state.copyWith(contacts: contacts, isLoading: false);
+      
+      // Load room name mappings for real-time message routing
+      await _loadRoomMappings();
     } catch (e) {
       print('❌ [ChatViewModel] Error loading contacts: $e');
       state = state.copyWith(error: e.toString(), isLoading: false);
+    }
+  }
+  
+  // Load room name to chat ID mappings when contacts are loaded
+  Future<void> _loadRoomMappings() async {
+    try {
+      for (final contact in state.contacts) {
+        try {
+          final roomName = await _chatService.getRoomName(contact.id);
+          if (roomName.isNotEmpty) {
+            _roomNameToChatId[roomName] = contact.id;
+            print('💬 [ChatViewModel] Mapped room $roomName to chat ${contact.id}');
+          }
+        } catch (e) {
+          // Skip if room name can't be loaded for this contact
+          print('⚠️ [ChatViewModel] Could not load room name for contact ${contact.id}: $e');
+        }
+      }
+    } catch (e) {
+      print('⚠️ [ChatViewModel] Error loading room mappings: $e');
     }
   }
 
@@ -60,6 +85,9 @@ class ChatViewModel extends StateNotifier<ChatState> {
       if (_currentRoomName == null || _currentRoomName!.isEmpty) {
         throw Exception('Could not get room name for contact');
       }
+      
+      // Store mapping of room name to chat ID for real-time message routing
+      _roomNameToChatId[_currentRoomName!] = contactId;
 
       // Mark messages as read (non-blocking)
       _chatService.markAsRead(contactId);
@@ -99,11 +127,11 @@ class ChatViewModel extends StateNotifier<ChatState> {
       }).toList();
 
       // Combine: database messages first, then optimistic messages
-      updatedMessages[contactId] = [...dbMessages, ...optimisticMessages];
+      final allMessages = [...dbMessages, ...optimisticMessages];
 
       // Remove duplicates by ID (keep the one with UUID if both exist)
       final uniqueMessages = <String, ChatMessage>{};
-      for (final msg in updatedMessages[contactId]!) {
+      for (final msg in allMessages) {
         // If duplicate exists, prefer UUID (server) version over temp ID
         if (!uniqueMessages.containsKey(msg.id)) {
           uniqueMessages[msg.id] = msg;
@@ -115,7 +143,19 @@ class ChatViewModel extends StateNotifier<ChatState> {
           }
         }
       }
-      updatedMessages[contactId] = uniqueMessages.values.toList();
+      
+      // Sort messages by timestamp
+      final sortedMessages = uniqueMessages.values.toList();
+      sortedMessages.sort((a, b) {
+        try {
+          final aTime = DateTime.parse(a.timestamp);
+          final bTime = DateTime.parse(b.timestamp);
+          return aTime.compareTo(bTime);
+        } catch (e) {
+          return 0;
+        }
+      });
+      updatedMessages[contactId] = sortedMessages;
 
       state = state.copyWith(messages: updatedMessages);
 
@@ -178,81 +218,175 @@ class ChatViewModel extends StateNotifier<ChatState> {
 
       print('💬 [ChatViewModel] Received message for room: $roomName');
 
-      // Use the currently selected chat ID if this message is for the current room
-      String? chatId = state.selectedChatId;
-      
-      // If room name doesn't match current room, try to find the contact
-      if (roomName != null && roomName != _currentRoomName && state.selectedChatId == null) {
-        // Message for a different room - find the contact by room name
-        // This can happen if user receives a message while viewing a different chat
-        _handleMessageForDifferentRoom(roomName, data);
-        return;
-      }
-
-      if (chatId == null) {
-        print('⚠️ [ChatViewModel] No selected chat, cannot process message');
-        return;
-      }
-
-      // Determine if message is from current user
-      final isMe = _currentUserId != null && userId == _currentUserId;
-
-      print('💬 [ChatViewModel] Processing REAL-TIME message: $messageContent (isMe: $isMe, chatId: $chatId)');
-
-      // Update state with new message - CRITICAL FOR REAL-TIME UPDATES
-      final updatedMessages = Map<String, List<ChatMessage>>.from(state.messages);
-      final currentMessages = List<ChatMessage>.from(updatedMessages[chatId] ?? []);
-
-      // Check if message already exists (prevent duplicates)
-      final existingIds = currentMessages.map((m) => m.id).toSet();
-      
-      if (!existingIds.contains(serverMessageId)) {
-        // Add new message to the list
-        final newMessage = ChatMessage(
-          id: serverMessageId,
-          senderId: isMe ? 'me' : userId ?? 'unknown',
-          content: messageContent,
-          timestamp: _formatTimestamp(data['timestamp']),
-          type: _parseMessageType(data['message_type'] ?? 'text'),
-        );
-
-        currentMessages.add(newMessage);
-        updatedMessages[chatId] = currentMessages;
-
-        // Update state - this triggers UI refresh
-        state = state.copyWith(messages: updatedMessages);
-
-        print('✅ [ChatViewModel] REAL-TIME message added. Total messages: ${currentMessages.length}');
-      } else {
-        print('ℹ️ [ChatViewModel] Message already exists, skipping duplicate');
-        // If it's our own message with temp ID, replace it with server ID
-        final existingIndex = currentMessages.indexWhere((m) => m.id == serverMessageId);
-        if (existingIndex == -1) {
-          // This shouldn't happen, but handle it anyway
-          final tempMessageIndex = currentMessages.indexWhere(
-            (m) => !_isUuidFormat(m.id) && m.content == messageContent && m.senderId == 'me',
-          );
-          if (tempMessageIndex != -1) {
-            currentMessages[tempMessageIndex] = ChatMessage(
-              id: serverMessageId,
-              senderId: 'me',
-              content: messageContent,
-              timestamp: _formatTimestamp(data['timestamp']),
-              type: _parseMessageType(data['message_type'] ?? 'text'),
-            );
-            updatedMessages[chatId] = currentMessages;
-            state = state.copyWith(messages: updatedMessages);
+      // Find chat ID from room name mapping - CRITICAL for real-time routing
+      String? chatId;
+      if (roomName != null) {
+        // First try to get from mapping (fastest - synchronous)
+        chatId = _roomNameToChatId[roomName];
+        
+        // If not in mapping, try current room (if this is the selected chat)
+        if (chatId == null && roomName == _currentRoomName) {
+          chatId = state.selectedChatId;
+          // Store mapping for future use
+          if (chatId != null) {
+            _roomNameToChatId[roomName] = chatId;
           }
         }
       }
+      
+      // Fallback to selected chat if still not found and room matches
+      if (chatId == null && roomName == _currentRoomName) {
+        chatId = state.selectedChatId;
+      }
+      
+      // If still no chat ID, try to handle for different room asynchronously
+      if (chatId == null && roomName != null) {
+        // Load room ID asynchronously but process message immediately if possible
+        _chatService.getRoomIdFromName(roomName).then((roomId) {
+          if (roomId != null) {
+            _roomNameToChatId[roomName] = roomId;
+            // Process the message now that we have the room ID
+            _processIncomingMessage(roomId, data);
+          }
+        }).catchError((e) {
+          print('⚠️ [ChatViewModel] Could not get room ID from name: $e');
+          // Try to handle as different room
+          _handleMessageForDifferentRoom(roomName, data);
+        });
+        return;
+      }
+      
+      if (chatId == null) {
+        print('⚠️ [ChatViewModel] Could not determine chat ID for message. Room: $roomName');
+        // Try one more time with selected chat as fallback
+        chatId = state.selectedChatId;
+        if (chatId == null) {
+          return;
+        }
+      }
+      
+      // Process the message with the found chat ID
+      _processIncomingMessage(chatId, data);
     } else if (messageType == 'typing') {
       // Handle typing indicators
-      print('⌨️ [ChatViewModel] Typing indicator received');
-      // TODO: Implement typing indicators if needed
-    } else if (messageType == 'user_joined' || messageType == 'user_left') {
-      // Handle user join/leave
-      print('👤 [ChatViewModel] User ${messageType == 'user_joined' ? 'joined' : 'left'}');
-      // TODO: Implement user join/leave indicators if needed
+      final typingUserId = data['user_id']?.toString();
+      final isTyping = data['typing'] == true;
+      
+      if (typingUserId != null && state.selectedChatId != null) {
+        final currentChatId = state.selectedChatId!;
+        print('⌨️ [ChatViewModel] User $typingUserId is ${isTyping ? 'typing' : 'not typing'}');
+        final updatedTypingUsers = Map<String, bool>.from(state.typingUsers);
+        updatedTypingUsers['${currentChatId}_$typingUserId'] = isTyping;
+        
+        state = state.copyWith(typingUsers: Map<String, bool>.from(updatedTypingUsers));
+        
+        // Auto-clear typing indicator after 3 seconds
+        if (isTyping) {
+          Future.delayed(const Duration(seconds: 3), () {
+            final currentTypingUsers = Map<String, bool>.from(state.typingUsers);
+            currentTypingUsers.remove('${currentChatId}_$typingUserId');
+            state = state.copyWith(typingUsers: Map<String, bool>.from(currentTypingUsers));
+          });
+        }
+      }
+    } else if (messageType == 'user_joined') {
+      // Handle user joined (online status)
+      final joinedUserId = data['user_id']?.toString();
+      if (joinedUserId != null && state.selectedChatId != null && joinedUserId != _currentUserId) {
+        final currentChatId = state.selectedChatId!;
+        print('👤 [ChatViewModel] User $joinedUserId joined (online)');
+        final updatedOnlineUsers = Map<String, Set<String>>.from(state.onlineUsers);
+        final onlineSet = updatedOnlineUsers[currentChatId] ?? <String>{};
+        onlineSet.add(joinedUserId);
+        updatedOnlineUsers[currentChatId] = onlineSet;
+        
+        // Update contact online status
+        final updatedContacts = state.contacts.map((contact) {
+          if (contact.id == currentChatId) {
+            return contact.copyWith(isOnline: true);
+          }
+          return contact;
+        }).toList();
+        
+        state = state.copyWith(
+          onlineUsers: Map<String, Set<String>>.from(updatedOnlineUsers),
+          contacts: updatedContacts,
+        );
+      }
+    } else if (messageType == 'user_left') {
+      // Handle user left (offline status)
+      final leftUserId = data['user_id']?.toString();
+      if (leftUserId != null && state.selectedChatId != null && leftUserId != _currentUserId) {
+        final currentChatId = state.selectedChatId!;
+        print('👤 [ChatViewModel] User $leftUserId left (offline)');
+        final updatedOnlineUsers = Map<String, Set<String>>.from(state.onlineUsers);
+        final onlineSet = updatedOnlineUsers[currentChatId] ?? <String>{};
+        onlineSet.remove(leftUserId);
+        updatedOnlineUsers[currentChatId] = onlineSet;
+        
+        // Update contact online status
+        final updatedContacts = state.contacts.map((contact) {
+          if (contact.id == currentChatId) {
+            return contact.copyWith(isOnline: false);
+          }
+          return contact;
+        }).toList();
+        
+        state = state.copyWith(
+          onlineUsers: Map<String, Set<String>>.from(updatedOnlineUsers),
+          contacts: updatedContacts,
+        );
+      }
+    }
+  }
+
+  // Process incoming message - extracted for reuse
+  void _processIncomingMessage(String chatId, Map<String, dynamic> data) {
+    final serverMessageId = data['message_id']?.toString();
+    final messageContent = data['message'] ?? '';
+    final userId = data['user_id']?.toString();
+    final isMe = _currentUserId != null && userId == _currentUserId;
+
+    print('💬 [ChatViewModel] Processing REAL-TIME message: $messageContent (isMe: $isMe, chatId: $chatId)');
+
+    // Update state with new message - CRITICAL FOR REAL-TIME UPDATES
+    final updatedMessages = Map<String, List<ChatMessage>>.from(state.messages);
+    final currentMessages = List<ChatMessage>.from(updatedMessages[chatId] ?? []);
+
+    // Check if message already exists (prevent duplicates)
+    final existingIds = currentMessages.map((m) => m.id).toSet();
+    
+    if (!existingIds.contains(serverMessageId)) {
+      // Add new message to the list
+      final newMessage = ChatMessage(
+        id: serverMessageId!,
+        senderId: isMe ? 'me' : userId ?? 'unknown',
+        content: messageContent,
+        timestamp: _formatTimestamp(data['timestamp']),
+        type: _parseMessageType(data['message_type'] ?? 'text'),
+      );
+
+      currentMessages.add(newMessage);
+      
+      // Sort messages by timestamp to ensure proper order
+      currentMessages.sort((a, b) {
+        try {
+          final aTime = DateTime.parse(a.timestamp);
+          final bTime = DateTime.parse(b.timestamp);
+          return aTime.compareTo(bTime);
+        } catch (e) {
+          return 0;
+        }
+      });
+      
+      updatedMessages[chatId] = currentMessages;
+
+      // Update state - this triggers UI refresh (create new map to ensure change detection)
+      state = state.copyWith(messages: Map<String, List<ChatMessage>>.from(updatedMessages));
+
+      print('✅ [ChatViewModel] REAL-TIME message added. Total messages: ${currentMessages.length}');
+    } else {
+      print('ℹ️ [ChatViewModel] Message already exists, skipping duplicate');
     }
   }
 
@@ -262,6 +396,9 @@ class ChatViewModel extends StateNotifier<ChatState> {
       // Get the room ID from the service
       final roomId = await _chatService.getRoomIdFromName(roomName);
       if (roomId != null) {
+        // Store mapping for future use
+        _roomNameToChatId[roomName] = roomId;
+        
         final chatId = roomId;
         final serverMessageId = messageData['message_id']?.toString();
         final messageContent = messageData['message'] ?? '';
@@ -282,6 +419,18 @@ class ChatViewModel extends StateNotifier<ChatState> {
           );
 
           currentMessages.add(newMessage);
+          
+          // Sort messages by timestamp
+          currentMessages.sort((a, b) {
+            try {
+              final aTime = DateTime.parse(a.timestamp);
+              final bTime = DateTime.parse(b.timestamp);
+              return aTime.compareTo(bTime);
+            } catch (e) {
+              return 0;
+            }
+          });
+          
           updatedMessages[chatId] = currentMessages;
 
           // Update unread count for this contact
@@ -292,9 +441,12 @@ class ChatViewModel extends StateNotifier<ChatState> {
               }
               return contact;
             }).toList();
-            state = state.copyWith(messages: updatedMessages, contacts: updatedContacts);
+            state = state.copyWith(
+              messages: Map<String, List<ChatMessage>>.from(updatedMessages),
+              contacts: updatedContacts,
+            );
           } else {
-            state = state.copyWith(messages: updatedMessages);
+            state = state.copyWith(messages: Map<String, List<ChatMessage>>.from(updatedMessages));
           }
         }
       }
@@ -359,13 +511,26 @@ class ChatViewModel extends StateNotifier<ChatState> {
 
     // Add new message at the end
     currentMessages.add(newMessage);
+    
+    // Sort messages by timestamp
+    currentMessages.sort((a, b) {
+      try {
+        final aTime = DateTime.parse(a.timestamp);
+        final bTime = DateTime.parse(b.timestamp);
+        return aTime.compareTo(bTime);
+      } catch (e) {
+        return 0;
+      }
+    });
+    
     updatedMessages[state.selectedChatId!] = currentMessages;
 
     print(
       '💬 [ChatViewModel] Updated messages count: ${currentMessages.length}',
     );
 
-    state = state.copyWith(messages: updatedMessages);
+    // Create new map to ensure state change detection
+    state = state.copyWith(messages: Map<String, List<ChatMessage>>.from(updatedMessages));
 
     // Verify message was added
     final verifyMessages = state.messages[state.selectedChatId!] ?? [];

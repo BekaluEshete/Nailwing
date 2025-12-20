@@ -131,6 +131,8 @@ class ChatState {
   final String? selectedChatId;
   final bool isLoading;
   final String? error;
+  final Map<String, bool> typingUsers; // Map of chatId -> userId -> isTyping
+  final Map<String, Set<String>> onlineUsers; // Map of chatId -> Set of online user IDs
 
   const ChatState({
     required this.contacts,
@@ -138,7 +140,10 @@ class ChatState {
     this.selectedChatId,
     this.isLoading = false,
     this.error,
-  });
+    Map<String, bool>? typingUsers,
+    Map<String, Set<String>>? onlineUsers,
+  }) : typingUsers = typingUsers ?? const {},
+       onlineUsers = onlineUsers ?? const {};
 
   ChatState copyWith({
     List<ChatContact>? contacts,
@@ -146,6 +151,8 @@ class ChatState {
     String? selectedChatId,
     bool? isLoading,
     String? error,
+    Map<String, bool>? typingUsers,
+    Map<String, Set<String>>? onlineUsers,
   }) {
     return ChatState(
       contacts: contacts ?? this.contacts,
@@ -153,6 +160,8 @@ class ChatState {
       selectedChatId: selectedChatId ?? this.selectedChatId,
       isLoading: isLoading ?? this.isLoading,
       error: error ?? this.error,
+      typingUsers: typingUsers ?? this.typingUsers,
+      onlineUsers: onlineUsers ?? this.onlineUsers,
     );
   }
 

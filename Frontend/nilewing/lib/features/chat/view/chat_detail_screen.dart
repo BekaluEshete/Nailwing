@@ -22,6 +22,7 @@ class ChatDetailScreen extends ConsumerStatefulWidget {
 class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  Timer? _typingTimer;
 
   @override
   void initState() {
@@ -30,10 +31,29 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(chatViewModelProvider.notifier).selectChat(widget.contact.id);
     });
+    
+    // Listen to text changes for typing indicators
+    _messageController.addListener(_onTextChanged);
+  }
+
+  void _onTextChanged() {
+    // Send typing indicator when user types
+    final viewModel = ref.read(chatViewModelProvider.notifier);
+    viewModel.sendTypingIndicator(true);
+    
+    // Cancel previous timer
+    _typingTimer?.cancel();
+    
+    // Send stop typing after 2 seconds of no typing
+    _typingTimer = Timer(const Duration(seconds: 2), () {
+      viewModel.sendTypingIndicator(false);
+    });
   }
 
   @override
   void dispose() {
+    _typingTimer?.cancel();
+    _messageController.removeListener(_onTextChanged);
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -64,6 +84,21 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
   Widget build(BuildContext context) {
     final chatState = ref.watch(chatViewModelProvider);
     final messages = chatState.selectedMessages;
+    final selectedContact = chatState.selectedContact ?? widget.contact;
+    
+    // Check if other user is typing - need to get the other user's ID from messages
+    bool isTyping = false;
+    if (chatState.selectedChatId != null && messages.isNotEmpty) {
+      // Find a message from the other user to get their ID
+      final otherUserMessage = messages.firstWhere(
+        (m) => !m.isMe,
+        orElse: () => messages.first,
+      );
+      if (!otherUserMessage.isMe) {
+        final otherUserId = otherUserMessage.senderId;
+        isTyping = chatState.typingUsers['${chatState.selectedChatId}_$otherUserId'] == true;
+      }
+    }
 
     // Auto-scroll to bottom when new messages arrive
     if (messages.isNotEmpty) {
@@ -108,13 +143,54 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
                         style: TextStyle(color: Colors.grey[600]),
                       ),
                     )
-                  : ListView.builder(
-                      controller: _scrollController,
-                      padding: const EdgeInsets.all(16),
-                      itemCount: messages.length,
-                      itemBuilder: (context, index) {
-                        return _buildMessageBubble(messages[index]);
-                      },
+                  : Column(
+                      children: [
+                        Expanded(
+                          child: ListView.builder(
+                            controller: _scrollController,
+                            padding: const EdgeInsets.all(16),
+                            itemCount: messages.length,
+                            itemBuilder: (context, index) {
+                              return _buildMessageBubble(messages[index]);
+                            },
+                          ),
+                        ),
+                        // Typing indicator
+                        if (isTyping)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            child: Row(
+                              children: [
+                                SizedBox(
+                                  width: 40,
+                                  height: 24,
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      _buildTypingDot(0),
+                                      const SizedBox(width: 4),
+                                      _buildTypingDot(1),
+                                      const SizedBox(width: 4),
+                                      _buildTypingDot(2),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  '${selectedContact.name} is typing...',
+                                  style: TextStyle(
+                                    color: Colors.grey[600],
+                                    fontSize: 12,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
                     ),
             ),
             // Message Input
@@ -169,35 +245,41 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  Row(
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: widget.contact.isOnline
-                              ? Colors.green
-                              : Colors.grey,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        widget.contact.isOnline ? 'Online' : 'Offline',
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 12,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        '• ${widget.contact.flight}',
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
+                  Consumer(
+                    builder: (context, ref, child) {
+                      final chatState = ref.watch(chatViewModelProvider);
+                      final contact = chatState.selectedContact ?? widget.contact;
+                      return Row(
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: contact.isOnline
+                                  ? Colors.green
+                                  : Colors.grey,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            contact.isOnline ? 'Online' : 'Offline',
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '• ${contact.flight}',
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 ],
               ),
@@ -382,5 +464,33 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
 
     await ref.read(chatViewModelProvider.notifier).sendMessage(locationMessage);
     _scrollToBottom();
+  }
+
+  // Build typing indicator dot with animation delay
+  Widget _buildTypingDot(int index) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 600),
+      curve: Curves.easeInOut,
+      builder: (context, value, child) {
+        return Transform.scale(
+          scale: 0.5 + (value * 0.5),
+          child: Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: Colors.grey[400]?.withOpacity(0.8 + (value * 0.2)),
+              shape: BoxShape.circle,
+            ),
+          ),
+        );
+      },
+      onEnd: () {
+        // Restart animation
+        if (mounted) {
+          setState(() {});
+        }
+      },
+    );
   }
 }

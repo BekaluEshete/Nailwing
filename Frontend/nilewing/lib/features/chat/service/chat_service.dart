@@ -260,6 +260,24 @@ class ChatService {
     }
   }
 
+  // Send typing indicator via WebSocket
+  void sendTypingIndicator(String roomName, bool isTyping) {
+    final channel = _activeConnections[roomName];
+    if (channel == null) {
+      return; // Silently fail if not connected
+    }
+
+    try {
+      final typingData = json.encode({
+        'type': 'typing',
+        'typing': isTyping,
+      });
+      channel.sink.add(typingData);
+    } catch (e) {
+      print('⚠️ [ChatService] Error sending typing indicator: $e');
+    }
+  }
+
   // Send message via HTTP (fallback when WebSocket fails)
   Future<ChatMessage> sendMessageViaHttp(String roomId, String message) async {
     try {
@@ -331,8 +349,9 @@ class ChatService {
     // Determine WebSocket protocol based on base URL
     String wsProtocol = 'wss://';
     String host;
+    int? port;
 
-    // Parse the base URL to extract host
+    // Parse the base URL to extract host and port
     if (baseUrl.startsWith('https://')) {
       wsProtocol = 'wss://';
       host = baseUrl.replaceAll('https://', '');
@@ -345,31 +364,39 @@ class ChatService {
       host = baseUrl;
     }
 
-    // Remove any trailing slashes
+    // Remove any trailing slashes and query strings
     host = host.replaceAll(RegExp(r'/$'), '');
+    host = host.split('?').first;
 
-    // Remove port if it's 0 or default ports (for cloud services)
-    // Cloud services like Render don't need explicit ports
-    if (host.contains(':0') || host.contains(':80') || host.contains(':443')) {
-      host = host.split(':')[0];
+    // Extract port if present
+    if (host.contains(':')) {
+      final parts = host.split(':');
+      host = parts[0];
+      try {
+        final portNum = int.parse(parts[1]);
+        // Only include non-standard ports
+        if (portNum != 80 && portNum != 443 && portNum != 0) {
+          port = portNum;
+        }
+      } catch (e) {
+        // Invalid port, ignore
+      }
     }
 
-    // For cloud services, ensure no port is included
+    // For cloud services (Render, Heroku, Railway), use standard ports
     if (host.contains('onrender.com') ||
         host.contains('herokuapp.com') ||
-        host.contains('railway.app')) {
-      // Remove any port that might be in the host
-      final parts = host.split(':');
-      if (parts.length > 1) {
-        host = parts[0];
-      }
+        host.contains('railway.app') ||
+        host.contains('vercel.app')) {
+      port = null; // Use default port for the protocol
     }
 
     // Clean room name (remove any special characters except underscore and hyphen)
     final cleanRoomName = roomName.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
 
-    // Build WebSocket URL
-    final wsUrl = '$wsProtocol$host/ws/chat/$cleanRoomName/?token=$token';
+    // Build WebSocket URL with proper formatting
+    final portStr = port != null ? ':$port' : '';
+    final wsUrl = '$wsProtocol$host$portStr/ws/chat/$cleanRoomName/?token=$token';
     print('🔌 [ChatService] Built WebSocket URL: $wsUrl');
     return wsUrl;
   }

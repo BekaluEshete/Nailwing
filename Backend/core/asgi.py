@@ -10,11 +10,13 @@ django.setup()
 
 from chat.routing import websocket_urlpatterns
 
+# For real-time chat, we need to allow WebSocket connections
+# In production, configure CORS properly or use AllowedHostsOriginValidator with proper hosts
 application = ProtocolTypeRouter(
     {
         "http": get_asgi_application(),
-        "websocket": AllowedHostsOriginValidator(
-            AuthMiddlewareStack(URLRouter(websocket_urlpatterns))
+        "websocket": AuthMiddlewareStack(
+            URLRouter(websocket_urlpatterns)
         ),
     }
 )

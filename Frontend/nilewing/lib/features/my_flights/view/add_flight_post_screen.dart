@@ -341,10 +341,7 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
         break;
 
       case 3:
-        if (_formData.postTitle.isEmpty)
-          newErrors['postTitle'] = 'Post title is required';
-        if (_formData.postContent.isEmpty)
-          newErrors['postContent'] = 'Post content is required';
+        // Post title and content are no longer required
         if (_formData.interests.isEmpty)
           newErrors['interests'] = 'Please select at least one interest';
         break;
@@ -1536,10 +1533,10 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildSectionHeader(Icons.edit, 'Share Your Experience'),
+            _buildSectionHeader(Icons.star, 'Flight Rating'),
             const SizedBox(height: 16),
             const Text(
-              'Flight Rating *',
+              'Rate your flight *',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 8),
@@ -1567,48 +1564,6 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
                   style: const TextStyle(color: Colors.grey),
                 ),
               ],
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Post Title *',
-              style: TextStyle(fontWeight: FontWeight.w500),
-            ),
-            const SizedBox(height: 4),
-            TextFormField(
-              decoration: InputDecoration(
-                hintText:
-                    'e.g. Amazing flight experience with Ethiopian Airlines',
-                border: const OutlineInputBorder(),
-                errorText: _errors['postTitle'],
-              ),
-              maxLength: 100,
-              onChanged: (value) {
-                setState(() {
-                  _formData.postTitle = value;
-                  _errors.remove('postTitle');
-                });
-              },
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Share Your Experience *',
-              style: TextStyle(fontWeight: FontWeight.w500),
-            ),
-            const SizedBox(height: 4),
-            TextFormField(
-              decoration: InputDecoration(
-                hintText: 'Tell us about your flight experience...',
-                border: const OutlineInputBorder(),
-                errorText: _errors['postContent'],
-              ),
-              maxLines: 5,
-              maxLength: 500,
-              onChanged: (value) {
-                setState(() {
-                  _formData.postContent = value;
-                  _errors.remove('postContent');
-                });
-              },
             ),
             const SizedBox(height: 16),
             const Text(
@@ -2090,26 +2045,6 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
                           ],
                         ),
                         const SizedBox(height: 16),
-                        const Divider(),
-                        const SizedBox(height: 16),
-                        Text(
-                          _formData.postTitle,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          _formData.postContent,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey,
-                          ),
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 8),
                         Wrap(
                           spacing: 4,
                           runSpacing: 4,
