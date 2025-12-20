@@ -179,6 +179,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 "user_id": self.user_id,
                 "username": self.username,
                 "typing": is_typing,
+                "room_name": self.room_name,  # Include room name for frontend routing
             },
         )
 
@@ -191,6 +192,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 "message_id": message_id,
                 "user_id": self.user_id,
                 "username": self.username,
+                "room_name": self.room_name,  # Include room name for frontend routing
             },
         )
 
@@ -269,16 +271,22 @@ class ChatConsumer(AsyncWebsocketConsumer):
             print(f"❌ [ChatConsumer] Error sending typing event: {e}")
 
     async def read_receipt(self, event):
-        await self.send(
-            text_data=json.dumps(
-                {
-                    "type": "read_receipt",
-                    "message_id": event["message_id"],
-                    "user_id": event["user_id"],
-                    "username": event["username"],
-                }
+        """Handle read receipt event"""
+        try:
+            await self.send(
+                text_data=json.dumps(
+                    {
+                        "type": "read_receipt",
+                        "message_id": event["message_id"],
+                        "user_id": event["user_id"],
+                        "username": event["username"],
+                        "room_name": event.get("room_name", self.room_name),
+                    }
+                )
             )
-        )
+            print(f"✅ [ChatConsumer] Read receipt sent for message {event['message_id']}")
+        except Exception as e:
+            print(f"❌ [ChatConsumer] Error sending read_receipt event: {e}")
 
     async def send_previous_messages(self):
         """Send cached messages when user connects"""

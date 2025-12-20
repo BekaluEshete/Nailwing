@@ -268,25 +268,39 @@ class ChatViewModel extends StateNotifier<ChatState> {
       // Process the message with the found chat ID
       _processIncomingMessage(chatId, data);
     } else if (messageType == 'typing') {
-      // Handle typing indicators
+      // Handle typing indicators - use room_name for proper routing
       final typingUserId = data['user_id']?.toString();
       final isTyping = data['typing'] == true;
+      final roomName = data['room_name'] ?? _currentRoomName;
       
-      if (typingUserId != null && state.selectedChatId != null) {
-        final currentChatId = state.selectedChatId!;
-        print('⌨️ [ChatViewModel] User $typingUserId is ${isTyping ? 'typing' : 'not typing'}');
-        final updatedTypingUsers = Map<String, bool>.from(state.typingUsers);
-        updatedTypingUsers['${currentChatId}_$typingUserId'] = isTyping;
+      if (typingUserId != null && roomName != null && typingUserId != _currentUserId) {
+        // Find chat ID from room name
+        String? chatId = _roomNameToChatId[roomName];
         
-        state = state.copyWith(typingUsers: Map<String, bool>.from(updatedTypingUsers));
+        // If not in mapping, try current room
+        if (chatId == null && roomName == _currentRoomName) {
+          chatId = state.selectedChatId;
+        }
         
-        // Auto-clear typing indicator after 3 seconds
-        if (isTyping) {
-          Future.delayed(const Duration(seconds: 3), () {
-            final currentTypingUsers = Map<String, bool>.from(state.typingUsers);
-            currentTypingUsers.remove('${currentChatId}_$typingUserId');
-            state = state.copyWith(typingUsers: Map<String, bool>.from(currentTypingUsers));
-          });
+        if (chatId != null) {
+          print('⌨️ [ChatViewModel] User $typingUserId in room $roomName is ${isTyping ? 'typing' : 'not typing'}');
+          final updatedTypingUsers = Map<String, bool>.from(state.typingUsers);
+          if (isTyping) {
+            updatedTypingUsers['${chatId}_$typingUserId'] = true;
+          } else {
+            updatedTypingUsers.remove('${chatId}_$typingUserId');
+          }
+          
+          state = state.copyWith(typingUsers: Map<String, bool>.from(updatedTypingUsers));
+          
+          // Auto-clear typing indicator after 3 seconds
+          if (isTyping) {
+            Future.delayed(const Duration(seconds: 3), () {
+              final currentTypingUsers = Map<String, bool>.from(state.typingUsers);
+              currentTypingUsers.remove('${chatId}_$typingUserId');
+              state = state.copyWith(typingUsers: Map<String, bool>.from(currentTypingUsers));
+            });
+          }
         }
       }
     } else if (messageType == 'user_joined') {
@@ -475,6 +489,20 @@ class ChatViewModel extends StateNotifier<ChatState> {
     }
 
     state = state.copyWith(selectedChatId: null);
+  }
+
+  // Send typing indicator via WebSocket
+  void sendTypingIndicator(bool isTyping) {
+    if (_currentRoomName == null || state.selectedChatId == null) {
+      return; // Can't send typing indicator if no room is selected
+    }
+
+    try {
+      _chatService.sendTypingIndicator(_currentRoomName!, isTyping);
+      print('⌨️ [ChatViewModel] Sent typing indicator: $isTyping');
+    } catch (e) {
+      print('⚠️ [ChatViewModel] Error sending typing indicator: $e');
+    }
   }
 
   Future<void> sendMessage(String message) async {

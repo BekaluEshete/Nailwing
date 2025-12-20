@@ -596,16 +596,11 @@ class MatchDetailScreen extends ConsumerWidget {
     try {
       // Accept the connection request
       print('✅ [MatchDetail] Accepting connection request: ${match.id}');
-      await matchViewModel.acceptConnection(match.id);
+      final updatedMatch = await matchViewModel.acceptConnection(match.id);
       
-      // Get updated match from state
-      final updatedMatches = matchViewModel.filteredMatches;
-      final updatedMatch = updatedMatches.firstWhere(
-        (m) => m.id == match.id,
-        orElse: () => match,
-      );
+      print('✅ [MatchDetail] Connection accepted. Status: ${updatedMatch.status}');
 
-      // Close loading dialog
+      // Close loading dialog BEFORE creating chat
       if (context.mounted) {
         Navigator.of(context).pop();
       }
@@ -614,14 +609,17 @@ class MatchDetailScreen extends ConsumerWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Connection accepted! You can now chat.'),
+            content: Text('Connection accepted! Creating chat...'),
             backgroundColor: Colors.green,
             duration: Duration(seconds: 2),
           ),
         );
       }
 
-      // Now create chat since connection is accepted (with updated match)
+      // Small delay to ensure dialog is closed
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      // Now create chat since connection is accepted (with updated match from server)
       await _createChatAfterConnection(context, ref, updatedMatch);
     } catch (e) {
       print('❌ [MatchDetail] Error accepting connection: $e');
@@ -717,10 +715,14 @@ class MatchDetailScreen extends ConsumerWidget {
   ) async {
     try {
       // Verify connection is accepted before creating chat
+      // The backend should return 'matched' status after accepting
       final statusLower = match.status.toLowerCase();
-      if (statusLower != 'matched' && statusLower != 'connected') {
-        print('⚠️ [MatchDetail] Connection not matched yet, status: $statusLower');
-        return; // Don't create chat if not matched
+      print('🔍 [MatchDetail] Checking match status: $statusLower');
+      
+      // Accept 'matched' status - this is what backend returns after accepting connection
+      if (statusLower != 'matched') {
+        print('⚠️ [MatchDetail] Connection not matched yet, status: $statusLower. Attempting to create chat anyway...');
+        // Don't return - try to create chat anyway as the backend might allow it
       }
 
       // Create personal chat with the matched user
@@ -751,34 +753,44 @@ class MatchDetailScreen extends ConsumerWidget {
       
       // Create personal chat with the matched user
       print('💬 [MatchDetail] Creating personal chat with matched user: $matchedUserId');
-      final contact = await chatViewModel.createPersonalChat(matchedUserId);
+      final contact = await chatViewModel.createPersonalChat(matchedUserId);    
 
       // Check if widget is still mounted
-      if (!context.mounted) return;
-
-      if (contact == null) {
-        print('⚠️ [MatchDetail] Chat creation returned null');
+      if (!context.mounted) {
+        print('⚠️ [MatchDetail] Widget no longer mounted, cannot navigate');
         return;
       }
 
-      // Refresh contacts to ensure the new contact is in the list
-      print('🔄 [MatchDetail] Refreshing contacts...');
-      await chatViewModel.refreshContacts();
+      if (contact == null) {
+        print('⚠️ [MatchDetail] Chat creation returned null');
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to create chat. Please try again.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      print('✅ [MatchDetail] Chat created successfully: ${contact.id}');
       
-      // Small delay to ensure state updates
-      await Future.delayed(const Duration(milliseconds: 200));
+      // Small delay to ensure WebSocket connection is established
+      await Future.delayed(const Duration(milliseconds: 300));
 
       // Navigate to chat detail screen
       if (context.mounted) {
         print('✅ [MatchDetail] Navigating to chat: ${contact.id}');
-        context.push('/chat/${contact.id}');
+        Navigator.of(context).pop(); // Close match detail screen first
+        await Future.delayed(const Duration(milliseconds: 100));
+        if (context.mounted) {
+          context.push('/chat/${contact.id}');
+        }
       }
     } catch (e) {
       print('❌ [MatchDetail] Error creating chat: $e');
-      // Don't show error dialog here - just log it
-      // The user can manually navigate to chat if needed
-      }
-
+      
       // Show error message
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
