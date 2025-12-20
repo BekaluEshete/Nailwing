@@ -155,6 +155,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
         )
 
     async def chat_message(self, event):
+        """Broadcast message to all users in the room"""
+        # Send to all connected clients in this room (including sender)
+        # This ensures real-time updates for all users
         await self.send(
             text_data=json.dumps(
                 {
@@ -166,9 +169,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     "timestamp": event["timestamp"],
                     "message_type": event["message_type"],
                     "room_type": event["room_type"],
+                    "room_name": self.room_name,  # Add room name so frontend knows which chat
                 }
             )
         )
+        print(f"📤 [ChatConsumer] Broadcasted message {event['message_id']} to room {self.room_name}")
 
     async def user_joined(self, event):
         await self.send(

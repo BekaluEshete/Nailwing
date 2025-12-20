@@ -7,6 +7,7 @@ import 'package:nilewing/core/utils/token_storage.dart';
 import '../model/home_model.dart';
 import '../services/flight_service.dart';
 import '../services/user_service.dart';
+import 'package:nilewing/features/match/service/match_service.dart';
 
 final homeViewModelProvider = ChangeNotifierProvider<HomeViewModel>(
   (ref) => HomeViewModel(),
@@ -15,6 +16,7 @@ final homeViewModelProvider = ChangeNotifierProvider<HomeViewModel>(
 class HomeViewModel with ChangeNotifier {
   final FlightService _flightService = FlightService();
   final UserService _userService = UserService();
+  final MatchService _matchService = MatchService();
 
   String _activeTab = 'home';
   int _notificationCount = 0;
@@ -115,36 +117,12 @@ class HomeViewModel with ChangeNotifier {
       _userFlight = await _flightService.getUserUpcomingFlight(
         "current_user_id",
       );
+      notifyListeners();
     } catch (e) {
       print('Error loading user flight: $e');
-      // Fallback flight data
-      _userFlight = Flight(
-        flightNumber: "ET302",
-        airline: "Ethiopian Airlines",
-        route: "ADD → CDG",
-        departure: FlightLeg(
-          airport: "ADD",
-          city: "Addis Ababa",
-          time: "23:35",
-          date: "Today",
-          terminal: "T2",
-        ),
-        arrival: FlightLeg(
-          airport: "CDG",
-          city: "Paris",
-          time: "06:50+1",
-          date: "Tomorrow",
-          terminal: "2E",
-        ),
-        duration: "7h 15m",
-        aircraft: "Boeing 787-9",
-        seat: "12A",
-        gate: "B7",
-        status: "On Time",
-        checkInTime: "21:35",
-        boardingTime: "23:00",
-        timeUntilDeparture: "5h 23m",
-      );
+      // Don't set fallback flight - let UI handle empty state
+      _userFlight = null;
+      notifyListeners();
     }
   }
 
@@ -159,9 +137,37 @@ class HomeViewModel with ChangeNotifier {
 
   Future<void> _loadPreFlightMatches() async {
     try {
-      _preFlightMatches = await _flightService.getPreFlightMatches(
-        "current_user_id",
-      );
+      // Get actual matches from match service
+      final matches = await _matchService.findMatches();
+      
+      if (matches.isNotEmpty) {
+        // Get flight ID if available
+        final flightId = _userFlight?.flightNumber;
+        final matchesData = matches.take(3).map((match) {
+          return {
+            'name': match.user.name,
+            'initials': match.user.initials,
+            'route': '${match.flightInfo.departure} → ${match.flightInfo.arrival}',
+            'message': match.description,
+            'matchScore': match.compatibility,
+          };
+        }).toList();
+        
+        _preFlightMatches = {
+          'matchCount': matches.length,
+          'matches': matchesData,
+          'commonRoute': matches.isNotEmpty 
+              ? '${matches.first.flightInfo.departure} → ${matches.first.flightInfo.arrival}'
+              : 'No matches found',
+        };
+      } else {
+        _preFlightMatches = {
+          'matchCount': 0,
+          'matches': [],
+          'commonRoute': 'No matches found',
+        };
+      }
+      notifyListeners();
     } catch (e) {
       print('Error loading pre-flight matches: $e');
       _preFlightMatches = {
@@ -169,6 +175,7 @@ class HomeViewModel with ChangeNotifier {
         'matches': [],
         'commonRoute': 'No matches found',
       };
+      notifyListeners();
     }
   }
 

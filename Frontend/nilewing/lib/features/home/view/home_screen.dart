@@ -69,44 +69,74 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       );
     }
 
-    // Use actual data or fallback
-    final user =
-        viewModel.user ??
-        User(
-          name: "Guest User",
-          email: "guest@email.com",
-          nationality: "International",
-        );
+    // Use actual data
+    final user = viewModel.user;
+    final flight = viewModel.userFlight;
 
-    final flight =
-        viewModel.userFlight ??
-        Flight(
-          flightNumber: "ET302",
-          airline: "Ethiopian Airlines",
-          route: "ADD → CDG",
-          departure: FlightLeg(
-            airport: "ADD",
-            city: "Addis Ababa",
-            time: "23:35",
-            date: "Today",
-            terminal: "T2",
+    // Show message if no user or flight data
+    if (user == null) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Loading your profile...'),
+            ],
           ),
-          arrival: FlightLeg(
-            airport: "CDG",
-            city: "Paris",
-            time: "06:50+1",
-            date: "Tomorrow",
-            terminal: "2E",
+        ),
+      );
+    }
+
+    // If no flight, show a message
+    if (flight == null) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        body: SafeArea(
+          child: Column(
+            children: [
+              _buildStatusBar(viewModel),
+              _buildTopHeader(viewModel, user),
+              Expanded(
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.flight_takeoff, size: 64, color: Colors.grey[300]),
+                      SizedBox(height: 16),
+                      Text(
+                        'No Upcoming Flights',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey[800],
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        'Add a flight to see matches and recommendations',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[600],
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      SizedBox(height: 24),
+                      ElevatedButton(
+                        onPressed: widget.onNavigateToMyFlights,
+                        child: Text('Add Flight'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
-          duration: "7h 15m",
-          aircraft: "Boeing 787-9",
-          seat: "12A",
-          gate: "B7",
-          status: "On Time",
-          checkInTime: "21:35",
-          boardingTime: "23:00",
-          timeUntilDeparture: "5h 23m",
-        );
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -129,14 +159,58 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   physics: AlwaysScrollableScrollPhysics(),
                   child: Column(
                     children: [
-                      // Upcoming Flight Section
-                      _buildUpcomingFlightSection(viewModel, flight),
+                      // Upcoming Flight Section with animation
+                      TweenAnimationBuilder<double>(
+                        duration: const Duration(milliseconds: 400),
+                        tween: Tween(begin: 0.0, end: 1.0),
+                        curve: Curves.easeOutCubic,
+                        builder: (context, value, child) {
+                          return Transform.translate(
+                            offset: Offset(0, 20 * (1 - value)),
+                            child: Opacity(
+                              opacity: value,
+                              child: child,
+                            ),
+                          );
+                        },
+                        child: _buildUpcomingFlightSection(viewModel, flight),
+                      ),
+                      const SizedBox(height: 8),
 
-                      // Pre-Flight Matches Section
-                      _buildPreFlightMatchesSection(viewModel),
+                      // Pre-Flight Matches Section with animation
+                      TweenAnimationBuilder<double>(
+                        duration: const Duration(milliseconds: 500),
+                        tween: Tween(begin: 0.0, end: 1.0),
+                        curve: Curves.easeOutCubic,
+                        builder: (context, value, child) {
+                          return Transform.translate(
+                            offset: Offset(0, 30 * (1 - value)),
+                            child: Opacity(
+                              opacity: value,
+                              child: child,
+                            ),
+                          );
+                        },
+                        child: _buildPreFlightMatchesSection(viewModel),
+                      ),
+                      const SizedBox(height: 8),
 
-                      // Community Flight Stories
-                      _buildFlightStoriesSection(viewModel),
+                      // Community Flight Stories with animation
+                      TweenAnimationBuilder<double>(
+                        duration: const Duration(milliseconds: 600),
+                        tween: Tween(begin: 0.0, end: 1.0),
+                        curve: Curves.easeOutCubic,
+                        builder: (context, value, child) {
+                          return Transform.translate(
+                            offset: Offset(0, 30 * (1 - value)),
+                            child: Opacity(
+                              opacity: value,
+                              child: child,
+                            ),
+                          );
+                        },
+                        child: _buildFlightStoriesSection(viewModel),
+                      ),
 
                       // Bottom spacing for navigation
                       SizedBox(height: 80),

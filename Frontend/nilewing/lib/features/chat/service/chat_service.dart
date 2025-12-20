@@ -184,14 +184,22 @@ class ChatService {
         final channel = WebSocketChannel.connect(uri);
         _activeConnections[roomName] = channel;
 
-        // Listen for messages
+        // Listen for messages in real-time
         channel.stream.listen(
           (message) {
             try {
-              final data = json.decode(message as String);
+              final messageStr = message as String;
+              print('📨 [ChatService] Received WebSocket message: $messageStr');
+              final data = json.decode(messageStr);
+              
+              // Add room name to the data so view model knows which chat it belongs to
+              data['room_name'] = roomName;
+              
+              // Call the callback to handle the message
               onMessage(data);
             } catch (e) {
               print('⚠️ [ChatService] Error parsing WebSocket message: $e');
+              print('⚠️ [ChatService] Raw message: $message');
             }
           },
           onError: (error) {
@@ -205,6 +213,7 @@ class ChatService {
             _activeConnections.remove(roomName);
             // Don't auto-retry - causes infinite loops
           },
+          cancelOnError: false, // Keep listening even if there's an error
         );
 
         print('✅ [ChatService] WebSocket connected successfully to $roomName');
@@ -728,6 +737,34 @@ class ChatService {
     } catch (e) {
       print('❌ [ChatService] Error getting room name: $e');
       return 'room_$roomId';
+    }
+  }
+
+  // Get room ID from room name
+  Future<String?> getRoomIdFromName(String roomName) async {
+    try {
+      final token = await _getAuthToken();
+      if (token == null) {
+        throw Exception('Not authenticated');
+      }
+
+      // Get all rooms and find the one with matching name
+      final response = await _httpClient.get(
+        Uri.parse(AppConstants.chatRoomsEndpoint),
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> rooms = json.decode(response.body);
+        for (final room in rooms) {
+          if (room['name']?.toString() == roomName) {
+            return room['id']?.toString();
+          }
+        }
+      }
+      return null;
+    } catch (e) {
+      print('❌ [ChatService] Error getting room ID from name: $e');
+      return null;
     }
   }
 }

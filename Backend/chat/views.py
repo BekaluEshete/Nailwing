@@ -33,10 +33,44 @@ class ChatRoomList(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        # Optimize query with select_related to avoid N+1 queries
-        return ChatRoom.objects.filter(
-            is_active=True
+        # Only show chat rooms for users who are matched (status='matched')
+        # For personal chats, check if there's a matched connection
+        from matching.models import Match
+        
+        user = self.request.user
+        
+        # Get all matched users (where status='matched')
+        matched_matches = Match.objects.filter(
+            Q(user1=user) | Q(user2=user),
+            status='matched'
+        )
+        
+        # Extract user IDs of matched users
+        matched_user_ids = set()
+        for match in matched_matches:
+            if match.user1 == user:
+                matched_user_ids.add(match.user2.id)
+            else:
+                matched_user_ids.add(match.user1.id)
+        
+        # Get personal chat rooms only for matched users
+        personal_room_names = []
+        for matched_user_id in matched_user_ids:
+            # Determine room name format (smaller ID first)
+            if user.id < matched_user_id:
+                room_name = f"personal_{user.id}_{matched_user_id}"
+            else:
+                room_name = f"personal_{matched_user_id}_{user.id}"
+            personal_room_names.append(room_name)
+        
+        # Return only personal chat rooms with matched users
+        queryset = ChatRoom.objects.filter(
+            is_active=True,
+            room_type='personal',
+            name__in=personal_room_names
         ).select_related('created_by').order_by('-created_at')
+        
+        return queryset
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)

@@ -59,7 +59,8 @@ class Match(models.Model):
     matched_at = models.DateTimeField(null=True, blank=True)
     
     class Meta:
-        unique_together = ['user1', 'user2', 'flight1', 'flight2']
+        # Allow multiple matches per user pair if flights are different
+        unique_together = [['user1', 'user2', 'flight1', 'flight2']]
         ordering = ['-match_score', '-created_at']
         indexes = [
             models.Index(fields=['user1', 'status']),

@@ -522,14 +522,18 @@ class MatchingService:
 
     @staticmethod
     def _deduplicate_matches(matches):
-        """Remove duplicate matches (same user)"""
-        seen_users = set()
+        """Remove duplicate matches (same user and same flight combination)"""
+        # Allow multiple matches with same user if they're for different flights
+        seen_combinations = set()
         unique_matches = []
 
         for match in matches:
             user_id = match["user"].id
-            if user_id not in seen_users:
-                seen_users.add(user_id)
+            flight_id = match["flight"].id
+            combination = (user_id, flight_id)
+            
+            if combination not in seen_combinations:
+                seen_combinations.add(combination)
                 unique_matches.append(match)
 
         return unique_matches

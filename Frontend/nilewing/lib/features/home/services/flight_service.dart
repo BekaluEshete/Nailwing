@@ -1,4 +1,8 @@
 // features/home/services/flight_service.dart
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:nilewing/core/utils/app_constants.dart';
+import 'package:nilewing/core/utils/token_storage.dart';
 import '../model/home_model.dart';
 
 class FlightService {
@@ -6,152 +10,317 @@ class FlightService {
   factory FlightService() => _instance;
   FlightService._internal();
 
-  // Get user's upcoming flight
+  final TokenStorage _tokenStorage = TokenStorage();
+
+  Future<String?> _getAuthToken() async {
+    return await _tokenStorage.getAccessToken();
+  }
+
+  // Get user's upcoming flight from backend
   Future<Flight> getUserUpcomingFlight(String userId) async {
-    // Simulate API delay
-    await Future.delayed(Duration(milliseconds: 500));
+    try {
+      print('🛫 [HomeFlightService] Getting upcoming flight...');
+      final token = await _getAuthToken();
+      if (token == null) {
+        throw Exception('Not authenticated');
+      }
+
+      // Get upcoming flights from backend
+      final response = await http.get(
+        Uri.parse(AppConstants.upcomingFlightsEndpoint),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      print('📥 [HomeFlightService] Response status: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        if (data.isNotEmpty) {
+          // Get the first upcoming flight
+          final flightData = data[0] as Map<String, dynamic>;
+          return _flightFromBackendJson(flightData);
+        }
+      }
+
+      // If no upcoming flights, try to get current flight
+      final currentResponse = await http.get(
+        Uri.parse(AppConstants.currentFlightEndpoint),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (currentResponse.statusCode == 200) {
+        final List<dynamic> currentData = json.decode(currentResponse.body);
+        if (currentData.isNotEmpty) {
+          final flightData = currentData[0] as Map<String, dynamic>;
+          return _flightFromBackendJson(flightData);
+        }
+      }
+
+      // If still no flights, get the most recent flight
+      final allFlightsResponse = await http.get(
+        Uri.parse(AppConstants.flightsEndpoint),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (allFlightsResponse.statusCode == 200) {
+        final List<dynamic> allFlights = json.decode(allFlightsResponse.body);
+        if (allFlights.isNotEmpty) {
+          final flightData = allFlights[0] as Map<String, dynamic>;
+          return _flightFromBackendJson(flightData);
+        }
+      }
+
+      throw Exception('No flights found');
+    } catch (e) {
+      print('❌ [HomeFlightService] Error loading flight: $e');
+      // Return a fallback flight if API fails
+      return _getFallbackFlight();
+    }
+  }
+
+  // Convert backend flight JSON to home Flight model
+  Flight _flightFromBackendJson(Map<String, dynamic> json) {
+    final departureDateTime = DateTime.parse(json['departure_datetime']);
+    final arrivalDateTime = DateTime.parse(json['arrival_datetime']);
+    final now = DateTime.now();
+    
+    // Calculate duration
+    final duration = arrivalDateTime.difference(departureDateTime);
+    final durationHours = duration.inHours;
+    final durationMinutes = duration.inMinutes % 60;
+    final durationString = durationHours > 0 
+        ? '${durationHours}h ${durationMinutes}m'
+        : '${durationMinutes}m';
+
+    // Calculate time until departure
+    final timeUntilDeparture = departureDateTime.difference(now);
+    String timeUntilDepartureString = '';
+    if (timeUntilDeparture.isNegative) {
+      timeUntilDepartureString = 'Departed';
+    } else if (timeUntilDeparture.inDays > 0) {
+      timeUntilDepartureString = '${timeUntilDeparture.inDays}d ${timeUntilDeparture.inHours % 24}h';
+    } else if (timeUntilDeparture.inHours > 0) {
+      timeUntilDepartureString = '${timeUntilDeparture.inHours}h ${timeUntilDeparture.inMinutes % 60}m';
+    } else {
+      timeUntilDepartureString = '${timeUntilDeparture.inMinutes}m';
+    }
+
+    // Format dates
+    final departureDate = _formatDate(departureDateTime);
+    final arrivalDate = _formatDate(arrivalDateTime);
+
+    // Build route string
+    String route = '${json['departure_airport']} → ${json['arrival_airport']}';
+    if (json['has_layover'] == true && json['layover_airport'] != null) {
+      route = '${json['departure_airport']} → ${json['layover_airport']} → ${json['arrival_airport']}';
+    }
+
+    // Calculate check-in and boarding times (2 hours and 1 hour before departure)
+    final checkInTime = departureDateTime.subtract(const Duration(hours: 2));
+    final boardingTime = departureDateTime.subtract(const Duration(hours: 1));
 
     return Flight(
-      flightNumber: "ET302",
-      airline: "Ethiopian Airlines",
-      route: "ADD → CDG",
+      flightNumber: json['flight_number'] ?? 'N/A',
+      airline: json['airline'] ?? 'Unknown',
+      route: route,
       departure: FlightLeg(
-        airport: "ADD",
-        city: "Addis Ababa",
-        time: "23:35",
-        date: "Today",
-        terminal: "T2",
+        airport: json['departure_airport'] ?? '',
+        city: json['departure_city'] ?? '',
+        time: _formatTime(departureDateTime),
+        date: departureDate,
+        terminal: json['departure_terminal'] ?? '',
       ),
       arrival: FlightLeg(
-        airport: "CDG",
-        city: "Paris",
-        time: "06:50+1",
-        date: "Tomorrow",
-        terminal: "2E",
+        airport: json['arrival_airport'] ?? '',
+        city: json['arrival_city'] ?? '',
+        time: _formatTime(arrivalDateTime),
+        date: arrivalDate,
+        terminal: json['arrival_terminal'] ?? '',
       ),
-      duration: "7h 15m",
-      aircraft: "Boeing 787-9",
-      seat: "12A",
-      gate: "B7",
-      status: "On Time",
-      checkInTime: "21:35",
-      boardingTime: "23:00",
-      timeUntilDeparture: "5h 23m",
+      duration: durationString,
+      aircraft: json['aircraft'] ?? '',
+      seat: json['seat'] ?? '',
+      gate: json['departure_gate'] ?? json['gate'] ?? '',
+      status: _formatStatus(json['status'] ?? 'scheduled'),
+      checkInTime: _formatTime(checkInTime),
+      boardingTime: _formatTime(boardingTime),
+      timeUntilDeparture: timeUntilDepartureString,
     );
   }
 
-  // Get community flight posts
+  String _formatStatus(String status) {
+    switch (status.toLowerCase()) {
+      case 'scheduled':
+        return 'On Time';
+      case 'boarding':
+        return 'Boarding';
+      case 'delayed':
+        return 'Delayed';
+      case 'in_flight':
+        return 'In Flight';
+      case 'landed':
+        return 'Landed';
+      case 'cancelled':
+        return 'Cancelled';
+      default:
+        return 'On Time';
+    }
+  }
+
+  // Date formatting helpers
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    if (date.year == now.year && date.month == now.month && date.day == now.day) {
+      return 'Today';
+    }
+    if (date.year == now.year && date.month == now.month && date.day == now.day + 1) {
+      return 'Tomorrow';
+    }
+    return '${date.month}/${date.day}';
+  }
+
+  String _formatTime(DateTime date) {
+    final hour = date.hour.toString().padLeft(2, '0');
+    final minute = date.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
+
+  Flight _getFallbackFlight() {
+    return Flight(
+      flightNumber: "N/A",
+      airline: "No Flight",
+      route: "No upcoming flights",
+      departure: FlightLeg(
+        airport: "",
+        city: "",
+        time: "",
+        date: "",
+        terminal: "",
+      ),
+      arrival: FlightLeg(
+        airport: "",
+        city: "",
+        time: "",
+        date: "",
+        terminal: "",
+      ),
+      duration: "",
+      aircraft: "",
+      seat: "",
+      gate: "",
+      status: "No flights",
+      checkInTime: "",
+      boardingTime: "",
+      timeUntilDeparture: "",
+    );
+  }
+
+  // Get community flight posts (mock data for now - no backend endpoint)
   Future<List<FlightPost>> getFlightPosts({
     int page = 1,
     int limit = 10,
   }) async {
-    // Simulate API delay
-    await Future.delayed(Duration(milliseconds: 800));
-
-    return [
-      FlightPost(
-        id: '1',
-        user: PostUser(
-          name: 'Sarah Mitchell',
-          avatar: null,
-          nationality: 'British',
-        ),
-        flight: PostFlight(number: 'LH440', route: 'FRA → JFK'),
-        post: PostContent(
-          title: 'Incredible sunset over the Atlantic ✈️',
-          content:
-              'Just caught the most breathtaking sunset on my flight from Frankfurt to New York! The view from 35,000 feet was absolutely magical...',
-          fullContent:
-              'Just caught the most breathtaking sunset on my flight from Frankfurt to New York! The view from 35,000 feet was absolutely magical. The sky was painted in shades of orange, pink, and purple that seemed almost unreal. I was seated by the window (always book window seats for long flights!), and for about 20 minutes, I was completely mesmerized by this natural spectacle. The crew on Lufthansa was fantastic - they even dimmed the cabin lights so passengers could enjoy the view better. Met some amazing fellow travelers too, including a photographer who shared some incredible tips about capturing aerial shots. These are the moments that remind me why I love traveling so much. There\'s something truly special about being suspended between earth and sky, watching the world transform beneath you. If you\'re flying this route, I highly recommend requesting a window seat on the right side of the aircraft for the best sunset views! #TravelMagic #LufthansaExperience #SunsetFromAbove',
-          timestamp: '2 hours ago',
-          likes: 127,
-          comments: 23,
-          isLiked: false,
-          rating: 5,
-        ),
-      ),
-      FlightPost(
-        id: '2',
-        user: PostUser(
-          name: 'Ahmed Hassan',
-          avatar: null,
-          nationality: 'Egyptian',
-        ),
-        flight: PostFlight(number: 'EK203', route: 'DXB → LHR'),
-        post: PostContent(
-          title: 'Emirates A380 First Class Experience',
-          content:
-              'What an incredible journey! The Emirates A380 first class exceeded all expectations. The private suite, shower spa, and gourmet dining were outstanding...',
-          fullContent:
-              'What an incredible journey! The Emirates A380 first class exceeded all expectations. The private suite, shower spa, and gourmet dining were outstanding. From the moment I stepped into the private suite, I knew this was going to be a special flight. The suite felt more like a luxury hotel room than an airplane seat. The sliding doors provided complete privacy, and the 32-inch TV screen was perfect for the long flight entertainment. But the real highlight was the onboard shower spa - yes, you can actually take a shower at 40,000 feet! The experience was surreal and refreshing. The crew anticipated every need, and the sommelier helped me pair wines with the multi-course dinner prepared by renowned chefs. I had the Arabic mezze selection followed by the wagyu beef, and it was restaurant-quality food. The bed was incredibly comfortable with luxury linens, and I slept for 6 hours straight. Landing in London, I felt refreshed and ready to explore. Worth every penny for special occasions! The Emirates A380 truly redefines luxury travel. #EmiratesFirstClass #A380Experience #LuxuryTravel',
-          timestamp: '6 hours ago',
-          likes: 89,
-          comments: 15,
-          isLiked: true,
-          rating: 5,
-        ),
-      ),
-      FlightPost(
-        id: '3',
-        user: PostUser(
-          name: 'Maria Rodriguez',
-          avatar: null,
-          nationality: 'Spanish',
-        ),
-        flight: PostFlight(number: 'IB6275', route: 'MAD → LAX'),
-        post: PostContent(
-          title: 'Long haul flight tips and cloud formations',
-          content:
-              'Flying from Madrid to LA and captured stunning cloud formations! Sharing my top tips for long-haul comfort...',
-          fullContent:
-              'Flying from Madrid to LA and captured stunning cloud formations! Sharing my top tips for long-haul comfort that I\'ve learned from years of international travel. First, hydration is key - I drink water constantly and avoid alcohol and too much caffeine. I bring my own water bottle and ask the crew to refill it regularly. Second, movement is crucial - I set a timer to walk the aisles every hour and do simple stretches in my seat. The Airbus A350 on this Iberia flight is incredibly quiet and comfortable, making the 12+ hour journey much more pleasant. The new premium economy seats have great legroom and adjustable headrests. Entertainment-wise, I downloaded several movies and podcasts before the flight, but honestly, spending time looking out the window was the best entertainment. We flew over the Pyrenees, the Atlantic, Greenland, and parts of Canada - each view was spectacular. The cloud formations over the Atlantic were like nothing I\'ve ever seen - towering cumulus clouds that looked like white mountains floating in the sky. Pro tip: bring your own snacks (nuts, energy bars), a good neck pillow, noise-canceling headphones, and layers for temperature changes. The crew was helpful throughout, and the meal service was excellent. Already planning my next adventure! #LongHaulTips #IberiaAirlines #CloudWatching',
-          timestamp: '1 day ago',
-          likes: 156,
-          comments: 31,
-          isLiked: false,
-          rating: 4,
-        ),
-      ),
-    ];
+    // TODO: Implement when backend endpoint is available
+    await Future.delayed(Duration(milliseconds: 300));
+    return [];
   }
 
-  // Get pre-flight matches
+  // Get pre-flight matches - This is now handled by MatchService in home_view_model
+  // Keeping for backward compatibility but it's not used anymore
   Future<Map<String, dynamic>> getPreFlightMatches(String userId) async {
     await Future.delayed(Duration(milliseconds: 300));
-
     return {
-      'matchCount': 2,
-      'matches': [
-        {
-          'name': 'Mariam from Kenya',
-          'initials': 'MW',
-          'route': 'Same flight DXB → LHR',
-          'message': 'Looking for coffee companions during Dubai layover!',
-          'matchScore': 88,
-        },
-      ],
-      'commonRoute': 'Same route • Dubai layover',
+      'matchCount': 0,
+      'matches': [],
+      'commonRoute': 'No matches found',
     };
   }
 
   // Check in for flight
   Future<bool> checkInForFlight(String flightNumber, String userId) async {
-    await Future.delayed(Duration(seconds: 2));
-    // Simulate successful check-in
-    return true;
+    try {
+      final token = await _getAuthToken();
+      if (token == null) {
+        throw Exception('Not authenticated');
+      }
+
+      // Find the flight by flight number
+      final response = await http.get(
+        Uri.parse(AppConstants.flightsEndpoint),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> flights = json.decode(response.body);
+        final flight = flights.firstWhere(
+          (f) => f['flight_number'] == flightNumber,
+          orElse: () => null,
+        );
+
+        if (flight != null) {
+          // In a real app, you would call a check-in endpoint here
+          // For now, just return true
+          return true;
+        }
+      }
+      return false;
+    } catch (e) {
+      print('Error checking in: $e');
+      return false;
+    }
   }
 
   // Get flight details
   Future<Map<String, dynamic>> getFlightDetails(String flightNumber) async {
-    await Future.delayed(Duration(milliseconds: 400));
+    try {
+      final token = await _getAuthToken();
+      if (token == null) {
+        throw Exception('Not authenticated');
+      }
 
-    return {
-      'flightNumber': flightNumber,
-      'status': 'On Time',
-      'gate': 'B7',
-      'terminal': 'T2',
-      'boardingTime': '23:00',
-      'duration': '7h 15m',
-    };
+      final response = await http.get(
+        Uri.parse(AppConstants.flightsEndpoint),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> flights = json.decode(response.body);
+        final flight = flights.firstWhere(
+          (f) => f['flight_number'] == flightNumber,
+          orElse: () => null,
+        );
+
+        if (flight != null) {
+          return {
+            'flightNumber': flight['flight_number'],
+            'status': _formatStatus(flight['status'] ?? 'scheduled'),
+            'gate': flight['departure_gate'] ?? flight['gate'] ?? '',
+            'terminal': flight['departure_terminal'] ?? '',
+            'boardingTime': flight['boarding_time'] ?? '',
+            'duration': flight['duration_hours'] != null
+                ? '${flight['duration_hours']}h'
+                : '',
+          };
+        }
+      }
+      throw Exception('Flight not found');
+    } catch (e) {
+      throw Exception('Error loading flight details: $e');
+    }
   }
 }

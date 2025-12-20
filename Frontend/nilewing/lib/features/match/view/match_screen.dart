@@ -43,11 +43,22 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
     ref.read(matchViewModelProvider.notifier).setSelectedMatch(match);
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => MatchDetailScreen(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => MatchDetailScreen(
           match: match,
           onNavigateBack: () => Navigator.pop(context),
         ),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          const begin = Offset(1.0, 0.0);
+          const end = Offset.zero;
+          const curve = Curves.easeInOutCubic;
+          var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+          return SlideTransition(
+            position: animation.drive(tween),
+            child: child,
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 300),
       ),
     );
   }
@@ -56,14 +67,28 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
     ref.read(matchViewModelProvider.notifier).loadUserDetail(user.id);
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => UserDetailScreen(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => UserDetailScreen(
           user: user,
           onNavigateBack: () {
             ref.read(matchViewModelProvider.notifier).clearSelectedUser();
             Navigator.pop(context);
           },
         ),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          const begin = Offset(0.0, 1.0);
+          const end = Offset.zero;
+          const curve = Curves.easeInOutCubic;
+          var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+          return SlideTransition(
+            position: animation.drive(tween),
+            child: FadeTransition(
+              opacity: animation,
+              child: child,
+            ),
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 300),
       ),
     );
   }
@@ -221,7 +246,38 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
   }
 
   Widget _buildLoading() {
-    return const Expanded(child: Center(child: CircularProgressIndicator()));
+    return Expanded(
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            TweenAnimationBuilder<double>(
+              duration: const Duration(milliseconds: 1500),
+              tween: Tween(begin: 0.0, end: 1.0),
+              curve: Curves.easeInOut,
+              builder: (context, value, child) {
+                return Transform.rotate(
+                  angle: value * 2 * 3.14159,
+                  child: child,
+                );
+              },
+              child: const CircularProgressIndicator(
+                strokeWidth: 3,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Finding matches...',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildError(BuildContext context, String error, MatchViewModel viewModel) {

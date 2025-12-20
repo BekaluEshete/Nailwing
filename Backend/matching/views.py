@@ -118,6 +118,7 @@ class MatchViewSet(viewsets.ReadOnlyModelViewSet):
             )
 
         # Create or update match records
+        # Allow multiple matches per user (for different flights)
         matches = []
         for match_data in match_data_list:
             other_user = match_data["user"]
@@ -131,9 +132,25 @@ class MatchViewSet(viewsets.ReadOnlyModelViewSet):
                 user1, user2 = other_user, user
                 flight1, flight2 = other_flight, flight
 
-            match = MatchingService.create_or_update_match(
-                user1, user2, flight1, flight2, match_data
-            )
+            # Check for existing match with same user pair and flight pair
+            # Allow multiple matches if flights are different
+            existing_match = Match.objects.filter(
+                user1=user1,
+                user2=user2,
+                flight1=flight1,
+                flight2=flight2
+            ).first()
+
+            if existing_match:
+                # Update existing match
+                match = MatchingService.create_or_update_match(
+                    user1, user2, flight1, flight2, match_data
+                )
+            else:
+                # Create new match (even if same user pair but different flights)
+                match = MatchingService.create_or_update_match(
+                    user1, user2, flight1, flight2, match_data
+                )
             matches.append(match)
 
         serializer = self.get_serializer(matches, many=True)

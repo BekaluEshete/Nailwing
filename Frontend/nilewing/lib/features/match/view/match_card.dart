@@ -16,55 +16,65 @@ class MatchCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      margin: const EdgeInsets.only(bottom: 16),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.grey[300]!, width: 1),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // User header (clickable)
-              _buildUserHeader(),
-              const SizedBox(height: 12),
+    return TweenAnimationBuilder<double>(
+      duration: const Duration(milliseconds: 200),
+      tween: Tween(begin: 0.95, end: 1.0),
+      builder: (context, scale, child) {
+        return Transform.scale(
+          scale: scale,
+          child: Card(
+            elevation: 2,
+            margin: const EdgeInsets.only(bottom: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: Colors.grey[300]!, width: 1),
+            ),
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(12),
+              onTapDown: (_) {},
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // User header (clickable)
+                    _buildUserHeader(),
+                    const SizedBox(height: 12),
 
-              // Compatibility
-              _buildCompatibilitySection(),
-              const SizedBox(height: 12),
+                    // Compatibility
+                    _buildCompatibilitySection(),
+                    const SizedBox(height: 12),
 
-              // Description
-              _buildDescription(),
-              const SizedBox(height: 12),
+                    // Description
+                    _buildDescription(),
+                    const SizedBox(height: 12),
 
-              // Route info
-              _buildRouteInfo(),
-              const SizedBox(height: 12),
+                    // Route info
+                    _buildRouteInfo(),
+                    const SizedBox(height: 12),
 
-              // Suggested activities
-              _buildSuggestedActivities(),
-              const SizedBox(height: 12),
+                    // Suggested activities
+                    _buildSuggestedActivities(),
+                    const SizedBox(height: 12),
 
-              // Trip purpose
-              if (match.tripPurpose != null) _buildTripPurpose(),
-              if (match.tripPurpose != null) const SizedBox(height: 12),
+                    // Trip purpose
+                    if (match.tripPurpose != null) _buildTripPurpose(),
+                    if (match.tripPurpose != null) const SizedBox(height: 12),
 
-              // Common interests
-              _buildCommonInterests(),
-              const SizedBox(height: 12),
+                    // Common interests
+                    _buildCommonInterests(),
+                    const SizedBox(height: 12),
 
-              // Status and action
-              _buildStatusSection(),
-            ],
+                    // Status and action
+                    _buildStatusSection(),
+                  ],
+                ),
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 

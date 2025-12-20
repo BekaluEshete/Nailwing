@@ -183,7 +183,38 @@ class _RecommendationsScreenState extends ConsumerState<RecommendationsScreen>
   }
 
   Widget _buildLoading() {
-    return const Expanded(child: Center(child: CircularProgressIndicator()));
+    return Expanded(
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            TweenAnimationBuilder<double>(
+              duration: const Duration(milliseconds: 1500),
+              tween: Tween(begin: 0.0, end: 1.0),
+              curve: Curves.easeInOut,
+              builder: (context, value, child) {
+                return Transform.rotate(
+                  angle: value * 2 * 3.14159,
+                  child: child,
+                );
+              },
+              child: const CircularProgressIndicator(
+                strokeWidth: 3,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Loading recommendations...',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildError(String error, RecommendationsViewModel viewModel) {
@@ -226,7 +257,19 @@ class _RecommendationsScreenState extends ConsumerState<RecommendationsScreen>
     final places = viewModel.state.filteredPlaces;
 
     if (places.isEmpty) {
-      return const Center(child: Text('No places found'));
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.location_off, size: 64, color: Colors.grey[300]),
+            const SizedBox(height: 16),
+            Text(
+              'No places found',
+              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+            ),
+          ],
+        ),
+      );
     }
 
     return ListView.builder(
@@ -234,11 +277,25 @@ class _RecommendationsScreenState extends ConsumerState<RecommendationsScreen>
       itemCount: places.length,
       itemBuilder: (context, index) {
         final place = places[index];
-        return PlaceCard(
-          place: place,
-          isFavorite: viewModel.state.favoriteIds.contains(place.id),
-          onTap: () => viewModel.setSelectedPlace(place),
-          onFavoriteTap: () => viewModel.toggleFavorite(place.id),
+        return TweenAnimationBuilder<double>(
+          duration: Duration(milliseconds: 300 + (index * 50)),
+          tween: Tween(begin: 0.0, end: 1.0),
+          curve: Curves.easeOutCubic,
+          builder: (context, value, child) {
+            return Transform.translate(
+              offset: Offset(0, 20 * (1 - value)),
+              child: Opacity(
+                opacity: value,
+                child: child,
+              ),
+            );
+          },
+          child: PlaceCard(
+            place: place,
+            isFavorite: viewModel.state.favoriteIds.contains(place.id),
+            onTap: () => viewModel.setSelectedPlace(place),
+            onFavoriteTap: () => viewModel.toggleFavorite(place.id),
+          ),
         );
       },
     );
@@ -252,11 +309,11 @@ class _RecommendationsScreenState extends ConsumerState<RecommendationsScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.people_outline, size: 48, color: Colors.grey),
+            Icon(Icons.people_outline, size: 64, color: Colors.grey[300]),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'No people found',
-              style: TextStyle(fontSize: 16, color: Colors.grey),
+              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
             ),
             const SizedBox(height: 8),
             Text(
@@ -274,9 +331,23 @@ class _RecommendationsScreenState extends ConsumerState<RecommendationsScreen>
       itemCount: users.length,
       itemBuilder: (context, index) {
         final user = users[index];
-        return UserCard(
-          user: user,
-          onConnect: () => viewModel.connectWithUser(user.id),
+        return TweenAnimationBuilder<double>(
+          duration: Duration(milliseconds: 300 + (index * 50)),
+          tween: Tween(begin: 0.0, end: 1.0),
+          curve: Curves.easeOutCubic,
+          builder: (context, value, child) {
+            return Transform.translate(
+              offset: Offset(0, 20 * (1 - value)),
+              child: Opacity(
+                opacity: value,
+                child: child,
+              ),
+            );
+          },
+          child: UserCard(
+            user: user,
+            onConnect: () => viewModel.connectWithUser(user.id),
+          ),
         );
       },
     );

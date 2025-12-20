@@ -162,83 +162,145 @@ class ChatViewModel extends StateNotifier<ChatState> {
 
   void _handleWebSocketMessage(Map<String, dynamic> data) {
     final messageType = data['type'];
+    print('💬 [ChatViewModel] Received WebSocket message type: $messageType');
 
-    if (messageType == 'message' && state.selectedChatId != null) {
-      // New message received
-      final isMe =
-          _currentUserId != null &&
-          data['user_id'] != null &&
-          data['user_id'].toString() == _currentUserId;
-
+    if (messageType == 'message') {
+      // Handle real-time messages - REAL-TIME CHAT IMPLEMENTATION
       final serverMessageId = data['message_id']?.toString();
       final messageContent = data['message'] ?? '';
+      final userId = data['user_id']?.toString();
+      final roomName = data['room_name'] ?? _currentRoomName;
+      
+      if (serverMessageId == null || messageContent.isEmpty) {
+        print('⚠️ [ChatViewModel] Invalid message data received');
+        return;
+      }
 
-      // Update state with new message
-      final updatedMessages = Map<String, List<ChatMessage>>.from(
-        state.messages,
-      );
-      final currentMessages = List<ChatMessage>.from(
-        updatedMessages[state.selectedChatId!] ?? [],
-      );
+      print('💬 [ChatViewModel] Received message for room: $roomName');
 
-      if (isMe && serverMessageId != null) {
-        // This is our own message coming back from server
-        // Find and replace the optimistic message (with temp ID) with server message
-        final messageIndex = currentMessages.indexWhere(
-          (msg) =>
-              msg.senderId == 'me' &&
-              msg.content == messageContent &&
-              !_isUuidFormat(msg.id),
-        ); // Temp IDs are timestamps, not UUIDs
+      // Use the currently selected chat ID if this message is for the current room
+      String? chatId = state.selectedChatId;
+      
+      // If room name doesn't match current room, try to find the contact
+      if (roomName != null && roomName != _currentRoomName && state.selectedChatId == null) {
+        // Message for a different room - find the contact by room name
+        // This can happen if user receives a message while viewing a different chat
+        _handleMessageForDifferentRoom(roomName, data);
+        return;
+      }
 
-        if (messageIndex != -1) {
-          // Replace optimistic message with server-confirmed message
-          currentMessages[messageIndex] = ChatMessage(
-            id: serverMessageId,
-            senderId: 'me',
-            content: messageContent,
-            timestamp: _formatTimestamp(data['timestamp']),
-            type: _parseMessageType(data['message_type'] ?? 'text'),
-          );
-        } else {
-          // If we couldn't find the optimistic message, check if server message already exists
-          final existingIds = currentMessages.map((m) => m.id).toSet();
-          if (!existingIds.contains(serverMessageId)) {
-            // Add as new message if it doesn't exist
-            currentMessages.add(
-              ChatMessage(
-                id: serverMessageId,
-                senderId: 'me',
-                content: messageContent,
-                timestamp: _formatTimestamp(data['timestamp']),
-                type: _parseMessageType(data['message_type'] ?? 'text'),
-              ),
-            );
-          }
-        }
+      if (chatId == null) {
+        print('⚠️ [ChatViewModel] No selected chat, cannot process message');
+        return;
+      }
+
+      // Determine if message is from current user
+      final isMe = _currentUserId != null && userId == _currentUserId;
+
+      print('💬 [ChatViewModel] Processing REAL-TIME message: $messageContent (isMe: $isMe, chatId: $chatId)');
+
+      // Update state with new message - CRITICAL FOR REAL-TIME UPDATES
+      final updatedMessages = Map<String, List<ChatMessage>>.from(state.messages);
+      final currentMessages = List<ChatMessage>.from(updatedMessages[chatId] ?? []);
+
+      // Check if message already exists (prevent duplicates)
+      final existingIds = currentMessages.map((m) => m.id).toSet();
+      
+      if (!existingIds.contains(serverMessageId)) {
+        // Add new message to the list
+        final newMessage = ChatMessage(
+          id: serverMessageId,
+          senderId: isMe ? 'me' : userId ?? 'unknown',
+          content: messageContent,
+          timestamp: _formatTimestamp(data['timestamp']),
+          type: _parseMessageType(data['message_type'] ?? 'text'),
+        );
+
+        currentMessages.add(newMessage);
+        updatedMessages[chatId] = currentMessages;
+
+        // Update state - this triggers UI refresh
+        state = state.copyWith(messages: updatedMessages);
+
+        print('✅ [ChatViewModel] REAL-TIME message added. Total messages: ${currentMessages.length}');
       } else {
-        // Message from other user - check for duplicates
-        final existingIds = currentMessages.map((m) => m.id).toSet();
-        final messageId =
-            serverMessageId ?? DateTime.now().millisecondsSinceEpoch.toString();
-
-        if (!existingIds.contains(messageId)) {
-          currentMessages.add(
-            ChatMessage(
-              id: messageId,
-              senderId: data['user_id']?.toString() ?? 'unknown',
+        print('ℹ️ [ChatViewModel] Message already exists, skipping duplicate');
+        // If it's our own message with temp ID, replace it with server ID
+        final existingIndex = currentMessages.indexWhere((m) => m.id == serverMessageId);
+        if (existingIndex == -1) {
+          // This shouldn't happen, but handle it anyway
+          final tempMessageIndex = currentMessages.indexWhere(
+            (m) => !_isUuidFormat(m.id) && m.content == messageContent && m.senderId == 'me',
+          );
+          if (tempMessageIndex != -1) {
+            currentMessages[tempMessageIndex] = ChatMessage(
+              id: serverMessageId,
+              senderId: 'me',
               content: messageContent,
               timestamp: _formatTimestamp(data['timestamp']),
               type: _parseMessageType(data['message_type'] ?? 'text'),
-            ),
-          );
+            );
+            updatedMessages[chatId] = currentMessages;
+            state = state.copyWith(messages: updatedMessages);
+          }
         }
       }
-
-      updatedMessages[state.selectedChatId!] = currentMessages;
-      state = state.copyWith(messages: updatedMessages);
+    } else if (messageType == 'typing') {
+      // Handle typing indicators
+      print('⌨️ [ChatViewModel] Typing indicator received');
+      // TODO: Implement typing indicators if needed
+    } else if (messageType == 'user_joined' || messageType == 'user_left') {
+      // Handle user join/leave
+      print('👤 [ChatViewModel] User ${messageType == 'user_joined' ? 'joined' : 'left'}');
+      // TODO: Implement user join/leave indicators if needed
     }
-    // Typing indicators and user join/leave can be handled here if needed
+  }
+
+  // Helper to handle messages for a different room (when chat not selected)
+  Future<void> _handleMessageForDifferentRoom(String roomName, Map<String, dynamic> messageData) async {
+    try {
+      // Get the room ID from the service
+      final roomId = await _chatService.getRoomIdFromName(roomName);
+      if (roomId != null) {
+        final chatId = roomId;
+        final serverMessageId = messageData['message_id']?.toString();
+        final messageContent = messageData['message'] ?? '';
+        final userId = messageData['user_id']?.toString();
+        final isMe = _currentUserId != null && userId == _currentUserId;
+
+        final updatedMessages = Map<String, List<ChatMessage>>.from(state.messages);
+        final currentMessages = List<ChatMessage>.from(updatedMessages[chatId] ?? []);
+
+        final existingIds = currentMessages.map((m) => m.id).toSet();
+        if (!existingIds.contains(serverMessageId)) {
+          final newMessage = ChatMessage(
+            id: serverMessageId!,
+            senderId: isMe ? 'me' : userId ?? 'unknown',
+            content: messageContent,
+            timestamp: _formatTimestamp(messageData['timestamp']),
+            type: _parseMessageType(messageData['message_type'] ?? 'text'),
+          );
+
+          currentMessages.add(newMessage);
+          updatedMessages[chatId] = currentMessages;
+
+          // Update unread count for this contact
+          if (!isMe) {
+            final updatedContacts = state.contacts.map((contact) {
+              if (contact.id == chatId) {
+                return contact.copyWith(unreadCount: contact.unreadCount + 1);
+              }
+              return contact;
+            }).toList();
+            state = state.copyWith(messages: updatedMessages, contacts: updatedContacts);
+          } else {
+            state = state.copyWith(messages: updatedMessages);
+          }
+        }
+      }
+    } catch (e) {
+      print('⚠️ [ChatViewModel] Error handling message for different room: $e');
+    }
   }
 
   // Helper to check if ID is UUID format (server-generated) vs timestamp (temp ID)
