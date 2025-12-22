@@ -101,8 +101,8 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
       }
     }
 
-    // Auto-scroll to bottom when new messages arrive
-    if (messages.isNotEmpty) {
+    // Auto-scroll to bottom when messages are loaded or new messages arrive
+    if (messages.isNotEmpty && !chatState.isLoading) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_scrollController.hasClients) {
           _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
@@ -137,25 +137,39 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
               ),
             // Messages
             Expanded(
-              child: messages.isEmpty
+              child: chatState.isLoading
                   ? Center(
-                      child: Text(
-                        'No messages yet. Start the conversation!',
-                        style: TextStyle(color: Colors.grey[600]),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const CircularProgressIndicator(),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Loading messages...',
+                            style: TextStyle(color: Colors.grey[600]),
+                          ),
+                        ],
                       ),
                     )
-                  : Column(
-                      children: [
-                        Expanded(
-                          child: ListView.builder(
-                            controller: _scrollController,
-                            padding: const EdgeInsets.all(16),
-                            itemCount: messages.length,
-                            itemBuilder: (context, index) {
-                              return _buildMessageBubble(messages[index]);
-                            },
+                  : messages.isEmpty
+                      ? Center(
+                          child: Text(
+                            'No messages yet. Start the conversation!',
+                            style: TextStyle(color: Colors.grey[600]),
                           ),
-                        ),
+                        )
+                      : Column(
+                          children: [
+                            Expanded(
+                              child: ListView.builder(
+                                controller: _scrollController,
+                                padding: const EdgeInsets.all(16),
+                                itemCount: messages.length,
+                                itemBuilder: (context, index) {
+                                  return _buildMessageBubble(messages[index]);
+                                },
+                              ),
+                            ),
                         // Typing indicator
                         if (isTyping)
                           Container(

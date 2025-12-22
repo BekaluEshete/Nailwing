@@ -76,7 +76,12 @@ class ChatViewModel extends StateNotifier<ChatState> {
   }
 
   Future<void> selectChat(String contactId) async {
-    state = state.copyWith(selectedChatId: contactId, error: null);
+    // Set loading state BEFORE selecting chat to show loading indicator
+    state = state.copyWith(
+      isLoading: true,
+      selectedChatId: contactId,
+      error: null,
+    );
 
     try {
       // Get room name from contact ID
@@ -94,7 +99,10 @@ class ChatViewModel extends StateNotifier<ChatState> {
 
       // ALWAYS load messages from database when selecting a chat
       // This ensures we have the latest persisted messages
+      // Load messages BEFORE updating state to prevent empty screen
+      print('📥 [ChatViewModel] Loading messages for chat: $contactId');
       final messages = await _chatService.getMessages(contactId);
+      print('✅ [ChatViewModel] Loaded ${messages.length} messages from database');
 
       // Update state with loaded messages from database
       final updatedMessages = Map<String, List<ChatMessage>>.from(
@@ -105,6 +113,8 @@ class ChatViewModel extends StateNotifier<ChatState> {
       final existingMessages = updatedMessages[contactId] ?? [];
 
       // Map database messages
+      // Note: Messages from backend are already sorted by timestamp (oldest first)
+      // We preserve that order and only sort when combining with optimistic messages
       final dbMessages = messages.map((msg) {
         // Determine if message is from current user
         final isMe = _currentUserId != null && msg.senderId == _currentUserId;
@@ -112,10 +122,13 @@ class ChatViewModel extends StateNotifier<ChatState> {
           id: msg.id,
           senderId: isMe ? 'me' : msg.senderId,
           content: msg.content,
-          timestamp: msg.timestamp,
+          timestamp: msg.timestamp,  // Already formatted by service
           type: msg.type,
         );
       }).toList();
+      
+      // Backend returns messages sorted by timestamp (oldest first)
+      // No need to re-sort dbMessages - they're already in correct order
 
       // Preserve optimistic messages (temp IDs) that aren't in database yet
       final dbMessageIds = dbMessages.map((m) => m.id).toSet();
@@ -127,6 +140,7 @@ class ChatViewModel extends StateNotifier<ChatState> {
       }).toList();
 
       // Combine: database messages first, then optimistic messages
+      // Database messages are already sorted (oldest first) from backend
       final allMessages = [...dbMessages, ...optimisticMessages];
 
       // Remove duplicates by ID (keep the one with UUID if both exist)
@@ -144,20 +158,35 @@ class ChatViewModel extends StateNotifier<ChatState> {
         }
       }
       
-      // Sort messages by timestamp
-      final sortedMessages = uniqueMessages.values.toList();
-      sortedMessages.sort((a, b) {
-        try {
-          final aTime = DateTime.parse(a.timestamp);
-          final bTime = DateTime.parse(b.timestamp);
-          return aTime.compareTo(bTime);
-        } catch (e) {
-          return 0;
+      // Convert to list
+      // Backend returns messages sorted by timestamp (oldest first)
+      // Optimistic messages (temp IDs) should go at the end
+      final sortedMessages = <ChatMessage>[];
+      
+      // Add database messages first (already sorted from backend)
+      for (final msg in dbMessages) {
+        if (uniqueMessages.containsKey(msg.id)) {
+          sortedMessages.add(uniqueMessages[msg.id]!);
         }
-      });
+      }
+      
+      // Add optimistic messages at the end (they're newer)
+      for (final msg in optimisticMessages) {
+        if (uniqueMessages.containsKey(msg.id)) {
+          sortedMessages.add(uniqueMessages[msg.id]!);
+        }
+      }
+      
       updatedMessages[contactId] = sortedMessages;
 
-      state = state.copyWith(messages: updatedMessages);
+      // Update state with messages AND clear loading state
+      // This ensures messages are displayed immediately when chat opens
+      state = state.copyWith(
+        messages: updatedMessages,
+        isLoading: false,  // Clear loading state after messages are loaded
+      );
+      
+      print('✅ [ChatViewModel] State updated with ${sortedMessages.length} messages. Loading: false');
 
       // Connect to WebSocket for real-time messages (non-blocking, only if not already connected)
       if (!_chatService.isConnected(_currentRoomName!)) {
@@ -194,9 +223,16 @@ class ChatViewModel extends StateNotifier<ChatState> {
         return contact;
       }).toList();
 
-      state = state.copyWith(contacts: updatedContacts);
+      state = state.copyWith(
+        contacts: updatedContacts,
+        isLoading: false,  // Ensure loading is cleared even if WebSocket fails
+      );
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      print('❌ [ChatViewModel] Error selecting chat: $e');
+      state = state.copyWith(
+        error: e.toString(),
+        isLoading: false,  // Clear loading state on error
+      );
     }
   }
 
@@ -208,7 +244,6 @@ class ChatViewModel extends StateNotifier<ChatState> {
       // Handle real-time messages - REAL-TIME CHAT IMPLEMENTATION
       final serverMessageId = data['message_id']?.toString();
       final messageContent = data['message'] ?? '';
-      final userId = data['user_id']?.toString();
       final roomName = data['room_name'] ?? _currentRoomName;
       
       if (serverMessageId == null || messageContent.isEmpty) {
