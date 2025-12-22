@@ -244,7 +244,7 @@ class MatchViewModel extends StateNotifier<MatchState> {
   }
 
   // Accept a connection request
-  Future<void> acceptConnection(String matchId) async {
+  Future<Match> acceptConnection(String matchId) async {
     try {
       final updatedMatch = await _service.acceptConnection(matchId);
       final updatedMatches = state.matches.map((match) {
@@ -254,8 +254,11 @@ class MatchViewModel extends StateNotifier<MatchState> {
         return match;
       }).toList();
       state = state.copyWith(matches: updatedMatches);
+      // Return the updated match so the caller can use it
+      return updatedMatch;
     } catch (e) {
       state = state.copyWith(error: 'Failed to accept connection: $e');
+      rethrow; // Re-throw to let caller handle the error
     }
   }
 

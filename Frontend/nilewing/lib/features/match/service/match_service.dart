@@ -423,16 +423,43 @@ class MatchService {
       print('⚠️ [MatchService] Could not determine current user (current: $currentUserId, user1: $user1Id, user2: $user2Id), defaulting to user2');
     }
 
-    // Parse match type
+    // Parse match type - explicit mapping from backend to frontend
     final matchTypeStr = json['match_type'] ?? '';
-    MatchType matchType = MatchType.sameRoute;
-    if (matchTypeStr.contains('layover')) {
-      matchType = MatchType.sameLayover;
-    } else if (matchTypeStr.contains('departure')) {
-      matchType = MatchType.departureMatch;
-    } else if (matchTypeStr.contains('destination')) {
-      matchType = MatchType.destinationMatch;
+    MatchType matchType;
+    
+    switch (matchTypeStr) {
+      case 'same_route':
+        matchType = MatchType.sameRoute;
+        break;
+      case 'same_layover':
+        matchType = MatchType.sameLayover;
+        break;
+      case 'same_departure':
+        matchType = MatchType.departureMatch;
+        break;
+      case 'same_destination':
+        matchType = MatchType.destinationMatch;
+        break;
+      case 'layover_departure':
+      case 'departure_layover':
+        // Both represent Scenario 3: Departure is someone's layover/destination
+        matchType = MatchType.departureMatch;
+        break;
+      default:
+        // Fallback: try to infer from string (for backward compatibility)
+        if (matchTypeStr.contains('layover')) {
+          matchType = MatchType.sameLayover;
+        } else if (matchTypeStr.contains('departure')) {
+          matchType = MatchType.departureMatch;
+        } else if (matchTypeStr.contains('destination')) {
+          matchType = MatchType.destinationMatch;
+        } else {
+          matchType = MatchType.sameRoute; // Default fallback
+        }
+        print('⚠️ [MatchService] Unknown match_type: "$matchTypeStr", defaulting to ${matchType.name}');
     }
+    
+    print('🔍 [MatchService] Parsed match_type: "$matchTypeStr" → ${matchType.name}');
 
     // Build flight info
     FlightInfo? flightInfo;
