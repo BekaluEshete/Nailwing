@@ -221,9 +221,11 @@ class MatchViewModel extends StateNotifier<MatchState> {
         return match;
       }).toList();
 
-      state = state.copyWith(matches: updatedMatches);
+      state = state.copyWith(matches: updatedMatches, error: null);
     } catch (e) {
       state = state.copyWith(error: 'Failed to like match: $e');
+      // Re-throw so the caller can handle it
+      rethrow;
     }
   }
 

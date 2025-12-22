@@ -382,10 +382,10 @@ class MatchDetailScreen extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _getStatusColor(match.status).withOpacity(0.1),
+        color: _getStatusColor(currentMatch.status).withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: _getStatusColor(match.status).withOpacity(0.3),
+          color: _getStatusColor(currentMatch.status).withOpacity(0.3),
         ),
       ),
       child: Row(
@@ -398,7 +398,7 @@ class MatchDetailScreen extends ConsumerWidget {
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              match.status,
+              currentMatch.status,
               style: TextStyle(
                 fontSize: 14,
                 color: _getStatusColor(match.status),
@@ -534,30 +534,33 @@ class MatchDetailScreen extends ConsumerWidget {
     MatchViewModel matchViewModel,
     Match match,
   ) async {
-    try {
-      // Show loading indicator
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
+    // Show loading indicator
+    if (!context.mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
 
+    try {
       // Send connection request (like the match)
       print('💚 [MatchDetail] Sending connection request for match: ${match.id}');
       await matchViewModel.likeMatch(match.id);
       
-      // Refresh matches to get updated status
-      await matchViewModel.loadMatches();
-
-      // Close loading dialog
+      // Close loading dialog BEFORE showing success message
       if (context.mounted) {
         Navigator.of(context).pop();
+      }
+
+      // Show success message
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Connection request sent!'),
             backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
           ),
         );
       }
@@ -571,6 +574,7 @@ class MatchDetailScreen extends ConsumerWidget {
           SnackBar(
             content: Text('Error: ${e.toString()}'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
           ),
         );
       }
