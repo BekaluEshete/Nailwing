@@ -5,6 +5,7 @@ import 'package:nilewing/core/theme/app_colors.dart';
 import 'package:nilewing/core/providers/auth_provider.dart';
 import 'package:nilewing/features/auth/service/login_service.dart';
 import 'package:nilewing/features/user/viewmodel/user_view_model.dart';
+import 'package:nilewing/features/user/view/profile_drawer.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -166,11 +167,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
+      drawer: const ProfileDrawer(),
       appBar: AppBar(
         title: const Text('My Profile'),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         elevation: 0,
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () {
+              Scaffold.of(context).openDrawer();
+            },
+          ),
+        ),
         actions: _isEditing
             ? [
                 IconButton(
@@ -235,36 +245,43 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     return Center(
       child: Stack(
         children: [
-          // Profile Image
-          Container(
-            width: 120,
-            height: 120,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: AppColors.primary, width: 3),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 10,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-            child: ClipOval(
-              child: selectedImage != null
-                  ? Image.file(
-                      selectedImage,
-                      fit: BoxFit.cover,
-                    )
-                  : profileImageUrl != null
-                      ? Image.network(
-                          profileImageUrl,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return _buildDefaultAvatar();
-                          },
-                        )
-                      : _buildDefaultAvatar(),
+          // Profile Image - Make it tappable to open drawer when not editing
+          GestureDetector(
+            onTap: _isEditing
+                ? null
+                : () {
+                    Scaffold.of(context).openDrawer();
+                  },
+            child: Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.primary, width: 3),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 10,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: ClipOval(
+                child: selectedImage != null
+                    ? Image.file(
+                        selectedImage,
+                        fit: BoxFit.cover,
+                      )
+                    : profileImageUrl != null
+                        ? Image.network(
+                            profileImageUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return _buildDefaultAvatar();
+                            },
+                          )
+                        : _buildDefaultAvatar(),
+              ),
             ),
           ),
 

@@ -2,26 +2,30 @@ import os
 from pathlib import Path
 import dj_database_url
 from dotenv import load_dotenv
-
+from datetime import timedelta
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(os.path.join(BASE_DIR, ".env"))
 
-
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
-
-# SECURITY WARNING: keep the secret key used in production secret!
+# =========================
+# SECURITY
+# =========================
 SECRET_KEY = os.getenv("SECRET_KEY", "unsafe-secret")
 
-# SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG", "False") == "True"
 
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "*").split(",")
 
+CSRF_TRUSTED_ORIGINS = [
+    "https://nilewing-backend.onrender.com",
+]
 
-# Application definition
+CSRF_COOKIE_SECURE = True
+SESSION_COOKIE_SECURE = True
 
+# =========================
+# APPLICATIONS
+# =========================
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -29,9 +33,11 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+
     "rest_framework",
     "rest_framework_simplejwt",
     "corsheaders",
+
     "authentication",
     "channels",
     "chat",
@@ -40,13 +46,19 @@ INSTALLED_APPS = [
     "recommendations",
 ]
 
+# =========================
+# MIDDLEWARE
+# =========================
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",  # Add WhiteNoise for static files
+    "whitenoise.middleware.WhiteNoiseMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
-    "corsheaders.middleware.CorsMiddleware",  # Add CORS middleware
     "django.middleware.common.CommonMiddleware",
+
+    # CSRF middleware kept but safe for JWT APIs
     "django.middleware.csrf.CsrfViewMiddleware",
+
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -54,6 +66,9 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = "core.urls"
 
+# =========================
+# TEMPLATES
+# =========================
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
@@ -69,119 +84,40 @@ TEMPLATES = [
     },
 ]
 
+# =========================
+# WSGI / ASGI
+# =========================
 WSGI_APPLICATION = "core.wsgi.application"
-# Channels configuration for WebSockets
 ASGI_APPLICATION = "core.asgi.application"
 
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {
-            "hosts": [os.getenv("REDIS_URL", "redis://redis:6379/0")],
-            "symmetric_encryption_keys": [os.getenv("SECRET_KEY", "unsafe-secret")],
-            "capacity": 1500,  # Maximum number of messages to buffer
-            "expiry": 10,  # Message expiry in seconds
-        },
-    },
+# =========================
+# DATABASE
+# =========================
+DATABASES = {
+    "default": dj_database_url.config(
+        default=os.getenv("DATABASE_URL")
+    )
 }
 
-
-# Database
-# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
-
-DATABASES = {"default": dj_database_url.config(default=os.getenv("DATABASE_URL"))}
-
-
-# Password validation
-# https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
-
-AUTH_PASSWORD_VALIDATORS = [
-    {
-        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
-    },
-    {
-        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
-    },
-    {
-        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
-    },
-    {
-        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
-    },
+# =========================
+# AUTH / USER
+# =========================
+AUTH_USER_MODEL = "authentication.CustomUser"
+AUTHENTICATION_BACKENDS = [
+    "authentication.backends.EmailBackend"
 ]
 
-CACHES = {
-    "default": {
-        "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": os.getenv("REDIS_URL", "redis://redis:6379/1"),
-        "OPTIONS": {
-            "CLIENT_CLASS": "django_redis.client.DefaultClient",
-        },
-    }
-}
-
-
+# =========================
+# REST FRAMEWORK / JWT
+# =========================
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
+    "DEFAULT_PERMISSION_CLASSES": (
+        "rest_framework.permissions.AllowAny",
+    ),
 }
-
-
-# Internationalization
-# https://docs.djangoproject.com/en/5.2/topics/i18n/
-
-LANGUAGE_CODE = "en-us"
-
-TIME_ZONE = "UTC"
-
-USE_I18N = True
-
-USE_TZ = True
-
-
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/5.2/howto/static-files/
-
-STATIC_URL = "/static/"
-STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
-
-# Ensure STATIC_ROOT directory exists
-os.makedirs(STATIC_ROOT, exist_ok=True)
-STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
-
-# Ensure STATIC_ROOT directory exists
-os.makedirs(STATIC_ROOT, exist_ok=True)
-
-# Default primary key field type
-# https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
-
-DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-
-# Celery Configuration Options
-CELERY_BROKER_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-CELERY_RESULT_BACKEND = CELERY_BROKER_URL
-CELERY_ACCEPT_CONTENT = ["json"]
-CELERY_TASK_SERIALIZER = "json"
-CELERY_RESULT_SERIALIZER = "json"
-CELERY_TIMEZONE = "UTC"
-
-
-# Media files
-MEDIA_URL = "/media/"
-MEDIA_ROOT = os.path.join(BASE_DIR, "media")
-
-# File upload settings
-FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024 * 1024
-DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024 * 1024
-
-# settings.py
-AUTHENTICATION_BACKENDS = ["authentication.backends.EmailBackend"]
-AUTH_USER_MODEL = "authentication.CustomUser"
-
-
-# JWT Settings
-from datetime import timedelta
 
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
@@ -190,26 +126,12 @@ SIMPLE_JWT = {
     "BLACKLIST_AFTER_ROTATION": True,
 }
 
-# CORS Configuration
-# Note: For mobile apps (Flutter Android/iOS), CORS is less critical
-# since they're not subject to browser same-origin policy.
-# However, CORS is important for web apps and good practice in general.
-
-# Allow all origins (for development/testing)
-# For production, you should specify exact origins
+# =========================
+# CORS (SAFE FOR MOBILE)
+# =========================
 CORS_ALLOW_ALL_ORIGINS = True
-
-# Alternative: Specify exact allowed origins (more secure for production)
-# CORS_ALLOWED_ORIGINS = [
-#     "https://your-frontend-domain.com",
-#     "http://localhost:3000",  # For local web development
-#     "http://localhost:8080",
-# ]
-
-# Allow credentials (cookies, authorization headers)
 CORS_ALLOW_CREDENTIALS = True
 
-# Allowed headers
 CORS_ALLOW_HEADERS = [
     "accept",
     "accept-encoding",
@@ -222,7 +144,6 @@ CORS_ALLOW_HEADERS = [
     "x-requested-with",
 ]
 
-# Allowed HTTP methods
 CORS_ALLOW_METHODS = [
     "DELETE",
     "GET",
@@ -231,3 +152,65 @@ CORS_ALLOW_METHODS = [
     "POST",
     "PUT",
 ]
+
+# =========================
+# CHANNELS (NO REDIS – SAFE)
+# =========================
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
+    }
+}
+
+# =========================
+# CACHE (NO REDIS – SAFE)
+# =========================
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+    }
+}
+
+# =========================
+# PASSWORD VALIDATION
+# =========================
+AUTH_PASSWORD_VALIDATORS = [
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+]
+
+# =========================
+# INTERNATIONALIZATION
+# =========================
+LANGUAGE_CODE = "en-us"
+TIME_ZONE = "UTC"
+USE_I18N = True
+USE_TZ = True
+
+# =========================
+# STATIC FILES
+# =========================
+STATIC_URL = "/static/"
+STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
+os.makedirs(STATIC_ROOT, exist_ok=True)
+
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+
+# =========================
+# MEDIA FILES
+# =========================
+MEDIA_URL = "/media/"
+MEDIA_ROOT = os.path.join(BASE_DIR, "media")
+
+# =========================
+# UPLOAD LIMITS
+# =========================
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024 * 1024
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024 * 1024
+
+# =========================
+# DEFAULT PK
+# =========================
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
