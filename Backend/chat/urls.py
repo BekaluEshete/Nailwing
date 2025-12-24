@@ -14,6 +14,21 @@ urlpatterns = [
         views.MessageList.as_view(),
         name="message-create",
     ),
+    path(
+        "api/rooms/<uuid:room_id>/messages/mark_read/",
+        views.MarkMessagesAsRead.as_view(),
+        name="mark-messages-read",
+    ),
+    path(
+        "api/rooms/<uuid:room_id>/mark_read/",
+        views.MarkRoomAsRead.as_view(),
+        name="mark-room-read",
+    ),
+    path(
+        "api/rooms/<uuid:room_id>/unread_count/",
+        views.UnreadCountView.as_view(),
+        name="unread-count",
+    ),
     path("api/users/search/", views.user_search, name="user-search"),
     path(
         "api/chats/personal/",

@@ -6,6 +6,27 @@ import 'package:nilewing/core/utils/token_storage.dart';
 import 'package:nilewing/core/utils/http_client.dart';
 import 'package:nilewing/features/chat/model/chat_model.dart';
 
+// Internal class to track reconnection state
+class _ReconnectionState {
+  int retryCount = 0;
+  bool isRetrying = false;
+  DateTime? lastRetryTime;
+  
+  static const Duration _initialRetryDelay = Duration(seconds: 1);
+  
+  Duration getRetryDelay() {
+    // Exponential backoff: 1s, 2s, 4s, 8s, 16s
+    final delaySeconds = _initialRetryDelay.inSeconds * (1 << retryCount);
+    return Duration(seconds: delaySeconds.clamp(1, 30)); // Max 30 seconds
+  }
+  
+  void reset() {
+    retryCount = 0;
+    isRetrying = false;
+    lastRetryTime = null;
+  }
+}
+
 class ChatService {
   static final ChatService _instance = ChatService._internal();
   factory ChatService() => _instance;
@@ -133,6 +154,10 @@ class ChatService {
   // Track connection attempts to prevent infinite loops
   static final Map<String, DateTime> _lastConnectionAttempt = {};
   static const Duration _connectionCooldown = Duration(seconds: 10);
+  
+  // Track reconnection state per room
+  static final Map<String, _ReconnectionState> _reconnectionStates = {};
+  static const int _maxAutoRetries = 5;
 
   // Connect to WebSocket for a room with reconnection logic
   Future<WebSocketChannel?> connectToRoom(
@@ -141,6 +166,7 @@ class ChatService {
     int retryCount = 0,
     int maxRetries = 3,
     bool isManualRetry = false,
+    bool isAutoReconnect = false,
   }) async {
     try {
       // Prevent connection spam - check cooldown
@@ -184,6 +210,9 @@ class ChatService {
         final channel = WebSocketChannel.connect(uri);
         _activeConnections[roomName] = channel;
 
+        // Reset reconnection state on successful connection
+        _reconnectionStates[roomName]?.reset();
+        
         // Listen for messages in real-time
         channel.stream.listen(
           (message) {
@@ -205,13 +234,16 @@ class ChatService {
           onError: (error) {
             print('❌ [ChatService] WebSocket error for $roomName: $error');
             _activeConnections.remove(roomName);
-            // Don't auto-retry on error - let user manually retry or use HTTP
-            // Auto-retry causes infinite loops
+            // Attempt automatic reconnection with exponential backoff
+            _attemptReconnection(roomName, onMessage);
           },
           onDone: () {
             print('🔌 [ChatService] WebSocket connection closed for $roomName');
             _activeConnections.remove(roomName);
-            // Don't auto-retry - causes infinite loops
+            // Attempt automatic reconnection if this was an established connection
+            if (!isAutoReconnect) {
+              _attemptReconnection(roomName, onMessage);
+            }
           },
           cancelOnError: false, // Keep listening even if there's an error
         );
@@ -325,6 +357,65 @@ class ChatService {
       channel.sink.close();
       _activeConnections.remove(roomName);
     }
+    // Reset reconnection state when manually disconnecting
+    _reconnectionStates[roomName]?.reset();
+  }
+
+  // Attempt automatic reconnection with exponential backoff
+  Future<void> _attemptReconnection(
+    String roomName,
+    Function(Map<String, dynamic>) onMessage,
+  ) async {
+    // Get or create reconnection state
+    final state = _reconnectionStates.putIfAbsent(
+      roomName,
+      () => _ReconnectionState(),
+    );
+    
+    // Check if we should retry
+    if (state.isRetrying || state.retryCount >= _maxAutoRetries) {
+      if (state.retryCount >= _maxAutoRetries) {
+        print(
+          '⚠️ [ChatService] Max reconnection attempts ($_maxAutoRetries) reached for $roomName. Giving up.',
+        );
+      }
+      return;
+    }
+    
+    state.isRetrying = true;
+    state.retryCount++;
+    final delay = state.getRetryDelay();
+    state.lastRetryTime = DateTime.now();
+    
+    print(
+      '🔄 [ChatService] Attempting to reconnect to $roomName (attempt ${state.retryCount}/$_maxAutoRetries) after ${delay.inSeconds}s...',
+    );
+    
+    // Wait for exponential backoff delay
+    await Future.delayed(delay);
+    
+    state.isRetrying = false;
+    
+    // Attempt reconnection
+    try {
+      final channel = await connectToRoom(
+        roomName,
+        onMessage,
+        isAutoReconnect: true,
+      );
+      
+      if (channel == null) {
+        // Connection failed, will retry again if under limit
+        _attemptReconnection(roomName, onMessage);
+      } else {
+        print('✅ [ChatService] Successfully reconnected to $roomName');
+        state.reset();
+      }
+    } catch (e) {
+      print('❌ [ChatService] Reconnection attempt failed for $roomName: $e');
+      // Will retry again if under limit
+      _attemptReconnection(roomName, onMessage);
+    }
   }
 
   // Disconnect all
@@ -333,6 +424,8 @@ class ChatService {
     for (var roomName in _activeConnections.keys.toList()) {
       disconnectFromRoom(roomName);
     }
+    // Clear reconnection states
+    _reconnectionStates.clear();
   }
 
   // Check if WebSocket is connected for a room
@@ -702,11 +795,14 @@ class ChatService {
       }
     });
 
+    // Store original ISO timestamp for sorting
+    final isoTime = json['timestamp']?.toString();
     return ChatMessage(
       id: json['id']?.toString() ?? '',
       senderId: userId,
       content: json['content'] ?? '',
-      timestamp: _formatTimestamp(json['timestamp']),
+      timestamp: _formatTimestamp(isoTime),
+      isoTimestamp: isoTime, // Store original ISO timestamp for sorting
       type: _parseMessageType(json['message_type'] ?? 'text'),
     );
   }
@@ -720,6 +816,10 @@ class ChatService {
         return MessageType.location; // Map image to location for now
       case 'file':
         return MessageType.text;
+      case 'flight':
+        return MessageType.flight;
+      case 'location':
+        return MessageType.location;
       default:
         return MessageType.text;
     }

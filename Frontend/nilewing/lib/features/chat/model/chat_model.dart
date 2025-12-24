@@ -79,7 +79,8 @@ class ChatMessage {
   final String id;
   final String senderId;
   final String content;
-  final String timestamp;
+  final String timestamp; // Display timestamp (formatted)
+  final String? isoTimestamp; // ISO timestamp for sorting (nullable for backward compatibility)
   final MessageType type;
 
   ChatMessage({
@@ -87,6 +88,7 @@ class ChatMessage {
     required this.senderId,
     required this.content,
     required this.timestamp,
+    this.isoTimestamp,
     required this.type,
   });
 
@@ -96,6 +98,7 @@ class ChatMessage {
       senderId: json['senderId'],
       content: json['content'],
       timestamp: json['timestamp'],
+      isoTimestamp: json['isoTimestamp'],
       type: MessageType.values.firstWhere(
         (e) => e.toString() == 'MessageType.${json['type']}',
         orElse: () => MessageType.text,
@@ -109,8 +112,27 @@ class ChatMessage {
       'senderId': senderId,
       'content': content,
       'timestamp': timestamp,
+      'isoTimestamp': isoTimestamp,
       'type': type.name,
     };
+  }
+  
+  ChatMessage copyWith({
+    String? id,
+    String? senderId,
+    String? content,
+    String? timestamp,
+    String? isoTimestamp,
+    MessageType? type,
+  }) {
+    return ChatMessage(
+      id: id ?? this.id,
+      senderId: senderId ?? this.senderId,
+      content: content ?? this.content,
+      timestamp: timestamp ?? this.timestamp,
+      isoTimestamp: isoTimestamp ?? this.isoTimestamp,
+      type: type ?? this.type,
+    );
   }
 
   bool get isMe => senderId == 'me';

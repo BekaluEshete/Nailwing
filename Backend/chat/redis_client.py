@@ -1,16 +1,19 @@
 import redis
 import json
+import os
 from django.conf import settings
 
 
 class RedisClient:
     def __init__(self):
         try:
-            redis_url = settings.CHANNEL_LAYERS["default"]["CONFIG"]["hosts"][0]
+            # Get Redis URL from environment or settings
+            redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
             self.redis_client = redis.from_url(redis_url, decode_responses=True)
             # Test connection, but don't fail if it doesn't work
             self.redis_client.ping()
             self.available = True
+            print(f"✅ Redis client connected for message caching")
         except Exception as e:
             # Redis not available - set a flag but don't crash
             print(f"⚠️ Redis connection failed: {e}. Chat features will be limited.")

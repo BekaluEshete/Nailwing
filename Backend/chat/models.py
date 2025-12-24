@@ -46,6 +46,8 @@ class Message(models.Model):
             ("text", "Text"),
             ("image", "Image"),
             ("file", "File"),
+            ("flight", "Flight Information"),
+            ("location", "Location"),
         ],
     )
 
@@ -64,3 +66,18 @@ class UserProfile(models.Model):
 
     def __str__(self):
         return f"{self.user.username} Profile"
+
+
+class ReadReceipt(models.Model):
+    """Track which messages have been read by which users"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    message = models.ForeignKey(Message, on_delete=models.CASCADE, related_name="read_receipts")
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    read_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [["message", "user"]]  # A user can only read a message once
+        ordering = ["-read_at"]
+
+    def __str__(self):
+        return f"{self.user.username} read message {self.message.id}"

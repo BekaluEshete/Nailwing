@@ -1,9 +1,9 @@
 from rest_framework import generics, permissions, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
-from django.db.models import Q
-from .models import ChatRoom, Message, UserProfile
-from .serializers import ChatRoomSerializer, MessageSerializer
+from django.db.models import Q, Count, Max
+from .models import ChatRoom, Message, UserProfile, ReadReceipt
+from .serializers import ChatRoomSerializer, MessageSerializer, ReadReceiptSerializer
 
 
 @api_view(["GET"])
@@ -31,6 +31,12 @@ def user_search(request):
 class ChatRoomList(generics.ListCreateAPIView):
     serializer_class = ChatRoomSerializer
     permission_classes = [permissions.IsAuthenticated]
+    
+    def get_serializer_context(self):
+        """Add request to serializer context for unread_count calculation"""
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
 
     def get_queryset(self):
         # Only show chat rooms for users who are matched (status='matched')
@@ -96,7 +102,13 @@ class MessageList(generics.ListCreateAPIView):
         # Return messages in ascending order (oldest first) for proper chat display
         return Message.objects.filter(
             room_id=room_id
-        ).select_related("user", "room").order_by('timestamp')[offset:offset + limit]
+        ).select_related("user", "room").prefetch_related("read_receipts").order_by('timestamp')[offset:offset + limit]
+    
+    def get_serializer_context(self):
+        """Add request to serializer context for is_read field"""
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
 
     def perform_create(self, serializer):
         """Create a message via HTTP (fallback when WebSocket fails)"""
@@ -181,3 +193,132 @@ class CreatePersonalChat(generics.CreateAPIView):
             return Response(
                 {"error": "User not found"}, status=status.HTTP_404_NOT_FOUND
             )
+
+
+class MarkMessagesAsRead(generics.CreateAPIView):
+    """Mark messages in a room as read for the current user"""
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = ReadReceiptSerializer
+
+    def create(self, request, *args, **kwargs):
+        room_id = self.kwargs["room_id"]
+        message_ids = request.data.get("message_ids", [])
+        
+        try:
+            room = ChatRoom.objects.get(id=room_id, is_active=True)
+            
+            # Verify user has access to this room
+            if room.room_type == "personal":
+                room_name_parts = room.name.split("_")
+                if len(room_name_parts) == 3:
+                    user1_id, user2_id = int(room_name_parts[1]), int(room_name_parts[2])
+                    if request.user.id not in [user1_id, user2_id]:
+                        from rest_framework.exceptions import PermissionDenied
+                        raise PermissionDenied("You don't have access to this chat room")
+            
+            # Get messages that belong to this room and are not from the current user
+            messages = Message.objects.filter(
+                room=room,
+                id__in=message_ids
+            ).exclude(user=request.user)  # Don't mark own messages as read
+            
+            # Create read receipts (bulk create for efficiency)
+            read_receipts = []
+            for message in messages:
+                receipt, created = ReadReceipt.objects.get_or_create(
+                    message=message,
+                    user=request.user
+                )
+                if created:
+                    read_receipts.append(receipt)
+            
+            return Response({
+                "marked_count": len(read_receipts),
+                "total_messages": len(message_ids)
+            }, status=status.HTTP_201_CREATED)
+            
+        except ChatRoom.DoesNotExist:
+            from rest_framework.exceptions import NotFound
+            raise NotFound("Chat room not found")
+
+
+class MarkRoomAsRead(generics.CreateAPIView):
+    """Mark all messages in a room as read for the current user"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def create(self, request, *args, **kwargs):
+        room_id = self.kwargs["room_id"]
+        
+        try:
+            room = ChatRoom.objects.get(id=room_id, is_active=True)
+            
+            # Verify user has access to this room
+            if room.room_type == "personal":
+                room_name_parts = room.name.split("_")
+                if len(room_name_parts) == 3:
+                    user1_id, user2_id = int(room_name_parts[1]), int(room_name_parts[2])
+                    if request.user.id not in [user1_id, user2_id]:
+                        from rest_framework.exceptions import PermissionDenied
+                        raise PermissionDenied("You don't have access to this chat room")
+            
+            # Get all unread messages in this room (not from current user)
+            unread_messages = Message.objects.filter(
+                room=room
+            ).exclude(
+                user=request.user
+            ).exclude(
+                read_receipts__user=request.user
+            )
+            
+            # Bulk create read receipts
+            read_receipts = [
+                ReadReceipt(message=msg, user=request.user)
+                for msg in unread_messages
+            ]
+            ReadReceipt.objects.bulk_create(read_receipts, ignore_conflicts=True)
+            
+            return Response({
+                "marked_count": len(read_receipts)
+            }, status=status.HTTP_201_CREATED)
+            
+        except ChatRoom.DoesNotExist:
+            from rest_framework.exceptions import NotFound
+            raise NotFound("Chat room not found")
+
+
+class UnreadCountView(generics.RetrieveAPIView):
+    """Get unread message count for a room"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def retrieve(self, request, *args, **kwargs):
+        room_id = self.kwargs["room_id"]
+        
+        try:
+            room = ChatRoom.objects.get(id=room_id, is_active=True)
+            
+            # Verify user has access to this room
+            if room.room_type == "personal":
+                room_name_parts = room.name.split("_")
+                if len(room_name_parts) == 3:
+                    user1_id, user2_id = int(room_name_parts[1]), int(room_name_parts[2])
+                    if request.user.id not in [user1_id, user2_id]:
+                        from rest_framework.exceptions import PermissionDenied
+                        raise PermissionDenied("You don't have access to this chat room")
+            
+            # Count unread messages (not from current user, not read by current user)
+            unread_count = Message.objects.filter(
+                room=room
+            ).exclude(
+                user=request.user
+            ).exclude(
+                read_receipts__user=request.user
+            ).count()
+            
+            return Response({
+                "room_id": str(room_id),
+                "unread_count": unread_count
+            })
+            
+        except ChatRoom.DoesNotExist:
+            from rest_framework.exceptions import NotFound
+            raise NotFound("Chat room not found")

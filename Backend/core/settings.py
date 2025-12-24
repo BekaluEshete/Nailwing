@@ -33,11 +33,9 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-
     "rest_framework",
     "rest_framework_simplejwt",
     "corsheaders",
-
     "authentication",
     "channels",
     "chat",
@@ -55,10 +53,8 @@ MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
-
     # CSRF middleware kept but safe for JWT APIs
     "django.middleware.csrf.CsrfViewMiddleware",
-
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -93,19 +89,13 @@ ASGI_APPLICATION = "core.asgi.application"
 # =========================
 # DATABASE
 # =========================
-DATABASES = {
-    "default": dj_database_url.config(
-        default=os.getenv("DATABASE_URL")
-    )
-}
+DATABASES = {"default": dj_database_url.config(default=os.getenv("DATABASE_URL"))}
 
 # =========================
 # AUTH / USER
 # =========================
 AUTH_USER_MODEL = "authentication.CustomUser"
-AUTHENTICATION_BACKENDS = [
-    "authentication.backends.EmailBackend"
-]
+AUTHENTICATION_BACKENDS = ["authentication.backends.EmailBackend"]
 
 # =========================
 # REST FRAMEWORK / JWT
@@ -114,9 +104,7 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
-    "DEFAULT_PERMISSION_CLASSES": (
-        "rest_framework.permissions.AllowAny",
-    ),
+    "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.AllowAny",),
 }
 
 SIMPLE_JWT = {
@@ -154,28 +142,107 @@ CORS_ALLOW_METHODS = [
 ]
 
 # =========================
-# CHANNELS (NO REDIS – SAFE)
+# CHANNELS (REDIS FOR PRODUCTION)
 # =========================
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels.layers.InMemoryChannelLayer",
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+
+
+# Parse Redis URL for channels-redis
+# Format: redis://host:port/db or redis://:password@host:port/db
+def parse_redis_url(url):
+    """Parse Redis URL into (host, port, db) tuple"""
+    try:
+        # Remove redis:// prefix
+        url = url.replace("redis://", "").replace("rediss://", "")
+
+        # Handle password
+        if "@" in url:
+            auth, rest = url.split("@", 1)
+            url = rest
+
+        # Split host:port/db
+        if "/" in url:
+            host_port, db = url.split("/", 1)
+        else:
+            host_port, db = url, "0"
+
+        # Split host:port
+        if ":" in host_port:
+            host, port = host_port.split(":", 1)
+            port = int(port)
+        else:
+            host, port = host_port, 6379
+
+        return (host, port), int(db)
+    except Exception:
+        return ("localhost", 6379), 0
+
+
+# Try to use Redis channel layer, fallback to InMemory for local dev
+try:
+    import redis
+
+    # Test Redis connection
+    redis_client_test = redis.from_url(REDIS_URL)
+    redis_client_test.ping()
+    redis_client_test.close()
+
+    redis_host_port, redis_db = parse_redis_url(REDIS_URL)
+
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [redis_host_port],
+                "capacity": 1500,  # Maximum number of messages to queue per channel
+                "expiry": 10,  # Message expiry in seconds
+            },
+        },
     }
-}
+    print(f"✅ Using Redis Channel Layer at {redis_host_port}")
+except (redis.ConnectionError, ValueError, AttributeError, Exception) as e:
+    print(f"⚠️ Redis not available, using InMemoryChannelLayer: {e}")
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
+        }
+    }
 
 # =========================
-# CACHE (NO REDIS – SAFE)
+# CACHE (REDIS FOR PRODUCTION)
 # =========================
-CACHES = {
-    "default": {
-        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+try:
+    import redis
+
+    redis_client_test = redis.from_url(REDIS_URL)
+    redis_client_test.ping()
+    redis_client_test.close()
+
+    CACHES = {
+        "default": {
+            "BACKEND": "django_redis.cache.RedisCache",
+            "LOCATION": REDIS_URL,
+            "OPTIONS": {
+                "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            },
+        }
     }
-}
+    print(f"✅ Using Redis Cache at {REDIS_URL}")
+except (redis.ConnectionError, ValueError, AttributeError, Exception) as e:
+    print(f"⚠️ Redis not available, using LocMemCache: {e}")
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        }
+    }
 
 # =========================
 # PASSWORD VALIDATION
 # =========================
 AUTH_PASSWORD_VALIDATORS = [
-    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"
+    },
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},

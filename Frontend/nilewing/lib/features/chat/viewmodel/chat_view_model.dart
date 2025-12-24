@@ -123,6 +123,7 @@ class ChatViewModel extends StateNotifier<ChatState> {
           senderId: isMe ? 'me' : msg.senderId,
           content: msg.content,
           timestamp: msg.timestamp,  // Already formatted by service
+          isoTimestamp: msg.isoTimestamp,  // Preserve ISO timestamp for sorting
           type: msg.type,
         );
       }).toList();
@@ -407,26 +408,20 @@ class ChatViewModel extends StateNotifier<ChatState> {
     
     if (!existingIds.contains(serverMessageId)) {
       // Add new message to the list
+      final isoTime = data['timestamp']?.toString();
       final newMessage = ChatMessage(
         id: serverMessageId!,
         senderId: isMe ? 'me' : userId ?? 'unknown',
         content: messageContent,
-        timestamp: _formatTimestamp(data['timestamp']),
+        timestamp: _formatTimestamp(isoTime),
+        isoTimestamp: isoTime, // Store original ISO timestamp for sorting
         type: _parseMessageType(data['message_type'] ?? 'text'),
       );
 
       currentMessages.add(newMessage);
       
-      // Sort messages by timestamp to ensure proper order
-      currentMessages.sort((a, b) {
-        try {
-          final aTime = DateTime.parse(a.timestamp);
-          final bTime = DateTime.parse(b.timestamp);
-          return aTime.compareTo(bTime);
-        } catch (e) {
-          return 0;
-        }
-      });
+      // Sort messages by ISO timestamp to ensure proper order
+      currentMessages.sort(_compareMessagesByTimestamp);
       
       updatedMessages[chatId] = currentMessages;
 
@@ -459,26 +454,20 @@ class ChatViewModel extends StateNotifier<ChatState> {
 
         final existingIds = currentMessages.map((m) => m.id).toSet();
         if (!existingIds.contains(serverMessageId)) {
-          final newMessage = ChatMessage(
-            id: serverMessageId!,
-            senderId: isMe ? 'me' : userId ?? 'unknown',
-            content: messageContent,
-            timestamp: _formatTimestamp(messageData['timestamp']),
-            type: _parseMessageType(messageData['message_type'] ?? 'text'),
-          );
+        final isoTime = messageData['timestamp']?.toString();
+        final newMessage = ChatMessage(
+          id: serverMessageId!,
+          senderId: isMe ? 'me' : userId ?? 'unknown',
+          content: messageContent,
+          timestamp: _formatTimestamp(isoTime),
+          isoTimestamp: isoTime, // Store original ISO timestamp for sorting
+          type: _parseMessageType(messageData['message_type'] ?? 'text'),
+        );
 
           currentMessages.add(newMessage);
           
-          // Sort messages by timestamp
-          currentMessages.sort((a, b) {
-            try {
-              final aTime = DateTime.parse(a.timestamp);
-              final bTime = DateTime.parse(b.timestamp);
-              return aTime.compareTo(bTime);
-            } catch (e) {
-              return 0;
-            }
-          });
+          // Sort messages by ISO timestamp
+          currentMessages.sort(_compareMessagesByTimestamp);
           
           updatedMessages[chatId] = currentMessages;
 
@@ -548,13 +537,16 @@ class ChatViewModel extends StateNotifier<ChatState> {
       return;
     }
 
-    final tempId = DateTime.now().millisecondsSinceEpoch.toString();
+    final now = DateTime.now();
+    final tempId = now.millisecondsSinceEpoch.toString();
     final trimmedMessage = message.trim();
+    final isoTime = now.toIso8601String();
     final newMessage = ChatMessage(
       id: tempId,
       senderId: 'me',
       content: trimmedMessage,
-      timestamp: _formatTime(DateTime.now()),
+      timestamp: _formatTime(now),
+      isoTimestamp: isoTime, // Store ISO timestamp for sorting
       type: MessageType.text,
     );
 
@@ -575,16 +567,8 @@ class ChatViewModel extends StateNotifier<ChatState> {
     // Add new message at the end
     currentMessages.add(newMessage);
     
-    // Sort messages by timestamp
-    currentMessages.sort((a, b) {
-      try {
-        final aTime = DateTime.parse(a.timestamp);
-        final bTime = DateTime.parse(b.timestamp);
-        return aTime.compareTo(bTime);
-      } catch (e) {
-        return 0;
-      }
-    });
+    // Sort messages by ISO timestamp
+    currentMessages.sort(_compareMessagesByTimestamp);
     
     updatedMessages[state.selectedChatId!] = currentMessages;
 
@@ -676,6 +660,7 @@ class ChatViewModel extends StateNotifier<ChatState> {
             senderId: 'me',
             content: savedMessage.content,
             timestamp: savedMessage.timestamp,
+            isoTimestamp: savedMessage.isoTimestamp, // Preserve ISO timestamp
             type: savedMessage.type,
           );
         } else {
@@ -686,6 +671,7 @@ class ChatViewModel extends StateNotifier<ChatState> {
               senderId: 'me',
               content: savedMessage.content,
               timestamp: savedMessage.timestamp,
+              isoTimestamp: savedMessage.isoTimestamp, // Preserve ISO timestamp
               type: savedMessage.type,
             ),
           );
@@ -707,6 +693,7 @@ class ChatViewModel extends StateNotifier<ChatState> {
               senderId: isMe ? 'me' : msg.senderId,
               content: msg.content,
               timestamp: msg.timestamp,
+              isoTimestamp: msg.isoTimestamp, // Preserve ISO timestamp
               type: msg.type,
             );
           }).toList();
@@ -797,6 +784,41 @@ class ChatViewModel extends StateNotifier<ChatState> {
       return 'Just now';
     }
   }
+  
+  // Helper to sort messages by ISO timestamp (oldest first)
+  int _compareMessagesByTimestamp(ChatMessage a, ChatMessage b) {
+    try {
+      // Use ISO timestamp if available, otherwise try to parse formatted timestamp
+      String? aIso = a.isoTimestamp;
+      String? bIso = b.isoTimestamp;
+      
+      // If no ISO timestamp, try parsing the formatted timestamp (backward compatibility)
+      if (aIso == null) {
+        // For formatted strings like "Just now", use current time
+        // This is not ideal but maintains backward compatibility
+        if (a.timestamp == 'Just now') {
+          aIso = DateTime.now().toIso8601String();
+        }
+      }
+      if (bIso == null) {
+        if (b.timestamp == 'Just now') {
+          bIso = DateTime.now().toIso8601String();
+        }
+      }
+      
+      if (aIso != null && bIso != null) {
+        final aTime = DateTime.parse(aIso);
+        final bTime = DateTime.parse(bIso);
+        return aTime.compareTo(bTime);
+      }
+      
+      // Fallback: compare by ID if timestamps are unavailable
+      return a.id.compareTo(b.id);
+    } catch (e) {
+      // If parsing fails, use ID comparison as fallback
+      return a.id.compareTo(b.id);
+    }
+  }
 
   MessageType _parseMessageType(String type) {
     switch (type.toLowerCase()) {
@@ -806,6 +828,10 @@ class ChatViewModel extends StateNotifier<ChatState> {
         return MessageType.location;
       case 'file':
         return MessageType.text;
+      case 'flight':
+        return MessageType.flight;
+      case 'location':
+        return MessageType.location;
       default:
         return MessageType.text;
     }
