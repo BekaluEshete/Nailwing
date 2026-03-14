@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nilewing/core/theme/app_colors.dart';
 import 'package:nilewing/features/chat/model/chat_model.dart';
 import 'package:nilewing/features/chat/viewmodel/chat_view_model.dart';
+import 'package:nilewing/features/chat/view/call_screen.dart';
 
 class ChatDetailScreen extends ConsumerStatefulWidget {
   final ChatContact contact;
@@ -301,13 +302,31 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
             ),
             IconButton(
               onPressed: () {
-                /* Call */
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => CallScreen(
+                      channelName: widget.contact.id, // Use contact ID as unique channel
+                      contactName: widget.contact.name,
+                      isVideoCall: false,
+                    ),
+                  ),
+                );
               },
               icon: const Icon(Icons.call, color: Colors.white, size: 20),
             ),
             IconButton(
               onPressed: () {
-                /* Video */
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => CallScreen(
+                      channelName: widget.contact.id, // Use contact ID as unique channel
+                      contactName: widget.contact.name,
+                      isVideoCall: true,
+                    ),
+                  ),
+                );
               },
               icon: const Icon(Icons.videocam, color: Colors.white, size: 20),
             ),

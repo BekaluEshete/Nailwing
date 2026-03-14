@@ -11,15 +11,15 @@ class _ReconnectionState {
   int retryCount = 0;
   bool isRetrying = false;
   DateTime? lastRetryTime;
-  
+
   static const Duration _initialRetryDelay = Duration(seconds: 1);
-  
+
   Duration getRetryDelay() {
     // Exponential backoff: 1s, 2s, 4s, 8s, 16s
     final delaySeconds = _initialRetryDelay.inSeconds * (1 << retryCount);
     return Duration(seconds: delaySeconds.clamp(1, 30)); // Max 30 seconds
   }
-  
+
   void reset() {
     retryCount = 0;
     isRetrying = false;
@@ -54,6 +54,7 @@ class ChatService {
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
+        print('📥 [ChatService] Received ${data.length} chat rooms from API');
 
         // Batch process contacts for better performance
         final contacts = <ChatContact>[];
@@ -66,11 +67,16 @@ class ChatService {
 
         // Wait for all contacts to be processed
         contacts.addAll(await Future.wait(userInfoFutures));
+        print('✅ [ChatService] Processed ${contacts.length} contacts');
 
         return contacts;
       }
+      print(
+        '❌ [ChatService] Failed to load chat rooms: ${response.statusCode} - ${response.body}',
+      );
       throw Exception('Failed to load chat rooms: ${response.statusCode}');
     } catch (e) {
+      print('❌ [ChatService] Error getting contacts: $e');
       throw Exception('Error getting contacts: $e');
     }
   }
@@ -154,7 +160,7 @@ class ChatService {
   // Track connection attempts to prevent infinite loops
   static final Map<String, DateTime> _lastConnectionAttempt = {};
   static const Duration _connectionCooldown = Duration(seconds: 10);
-  
+
   // Track reconnection state per room
   static final Map<String, _ReconnectionState> _reconnectionStates = {};
   static const int _maxAutoRetries = 5;
@@ -212,7 +218,7 @@ class ChatService {
 
         // Reset reconnection state on successful connection
         _reconnectionStates[roomName]?.reset();
-        
+
         // Listen for messages in real-time
         channel.stream.listen(
           (message) {
@@ -220,10 +226,10 @@ class ChatService {
               final messageStr = message as String;
               print('📨 [ChatService] Received WebSocket message: $messageStr');
               final data = json.decode(messageStr);
-              
+
               // Add room name to the data so view model knows which chat it belongs to
               data['room_name'] = roomName;
-              
+
               // Call the callback to handle the message
               onMessage(data);
             } catch (e) {
@@ -300,10 +306,7 @@ class ChatService {
     }
 
     try {
-      final typingData = json.encode({
-        'type': 'typing',
-        'typing': isTyping,
-      });
+      final typingData = json.encode({'type': 'typing', 'typing': isTyping});
       channel.sink.add(typingData);
     } catch (e) {
       print('⚠️ [ChatService] Error sending typing indicator: $e');
@@ -371,7 +374,7 @@ class ChatService {
       roomName,
       () => _ReconnectionState(),
     );
-    
+
     // Check if we should retry
     if (state.isRetrying || state.retryCount >= _maxAutoRetries) {
       if (state.retryCount >= _maxAutoRetries) {
@@ -381,21 +384,21 @@ class ChatService {
       }
       return;
     }
-    
+
     state.isRetrying = true;
     state.retryCount++;
     final delay = state.getRetryDelay();
     state.lastRetryTime = DateTime.now();
-    
+
     print(
       '🔄 [ChatService] Attempting to reconnect to $roomName (attempt ${state.retryCount}/$_maxAutoRetries) after ${delay.inSeconds}s...',
     );
-    
+
     // Wait for exponential backoff delay
     await Future.delayed(delay);
-    
+
     state.isRetrying = false;
-    
+
     // Attempt reconnection
     try {
       final channel = await connectToRoom(
@@ -403,7 +406,7 @@ class ChatService {
         onMessage,
         isAutoReconnect: true,
       );
-      
+
       if (channel == null) {
         // Connection failed, will retry again if under limit
         _attemptReconnection(roomName, onMessage);
@@ -489,7 +492,8 @@ class ChatService {
 
     // Build WebSocket URL with proper formatting
     final portStr = port != null ? ':$port' : '';
-    final wsUrl = '$wsProtocol$host$portStr/ws/chat/$cleanRoomName/?token=$token';
+    final wsUrl =
+        '$wsProtocol$host$portStr/ws/chat/$cleanRoomName/?token=$token';
     print('🔌 [ChatService] Built WebSocket URL: $wsUrl');
     return wsUrl;
   }
@@ -527,101 +531,147 @@ class ChatService {
   // Mark messages as read
   Future<void> markAsRead(String roomId) async {
     try {
-      // This would be implemented if backend has read receipt endpoint
+      final token = await _getAuthToken();
+      if (token == null) {
+        throw Exception('Not authenticated');
+      }
+
       print('💬 [ChatService] Marking messages as read for room: $roomId');
-      await Future.delayed(const Duration(milliseconds: 100));
+
+      // Call the backend endpoint to mark all messages in the room as read
+      final url = '${AppConstants.chatMessagesEndpoint}/$roomId/mark_read/';
+
+      final response = await _httpClient.post(
+        Uri.parse(url),
+        body: json.encode({}), // Empty body, endpoint doesn't need data
+      );
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final markedCount = data['marked_count'] ?? 0;
+        print(
+          '✅ [ChatService] Marked $markedCount messages as read for room: $roomId',
+        );
+      } else {
+        print(
+          '⚠️ [ChatService] Failed to mark messages as read: ${response.statusCode}',
+        );
+      }
     } catch (e) {
       print('❌ [ChatService] Error marking as read: $e');
+      // Don't throw - marking as read is not critical for chat functionality
     }
   }
 
   // Helper: Convert backend room to frontend contact
   Future<ChatContact> _roomToContact(Map<String, dynamic> room) async {
-    final roomName = room['name']?.toString() ?? '';
-    final createdBy = room['created_by'] ?? {};
-    final createdById = createdBy['id']?.toString();
+    try {
+      final roomName = room['name']?.toString() ?? '';
+      final createdBy = room['created_by'] ?? {};
+      final createdById = createdBy['id']?.toString();
 
-    // Get current user ID
-    final currentUserData = await _tokenStorage.getUserData();
-    final currentUserId = currentUserData?['id']?.toString();
+      // Get current user ID
+      final currentUserData = await _tokenStorage.getUserData();
+      final currentUserId = currentUserData?['id']?.toString();
 
-    String name = 'Unknown';
-    String? avatar;
+      String name = 'Unknown';
+      String? avatar;
 
-    // For personal chats, parse the room name to find the other user
-    if (roomName.startsWith('personal_')) {
-      // Room name format: personal_16_18 (where 16 and 18 are user IDs)
-      final parts = roomName.split('_');
-      if (parts.length >= 3) {
-        final user1Id = parts[1];
-        final user2Id = parts[2];
+      // For personal chats, parse the room name to find the other user
+      if (roomName.startsWith('personal_')) {
+        // Room name format: personal_16_18 (where 16 and 18 are user IDs)
+        final parts = roomName.split('_');
+        if (parts.length >= 3) {
+          final user1Id = parts[1];
+          final user2Id = parts[2];
 
-        // Determine which user is the "other" user
-        String otherUserId;
-        if (currentUserId == user1Id) {
-          otherUserId = user2Id;
-        } else if (currentUserId == user2Id) {
-          otherUserId = user1Id;
-        } else {
-          // If current user is not in the room name, use the one that's not created_by
-          otherUserId = createdById == user1Id ? user2Id : user1Id;
-        }
+          // Determine which user is the "other" user
+          String otherUserId;
+          if (currentUserId == user1Id) {
+            otherUserId = user2Id;
+          } else if (currentUserId == user2Id) {
+            otherUserId = user1Id;
+          } else {
+            // If current user is not in the room name, use the one that's not created_by
+            otherUserId = createdById == user1Id ? user2Id : user1Id;
+          }
 
-        print(
-          '💬 [ChatService] Personal chat - Current user: $currentUserId, Other user: $otherUserId',
-        );
+          print(
+            '💬 [ChatService] Personal chat - Current user: $currentUserId, Other user: $otherUserId',
+          );
 
-        // Fetch the other user's information
-        if (otherUserId.isNotEmpty) {
-          try {
-            final otherUserInfo = await _getUserInfo(otherUserId);
-            if (otherUserInfo != null) {
-              name = otherUserInfo['name'] ?? 'Unknown';
-              avatar = otherUserInfo['avatar'];
-              print(
-                '💬 [ChatService] Found other user: $name (ID: $otherUserId)',
-              );
-            } else {
-              // Fallback: use description which contains the other user's name
+          // Fetch the other user's information
+          if (otherUserId.isNotEmpty) {
+            try {
+              final otherUserInfo = await _getUserInfo(otherUserId);
+              if (otherUserInfo != null) {
+                name = otherUserInfo['name'] ?? 'Unknown';
+                avatar = otherUserInfo['avatar'];
+                print(
+                  '💬 [ChatService] Found other user: $name (ID: $otherUserId)',
+                );
+              } else {
+                // Fallback: use description which contains the other user's name
+                name = _extractOtherUserNameFromDescription(
+                  room['description']?.toString() ?? '',
+                  currentUserData,
+                );
+              }
+            } catch (e) {
+              print('⚠️ [ChatService] Error fetching other user info: $e');
+              // Fallback to description parsing
               name = _extractOtherUserNameFromDescription(
                 room['description']?.toString() ?? '',
                 currentUserData,
               );
             }
-          } catch (e) {
-            print('⚠️ [ChatService] Error fetching other user info: $e');
-            // Fallback to description parsing
+          } else {
+            // If we couldn't determine other user ID, use description
             name = _extractOtherUserNameFromDescription(
               room['description']?.toString() ?? '',
               currentUserData,
             );
           }
-        } else {
-          // If we couldn't determine other user ID, use description
-          name = _extractOtherUserNameFromDescription(
-            room['description']?.toString() ?? '',
-            currentUserData,
-          );
         }
+      } else {
+        // For group chats, use created_by or room name
+        name = createdBy['first_name'] != null && createdBy['last_name'] != null
+            ? '${createdBy['first_name']} ${createdBy['last_name']}'
+            : createdBy['username'] ?? roomName;
       }
-    } else {
-      // For group chats, use created_by or room name
-      name = createdBy['first_name'] != null && createdBy['last_name'] != null
-          ? '${createdBy['first_name']} ${createdBy['last_name']}'
-          : createdBy['username'] ?? roomName;
-    }
 
-    return ChatContact(
-      id: room['id']?.toString() ?? '',
-      name: name,
-      avatar: avatar,
-      isOnline: false, // Would need to check UserProfile
-      lastMessage: '', // Would need to get last message
-      timestamp: _formatTimestamp(room['created_at']),
-      unreadCount: 0, // Would need to calculate
-      flight: '', // Not in room data
-      gate: '', // Not in room data
-    );
+      // Extract unread_count from API response (backend uses snake_case)
+      final unreadCount = room['unread_count'] is int
+          ? room['unread_count'] as int
+          : (room['unreadCount'] is int ? room['unreadCount'] as int : 0);
+
+      return ChatContact(
+        id: room['id']?.toString() ?? '',
+        name: name,
+        avatar: avatar,
+        isOnline: false, // Would need to check UserProfile
+        lastMessage: '', // Would need to get last message
+        timestamp: _formatTimestamp(room['created_at']),
+        unreadCount: unreadCount, // From backend API
+        flight: '', // Not in room data
+        gate: '', // Not in room data
+      );
+    } catch (e) {
+      print('❌ [ChatService] Error converting room to contact: $e');
+      print('❌ [ChatService] Room data: $room');
+      // Return a minimal contact to prevent complete failure
+      return ChatContact(
+        id: room['id']?.toString() ?? 'unknown',
+        name: 'Unknown User',
+        avatar: null,
+        isOnline: false,
+        lastMessage: '',
+        timestamp: _formatTimestamp(room['created_at']),
+        unreadCount: 0,
+        flight: '',
+        gate: '',
+      );
+    }
   }
 
   // Helper: Extract other user's name from description

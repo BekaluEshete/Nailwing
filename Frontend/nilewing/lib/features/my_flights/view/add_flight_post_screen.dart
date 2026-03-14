@@ -21,6 +21,7 @@ class AddFlightPostScreen extends StatefulWidget {
 
 class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
   int _currentStep = 1;
+  static const int _maxSteps = 2; // Reduced from 3 to 2
   bool _isSubmitted = false;
   bool _isEditing = false;
   bool _isLoadingAirports = false;
@@ -39,11 +40,22 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
   final TextEditingController _airlineSearchController =
       TextEditingController();
 
+  // ScrollController to maintain scroll position
+  final ScrollController _scrollController = ScrollController();
+
   @override
   void initState() {
     super.initState();
     _loadPopularAirports();
     _loadAirlines();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _airportSearchController.dispose();
+    _airlineSearchController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadPopularAirports() async {
@@ -113,7 +125,7 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
   // Live/dynamic airport search - filters instantly as user types
   void _filterAirportsLocally(String query) {
     if (!mounted) return;
-    
+
     // Filter immediately without waiting for setState
     List<Airport> filteredResults;
     if (query.isEmpty) {
@@ -129,17 +141,17 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
             airport.country.toLowerCase().contains(lowercaseQuery);
       }).toList();
     }
-    
+
     // Update state immediately
     setState(() {
       _searchResults = filteredResults;
     });
   }
-  
+
   // Load airports initially (async) - called when modal opens
   Future<void> _loadAirportsForSearch() async {
     if (!mounted) return;
-    
+
     // Only show loading if we don't have airports cached yet
     if (_popularAirports.isEmpty) {
       setState(() {
@@ -151,9 +163,9 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
       print('🔍 Loading airports for search...');
       // Load all airports from service (uses cache if available)
       final response = await AirportService.searchAirports('');
-      
+
       if (!mounted) return;
-      
+
       setState(() {
         _popularAirports = response.airports;
         _searchResults = response.airports; // Show all initially
@@ -162,7 +174,7 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
     } catch (e) {
       print('❌ Error loading airports: $e');
       if (!mounted) return;
-      
+
       // Fallback - try to use cached popular airports
       if (_popularAirports.isEmpty) {
         try {
@@ -187,6 +199,11 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
   }
 
   void _handleAirportSelect(Airport airport, String airportType) {
+    // Save scroll position before setState
+    final scrollOffset = _scrollController.hasClients
+        ? _scrollController.offset
+        : 0.0;
+
     setState(() {
       switch (airportType) {
         case 'departure':
@@ -208,17 +225,42 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
       }
       _airportSearchController.clear();
     });
+
     Navigator.pop(context);
+
+    // Restore scroll position after rebuild
+    if (_scrollController.hasClients && scrollOffset > 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scrollController.hasClients) {
+          _scrollController.jumpTo(scrollOffset);
+        }
+      });
+    }
   }
 
   void _handleAirlineSelect(String airline) {
+    // Save scroll position before setState
+    final scrollOffset = _scrollController.hasClients
+        ? _scrollController.offset
+        : 0.0;
+
     setState(() {
       _formData.airlineName = airline;
       _errors.remove('airlineName');
       _airlineSearchController.clear();
       _filteredAirlines = _airlines;
     });
+
     Navigator.pop(context);
+
+    // Restore scroll position after rebuild
+    if (_scrollController.hasClients && scrollOffset > 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scrollController.hasClients) {
+          _scrollController.jumpTo(scrollOffset);
+        }
+      });
+    }
   }
 
   // FIXED: Travel interest selection method
@@ -235,15 +277,11 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
 
   // Date/Time picker helpers
   String _getDate(bool isDeparture) {
-    return isDeparture
-        ? _formData.departureDate
-        : _formData.arrivalDate;
+    return isDeparture ? _formData.departureDate : _formData.arrivalDate;
   }
 
   String _getTime(bool isDeparture) {
-    return isDeparture
-        ? _formData.departureTime
-        : _formData.arrivalTime;
+    return isDeparture ? _formData.departureTime : _formData.arrivalTime;
   }
 
   String _getDateDisplay(bool isDeparture) {
@@ -259,6 +297,11 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
   }
 
   Future<void> _selectDate(BuildContext context, bool isDeparture) async {
+    // Save scroll position before opening picker
+    final scrollOffset = _scrollController.hasClients
+        ? _scrollController.offset
+        : 0.0;
+
     final initialDate = DateTime.now();
     final firstDate = DateTime.now();
     final lastDate = DateTime.now().add(const Duration(days: 365 * 2));
@@ -283,10 +326,24 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
           _errors.remove('arrivalDate');
         }
       });
+
+      // Restore scroll position after rebuild
+      if (_scrollController.hasClients && scrollOffset > 0) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_scrollController.hasClients) {
+            _scrollController.jumpTo(scrollOffset);
+          }
+        });
+      }
     }
   }
 
   Future<void> _selectTime(BuildContext context, bool isDeparture) async {
+    // Save scroll position before opening picker
+    final scrollOffset = _scrollController.hasClients
+        ? _scrollController.offset
+        : 0.0;
+
     final initialTime = TimeOfDay.now();
 
     final pickedTime = await showTimePicker(
@@ -307,7 +364,51 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
           _errors.remove('arrivalTime');
         }
       });
+
+      // Restore scroll position after rebuild
+      if (_scrollController.hasClients && scrollOffset > 0) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_scrollController.hasClients) {
+            _scrollController.jumpTo(scrollOffset);
+          }
+        });
+      }
     }
+  }
+
+  // Validate time format (e.g., "2h 30m", "1h", "45m", "2h 30m 15s")
+  bool _isValidTimeFormat(String? time) {
+    if (time == null || time.trim().isEmpty) {
+      return true; // Empty is allowed for optional fields
+    }
+
+    // Remove whitespace and convert to lowercase
+    final cleaned = time.trim().toLowerCase();
+
+    // Pattern: hours (h), minutes (m), optionally seconds (s)
+    // Examples: "2h 30m", "1h", "45m", "2h30m", "2h 30m 15s"
+    final pattern = RegExp(r'^(\d+h)?\s*(\d+m)?\s*(\d+s)?$');
+
+    if (!pattern.hasMatch(cleaned)) {
+      return false;
+    }
+
+    // Check if at least one time unit is present
+    return cleaned.contains('h') ||
+        cleaned.contains('m') ||
+        cleaned.contains('s');
+  }
+
+  String? _validateTransitTime(String? time) {
+    if (time == null || time.trim().isEmpty) {
+      return null; // Empty is allowed for optional fields
+    }
+
+    if (!_isValidTimeFormat(time)) {
+      return 'Invalid format. Use format like "2h 30m" or "45m"';
+    }
+
+    return null;
   }
 
   bool _validateStep(int step) {
@@ -334,16 +435,18 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
         break;
 
       case 2:
+        // Validate transit time if provided
+        final transitTimeError = _validateTransitTime(_formData.transitTime);
+        if (transitTimeError != null) {
+          newErrors['transitTime'] = transitTimeError;
+        }
+
         if (_formData.isDelayed && _formData.delayDuration.isEmpty) {
           newErrors['delayDuration'] =
               'Delay duration is required when flight is delayed';
         }
         break;
 
-      case 3:
-        // Post title and content are no longer required
-        if (_formData.interests.isEmpty)
-          newErrors['interests'] = 'Please select at least one interest';
         break;
     }
 
@@ -357,11 +460,13 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
 
   void _handleNext() {
     if (_validateStep(_currentStep)) {
-      if (_currentStep < 3) {
+      if (_currentStep < _maxSteps) {
         setState(() {
           _currentStep++;
         });
         _showSnackBar('Step ${_currentStep - 1} completed!');
+      } else {
+        _handleSubmit();
       }
     } else {
       _showSnackBar('Please fill in all required fields');
@@ -377,7 +482,7 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
   }
 
   void _handleSubmit() {
-    if (_validateStep(3)) {
+    if (_validateStep(_maxSteps)) {
       final newFlight = _formData.toFlight();
       widget.onFlightAdded?.call(newFlight);
 
@@ -411,8 +516,6 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
         return 'Flight Details';
       case 2:
         return 'Transit & Status';
-      case 3:
-        return 'Post Content';
       default:
         return '';
     }
@@ -434,6 +537,8 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
         _buildHeader(),
         Expanded(
           child: SingleChildScrollView(
+            key: const PageStorageKey('add_flight_scroll_key'),
+            controller: _scrollController,
             padding: const EdgeInsets.all(16),
             child: _buildStepContent(),
           ),
@@ -480,7 +585,7 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Step $_currentStep of 3: ${_getStepTitle()}',
+                        'Step $_currentStep of $_maxSteps: ${_getStepTitle()}',
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.8),
                           fontSize: 12,
@@ -501,7 +606,7 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
               ),
               child: FractionallySizedBox(
                 alignment: Alignment.centerLeft,
-                widthFactor: _currentStep / 3,
+                widthFactor: _currentStep / _maxSteps,
                 child: Container(
                   decoration: BoxDecoration(
                     color: Colors.white,
@@ -522,8 +627,6 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
         return _buildFlightDetailsStep();
       case 2:
         return _buildTransitStatusStep();
-      case 3:
-        return _buildPostContentStep();
       default:
         return const SizedBox();
     }
@@ -531,6 +634,7 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
 
   Widget _buildFlightDetailsStep() {
     return Card(
+      key: const ValueKey('step_1_card'),
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
@@ -560,10 +664,12 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
                           errorText: _errors['flightNumber'],
                         ),
                         onChanged: (value) {
-                          setState(() {
-                            _formData.flightNumber = value.toUpperCase();
-                            _errors.remove('flightNumber');
-                          });
+                          _formData.flightNumber = value.toUpperCase();
+                          if (_errors.containsKey('flightNumber')) {
+                            setState(() {
+                              _errors.remove('flightNumber');
+                            });
+                          }
                         },
                       ),
                     ],
@@ -593,9 +699,7 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
                           border: OutlineInputBorder(),
                         ),
                         onChanged: (value) {
-                          setState(() {
-                            _formData.aircraft = value;
-                          });
+                          _formData.aircraft = value;
                         },
                       ),
                     ],
@@ -617,9 +721,7 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
                           border: OutlineInputBorder(),
                         ),
                         onChanged: (value) {
-                          setState(() {
-                            _formData.seat = value.toUpperCase();
-                          });
+                          _formData.seat = value.toUpperCase();
                         },
                       ),
                     ],
@@ -645,9 +747,7 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
                           border: OutlineInputBorder(),
                         ),
                         onChanged: (value) {
-                          setState(() {
-                            _formData.gate = value.toUpperCase();
-                          });
+                          _formData.gate = value.toUpperCase();
                         },
                       ),
                     ],
@@ -669,9 +769,7 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
                           border: OutlineInputBorder(),
                         ),
                         onChanged: (value) {
-                          setState(() {
-                            _formData.terminal = value.toUpperCase();
-                          });
+                          _formData.terminal = value.toUpperCase();
                         },
                       ),
                     ],
@@ -826,9 +924,7 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
                         vertical: 16,
                       ),
                       decoration: BoxDecoration(
-                        border: Border.all(
-                          color: Colors.grey.shade300,
-                        ),
+                        border: Border.all(color: Colors.grey.shade300),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Row(
@@ -843,8 +939,11 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
                               ),
                             ),
                           ),
-                          Icon(Icons.calendar_today,
-                              size: 20, color: Colors.grey.shade600),
+                          Icon(
+                            Icons.calendar_today,
+                            size: 20,
+                            color: Colors.grey.shade600,
+                          ),
                         ],
                       ),
                     ),
@@ -871,10 +970,10 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
                       ),
                       decoration: BoxDecoration(
                         border: Border.all(
-                          color: _errors.containsKey(
-                                  isDeparture
-                                      ? 'departureTime'
-                                      : 'arrivalTime')
+                          color:
+                              _errors.containsKey(
+                                isDeparture ? 'departureTime' : 'arrivalTime',
+                              )
                               ? Colors.red
                               : Colors.grey.shade300,
                         ),
@@ -892,14 +991,18 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
                               ),
                             ),
                           ),
-                          Icon(Icons.access_time,
-                              size: 20, color: Colors.grey.shade600),
+                          Icon(
+                            Icons.access_time,
+                            size: 20,
+                            color: Colors.grey.shade600,
+                          ),
                         ],
                       ),
                     ),
                   ),
                   if (_errors.containsKey(
-                      isDeparture ? 'departureTime' : 'arrivalTime'))
+                    isDeparture ? 'departureTime' : 'arrivalTime',
+                  ))
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
                       child: Text(
@@ -941,7 +1044,8 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
         ),
         const SizedBox(height: 4),
         GestureDetector(
-          onTap: () => _showAirportSearchModal(isDeparture ? 'departure' : 'arrival'),
+          onTap: () =>
+              _showAirportSearchModal(isDeparture ? 'departure' : 'arrival'),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
             decoration: BoxDecoration(
@@ -986,13 +1090,13 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
   void _showAirportSearchModal(String airportType) {
     // Clear search field
     _airportSearchController.clear();
-    
+
     // Initialize search results with empty list
     _searchResults = [];
-    
+
     // Start loading airports in background
     _loadAirportsForSearch();
-    
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1004,7 +1108,10 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
     );
   }
 
-  Widget _buildAirportSearchSheet(String airportType, StateSetter setModalState) {
+  Widget _buildAirportSearchSheet(
+    String airportType,
+    StateSetter setModalState,
+  ) {
     String title;
     switch (airportType) {
       case 'departure':
@@ -1022,7 +1129,7 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
 
     // Get current search query
     final searchQuery = _airportSearchController.text;
-    
+
     // Use _searchResults if it's up to date, otherwise filter on the fly
     // This ensures instant updates as user types
     final filteredAirports = _searchResults.isNotEmpty || searchQuery.isEmpty
@@ -1083,7 +1190,7 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
       ),
     );
   }
-  
+
   Widget _buildAirportListReactive(List<Airport> airports, String airportType) {
     // Show loading only on initial load
     if (_isLoadingAirports && _popularAirports.isEmpty) {
@@ -1101,7 +1208,7 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
         ),
       );
     }
-    
+
     // Show no results message
     if (airports.isEmpty && !_isLoadingAirports) {
       return Center(
@@ -1130,7 +1237,7 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       itemBuilder: (context, index) {
         final airport = airports[index];
-        
+
         return Card(
           margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
           elevation: 1,
@@ -1152,10 +1259,7 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
             ),
             title: Text(
               airport.name,
-              style: const TextStyle(
-                fontWeight: FontWeight.w500,
-                fontSize: 15,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 15),
             ),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1163,10 +1267,7 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
                 const SizedBox(height: 4),
                 Text(
                   '${airport.city}, ${airport.country}',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey[600],
-                  ),
+                  style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                 ),
               ],
             ),
@@ -1180,9 +1281,9 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
     );
   }
 
-
   Widget _buildTransitStatusStep() {
     return Card(
+      key: const ValueKey('step_2_card'),
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
@@ -1255,15 +1356,27 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
                       ),
                       const SizedBox(height: 4),
                       TextFormField(
-                        decoration: const InputDecoration(
-                          hintText: 'e.g. 2h 30m',
-                          border: OutlineInputBorder(),
+                        decoration: InputDecoration(
+                          hintText: 'e.g. 2h 30m or 45m',
+                          border: const OutlineInputBorder(),
+                          errorText: _errors['transitTime'],
+                          helperText: 'Format: hours (h) and minutes (m)',
                         ),
                         onChanged: (value) {
-                          setState(() {
-                            _formData.transitTime = value;
-                          });
+                          _formData.transitTime = value;
+                          // Clear error if format becomes valid
+                          final error = _validateTransitTime(value);
+                          if (error == null && _errors.containsKey('transitTime')) {
+                            setState(() {
+                              _errors.remove('transitTime');
+                            });
+                          } else if (error != null) {
+                            setState(() {
+                              _errors['transitTime'] = error;
+                            });
+                          }
                         },
+                        validator: (value) => _validateTransitTime(value),
                       ),
                     ],
                   ),
@@ -1524,176 +1637,6 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
     );
   }
 
-  Widget _buildPostContentStep() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSectionHeader(Icons.star, 'Flight Rating'),
-            const SizedBox(height: 16),
-            const Text(
-              'Rate your flight *',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                ...List.generate(5, (index) {
-                  return IconButton(
-                    onPressed: () {
-                      setState(() {
-                        _formData.rating = index + 1;
-                      });
-                    },
-                    icon: Icon(
-                      Icons.star,
-                      color: index < _formData.rating
-                          ? Colors.amber
-                          : Colors.grey[300],
-                      size: 32,
-                    ),
-                  );
-                }),
-                const SizedBox(width: 8),
-                Text(
-                  '(${_formData.rating}/5)',
-                  style: const TextStyle(color: Colors.grey),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Travel Interests *',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'Select topics that relate to your travel experience',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-            const SizedBox(height: 8),
-
-            // FIXED: Travel Interests with proper selection
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: travelInterests.map((interest) {
-                final isSelected = _formData.interests.contains(interest);
-                return GestureDetector(
-                  onTap: () => _toggleInterest(interest),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? AppColors.primary.withOpacity(0.1)
-                          : Colors.transparent,
-                      border: Border.all(
-                        color: isSelected
-                            ? AppColors.primary
-                            : Colors.grey.shade300,
-                        width: isSelected ? 2 : 1,
-                      ),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.tag,
-                          size: 14,
-                          color: isSelected
-                              ? AppColors.primary
-                              : Colors.grey.shade600,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          interest,
-                          style: TextStyle(
-                            color: isSelected
-                                ? AppColors.primary
-                                : Colors.grey.shade700,
-                            fontWeight: isSelected
-                                ? FontWeight.w600
-                                : FontWeight.w500,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-
-            if (_errors.containsKey('interests'))
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  _errors['interests']!,
-                  style: const TextStyle(color: Colors.red, fontSize: 12),
-                ),
-              ),
-
-            const SizedBox(height: 8),
-            Text(
-              'Selected: ${_formData.interests.length} interests',
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-
-            if (_formData.interests.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.05),
-                  border: Border.all(color: AppColors.primary.withOpacity(0.2)),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Selected Interests:',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 4,
-                      runSpacing: 4,
-                      children: _formData.interests.map((interest) {
-                        return Chip(
-                          label: Text(
-                            '#$interest',
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                          backgroundColor: AppColors.primary.withOpacity(0.1),
-                          labelPadding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildSectionHeader(IconData icon, String title) {
     return Row(
       children: [
@@ -1730,22 +1673,26 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
           ],
           Expanded(
             child: ElevatedButton(
-              onPressed: _currentStep == 3 ? _handleSubmit : _handleNext,
+              onPressed: _currentStep == _maxSteps ? _handleSubmit : _handleNext,
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                backgroundColor: _currentStep == 3
+                backgroundColor: _currentStep == _maxSteps
                     ? const Color(0xFF10B981)
                     : AppColors.primary,
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  if (_currentStep == 3) const Icon(Icons.save, size: 16),
-                  if (_currentStep == 3) const SizedBox(width: 4),
+                  if (_currentStep == _maxSteps) const Icon(Icons.check_circle_outline, size: 20),
+                  if (_currentStep == _maxSteps) const SizedBox(width: 8),
                   Text(
-                    _currentStep == 3
-                        ? (_isEditing ? 'Update Post' : 'Publish Post')
+                    _currentStep == _maxSteps
+                        ? (_isEditing ? 'Update Flight' : 'Add My Flight')
                         : 'Next Step',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ],
               ),
@@ -1781,7 +1728,7 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Flight Post Created',
+                        'Flight Added',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 20,
@@ -1790,7 +1737,7 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
                       ),
                       SizedBox(height: 2),
                       Text(
-                        'Successfully published',
+                        'Successfully saved to your trips',
                         style: TextStyle(color: Colors.white70, fontSize: 12),
                       ),
                     ],
@@ -1830,7 +1777,7 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
                         ),
                         const SizedBox(height: 16),
                         const Text(
-                          'Post Created Successfully!',
+                          'Flight Added Successfully!',
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
@@ -1839,7 +1786,7 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
                         ),
                         const SizedBox(height: 8),
                         const Text(
-                          'Your flight experience has been shared with the Nile Wing community',
+                          'Your flight details have been saved. You can now track its status and find matches.',
                           textAlign: TextAlign.center,
                           style: TextStyle(color: Colors.grey),
                         ),
@@ -1867,7 +1814,7 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
                                     ),
                                     SizedBox(width: 4),
                                     Text(
-                                      'Edit Post',
+                                      'Edit Details',
                                       style: TextStyle(
                                         color: Color(0xFF059669),
                                       ),
@@ -1891,7 +1838,7 @@ class _AddFlightPostScreenState extends State<AddFlightPostScreen> {
                                   children: [
                                     Icon(Icons.visibility, size: 16),
                                     SizedBox(width: 4),
-                                    Text('View in Feed'),
+                                    Text('View Flights'),
                                   ],
                                 ),
                               ),

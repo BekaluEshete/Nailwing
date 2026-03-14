@@ -56,11 +56,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   Widget _buildBottomNavigation(int currentIndex, BuildContext context) {
     final navItems = [
-      _buildNavItem('My Flights', '✈️', 0, currentIndex, context),
-      _buildNavItem('Match', '⚡', 1, currentIndex, context),
-      _buildNavItem('Chat', '💬', 2, currentIndex, context),
-      _buildNavItem('Recommendations', '🎯', 3, currentIndex, context),
-      _buildNavItem('Home', '🏠', 4, currentIndex, context),
+      _buildNavItem('My Flights', Icons.flight, 0, currentIndex, context),
+      _buildNavItem('Match', Icons.bolt, 1, currentIndex, context),
+      _buildNavItem('Chat', Icons.chat_bubble_outline, 2, currentIndex, context),
+      _buildNavItem('Discover', Icons.travel_explore, 3, currentIndex, context),
+      _buildNavItem('Home', Icons.home_rounded, 4, currentIndex, context),
     ];
 
     return Container(
@@ -90,7 +90,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   Widget _buildNavItem(
     String label,
-    String icon,
+    IconData icon,
     int index,
     int currentIndex,
     BuildContext context,
@@ -99,47 +99,32 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
     return GestureDetector(
       onTap: () => _onItemTapped(index, context),
-      child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          gradient: isActive
-              ? LinearGradient(
-                  colors: [
-                    Color(0xFF1E40AF).withOpacity(0.2),
-                    Color(0xFF06B6D4).withOpacity(0.1),
-                  ],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                )
-              : null,
-          boxShadow: isActive
-              ? [
-                  BoxShadow(
-                    color: Color(0xFF1E40AF).withOpacity(0.2),
-                    blurRadius: 8,
-                    offset: Offset(0, 2),
-                  ),
-                ]
-              : null,
+          borderRadius: BorderRadius.circular(20),
+          color: isActive 
+              ? Color(0xFF1E40AF).withOpacity(0.1)
+              : Colors.transparent,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
+            Icon(
               icon,
-              style: TextStyle(
-                fontSize: 18,
-                color: isActive ? Color(0xFF1E40AF) : Colors.grey[600],
-              ),
+              size: isActive ? 24 : 22,
+              color: isActive ? Color(0xFF1E40AF) : Colors.grey[400],
             ),
             SizedBox(height: 4),
             Text(
               label,
               style: TextStyle(
                 fontSize: 10,
-                fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
-                color: isActive ? Color(0xFF1E40AF) : Colors.grey[600],
+                fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                color: isActive ? Color(0xFF1E40AF) : Colors.grey[500],
+                letterSpacing: 0.2,
               ),
               textAlign: TextAlign.center,
               maxLines: 1,

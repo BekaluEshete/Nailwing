@@ -212,36 +212,61 @@ class _ConnectionRequestsScreenState
               // Action buttons
               Column(
                 children: [
-                  ElevatedButton(
-                    onPressed: () => _handleAccept(context, ref, match),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
+                  if (match.isRequestSentByCurrentUser)
+                    Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
+                        horizontal: 12,
                         vertical: 8,
                       ),
-                      shape: RoundedRectangleBorder(
+                      decoration: BoxDecoration(
+                        color: Colors.orange[50],
                         borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: Colors.orange[100]!),
                       ),
+                      child: Text(
+                        'Request Sent',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.orange[700],
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    )
+                  else
+                    Column(
+                      children: [
+                        ElevatedButton(
+                          onPressed: () => _handleAccept(context, ref, match),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                          ),
+                          child: const Text('Accept'),
+                        ),
+                        const SizedBox(height: 8),
+                        OutlinedButton(
+                          onPressed: () => _handleReject(context, ref, match),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.red,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                          ),
+                          child: const Text('Reject'),
+                        ),
+                      ],
                     ),
-                    child: const Text('Accept'),
-                  ),
-                  const SizedBox(height: 8),
-                  OutlinedButton(
-                    onPressed: () => _handleReject(context, ref, match),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.red,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                    ),
-                    child: const Text('Reject'),
-                  ),
                 ],
               ),
             ],

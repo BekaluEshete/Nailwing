@@ -507,11 +507,22 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
                 children: [
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: () => _showDelayDialog(),
+                      onPressed: (_flight?.status == FlightStatus.completed || 
+                                  _flight?.status == FlightStatus.cancelled)
+                          ? null
+                          : () => _showDelayDialog(),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.transparent,
-                        foregroundColor: Colors.orange[600],
-                        side: BorderSide(color: Colors.orange[200]!),
+                        foregroundColor: (_flight?.status == FlightStatus.completed || 
+                                         _flight?.status == FlightStatus.cancelled)
+                            ? Colors.grey[400]
+                            : Colors.orange[600],
+                        side: BorderSide(
+                          color: (_flight?.status == FlightStatus.completed || 
+                                 _flight?.status == FlightStatus.cancelled)
+                              ? Colors.grey[300]!
+                              : Colors.orange[200]!,
+                        ),
                         elevation: 0,
                       ),
                       child: const Row(
@@ -527,11 +538,22 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: () => _showCancelDialog(),
+                      onPressed: (_flight?.status == FlightStatus.completed || 
+                                  _flight?.status == FlightStatus.cancelled)
+                          ? null
+                          : () => _showCancelDialog(),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.transparent,
-                        foregroundColor: Colors.red[600],
-                        side: BorderSide(color: Colors.red[200]!),
+                        foregroundColor: (_flight?.status == FlightStatus.completed || 
+                                         _flight?.status == FlightStatus.cancelled)
+                            ? Colors.grey[400]
+                            : Colors.red[600],
+                        side: BorderSide(
+                          color: (_flight?.status == FlightStatus.completed || 
+                                 _flight?.status == FlightStatus.cancelled)
+                              ? Colors.grey[300]!
+                              : Colors.red[200]!,
+                        ),
                         elevation: 0,
                       ),
                       child: const Row(

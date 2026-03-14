@@ -266,13 +266,16 @@ class MatchViewModel extends StateNotifier<MatchState> {
 
   // Get connection requests
   Future<void> loadConnectionRequests() async {
+    state = state.copyWith(isLoading: true, error: null);
     try {
       final requests = await _service.getConnectionRequests();
-      // You might want to store these separately or merge with matches
       // For now, we'll just update the matches list
-      state = state.copyWith(matches: requests);
+      state = state.copyWith(matches: requests, isLoading: false);
     } catch (e) {
-      state = state.copyWith(error: 'Failed to load connection requests: $e');
+      state = state.copyWith(
+        error: 'Failed to load connection requests: $e',
+        isLoading: false,
+      );
     }
   }
 

@@ -1,6 +1,8 @@
 // features/recommendations/views/widgets/place_card.dart
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:nilewing/features/recommendation/model/recommendation_model.dart';
+import 'package:nilewing/core/utils/app_constants.dart';
 
 class PlaceCard extends StatelessWidget {
   final Place place;
@@ -148,12 +150,64 @@ class PlaceCard extends StatelessWidget {
       children: [
         Icon(Icons.location_on, size: 14, color: Colors.grey[600]),
         const SizedBox(width: 4),
-        Text(
-          '${place.distance} • ${place.walkTime}',
-          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+        Expanded(
+          child: Text(
+            place.distance.isNotEmpty 
+                ? '${place.distance} • ${place.walkTime}'
+                : place.walkTime,
+            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+          ),
+        ),
+        InkWell(
+          onTap: () => _openGoogleMaps(place),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.blue.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.blue.withOpacity(0.3)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.directions, size: 14, color: Colors.blue[700]),
+                const SizedBox(width: 4),
+                Text(
+                  'Directions',
+                  style: TextStyle(fontSize: 11, color: Colors.blue[700], fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+          ),
         ),
       ],
     );
+  }
+
+  Future<void> _openGoogleMaps(Place place) async {
+    final lat = place.coordinates.lat;
+    final lng = place.coordinates.lng;
+    
+    // Create Google Maps URL for directions
+    final url = 'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=walking';
+    
+    final uri = Uri.parse(url);
+    
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        // Fallback: try to open with place name search
+        final searchUrl = Uri.parse(
+          'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(place.name + ' ' + place.address)}'
+        );
+        if (await canLaunchUrl(searchUrl)) {
+          await launchUrl(searchUrl, mode: LaunchMode.externalApplication);
+        }
+      }
+    } catch (e) {
+      print('Error opening Google Maps: $e');
+    }
   }
 
   Widget _buildPriceOrSpecialties(Place place) {

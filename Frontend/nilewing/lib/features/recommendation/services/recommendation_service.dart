@@ -191,20 +191,65 @@ class RecommendationService {
     }
   }
 
+  // Helper: Format distance text (e.g., "5m away", "2.5km away")
+  String _formatDistance(dynamic distance) {
+    if (distance == null || distance == 0) return 'Nearby';
+    
+    final distanceMeters = distance is int ? distance : (distance as num).toDouble();
+    
+    if (distanceMeters < 1000) {
+      // Less than 1km, show in meters
+      return '${distanceMeters.toStringAsFixed(0)}m away';
+    } else if (distanceMeters < 10000) {
+      // Less than 10km, show with one decimal
+      return '${(distanceMeters / 1000).toStringAsFixed(1)}km away';
+    } else {
+      // 10km or more, show as whole number
+      return '${(distanceMeters / 1000).toStringAsFixed(0)}km away';
+    }
+  }
+
+  // Helper: Check if place is currently open based on opening hours
+  bool _checkIfOpenNow(String? openingHours, bool is24Hours) {
+    if (is24Hours) return true;
+    
+    if (openingHours == null || openingHours.isEmpty) {
+      // If no opening hours info, assume open (better UX than always showing closed)
+      return true;
+    }
+    
+    // Parse opening hours to check current time
+    // For now, if there's opening hours data, assume open during reasonable hours
+    // In production, you'd parse the hours string and check current time
+    final now = DateTime.now();
+    final hour = now.hour;
+    
+    // Default: assume open between 6 AM and 11 PM unless 24 hours
+    return hour >= 6 && hour < 23;
+  }
+
   // Helper: Convert API place JSON to Place model
   Place _placeFromApiJson(Map<String, dynamic> json, PlaceType type) {
-    final distance = json['distance'] ?? 0;
-    final distanceText =
-        json['distance_text'] ??
-        (distance > 0
-            ? '${(distance / 1000).toStringAsFixed(1)} km'
-            : 'Nearby');
+    final distance = json['distance'];
+    final is24Hours = json['is_24_hours'] == true;
+    final openingHours = json['opening_hours']?.toString();
+    
+    // Format distance
+    final distanceText = json['distance_text']?.toString() ?? _formatDistance(distance);
+    
+    // Determine if open now
+    final openNow = _checkIfOpenNow(openingHours, is24Hours);
 
     int priceLevel = 2;
     final priceRange = json['price_range']?.toString() ?? '';
     if (priceRange.contains('\$')) {
       priceLevel = priceRange.split('\$').length - 1;
     }
+
+    final distanceNum = distance is int ? distance : (distance as num?)?.toDouble() ?? 0.0;
+    final walkTime = distanceNum > 0
+        ? '${(distanceNum / 80).toStringAsFixed(0)} min walk'
+        : 'Nearby';
 
     return Place(
       id: json['id']?.toString() ?? '',
@@ -214,13 +259,11 @@ class RecommendationService {
       reviewCount: 0,
       priceLevel: priceLevel,
       distance: distanceText,
-      walkTime: distance > 0
-          ? '${(distance / 80).toStringAsFixed(0)} min walk'
-          : 'Nearby',
-      openNow: json['is_24_hours'] ?? true,
-      openingHours: json['opening_hours']?.toString().isNotEmpty == true
-          ? [json['opening_hours'].toString()]
-          : ['Open 24 hours'],
+      walkTime: walkTime,
+      openNow: openNow,
+      openingHours: openingHours != null && openingHours.isNotEmpty
+          ? [openingHours]
+          : (is24Hours ? ['Open 24 hours'] : ['Check hours']),
       address: json['address']?.toString() ?? '',
       phoneNumber: '',
       website: null,
@@ -312,12 +355,15 @@ class RecommendationService {
       reviewCount: 0,
       priceLevel: priceLevel,
       distance: backendPlace.distance != null
-          ? '${(backendPlace.distance! / 1000).toStringAsFixed(1)} km'
+          ? (backendPlace.distance! < 1000
+              ? '${backendPlace.distance!.toStringAsFixed(0)}m away'
+              : '${(backendPlace.distance! / 1000).toStringAsFixed(1)}km away')
           : 'Nearby',
       walkTime: backendPlace.distance != null
           ? '${(backendPlace.distance! / 80).toStringAsFixed(0)} min walk'
           : 'Nearby',
-      openNow: backendPlace.is24Hours || true,
+      openNow: backendPlace.is24Hours || 
+               (backendPlace.openingHours.isNotEmpty && DateTime.now().hour >= 6 && DateTime.now().hour < 23),
       openingHours: backendPlace.openingHours.isNotEmpty
           ? [backendPlace.openingHours]
           : ['Open 24 hours'],

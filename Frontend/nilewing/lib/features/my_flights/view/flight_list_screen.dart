@@ -865,15 +865,19 @@ class _MyFlightsScreenState extends ConsumerState<MyFlightsScreen> {
   }
 
   Widget _buildFlightActions(Flight flight, MyFlightsViewModel viewModel) {
+    // Disable buttons for completed or cancelled flights
+    final isDisabled = flight.status == FlightStatus.completed || 
+                       flight.status == FlightStatus.cancelled;
+    
     return Row(
       children: [
         Expanded(
           child: ElevatedButton.icon(
-            onPressed: () => _showDelayDialog(flight, viewModel),
+            onPressed: isDisabled ? null : () => _showDelayDialog(flight, viewModel),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.transparent,
-              foregroundColor: Colors.orange[600],
-              side: BorderSide(color: Colors.orange[200]!),
+              foregroundColor: isDisabled ? Colors.grey[400] : Colors.orange[600],
+              side: BorderSide(color: isDisabled ? Colors.grey[300]! : Colors.orange[200]!),
               elevation: 0,
             ),
             icon: Icon(Icons.access_time, size: 16),
@@ -883,11 +887,11 @@ class _MyFlightsScreenState extends ConsumerState<MyFlightsScreen> {
         SizedBox(width: 8),
         Expanded(
           child: ElevatedButton.icon(
-            onPressed: () => _showCancelDialog(flight, viewModel),
+            onPressed: isDisabled ? null : () => _showCancelDialog(flight, viewModel),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.transparent,
-              foregroundColor: Colors.red[600],
-              side: BorderSide(color: Colors.red[200]!),
+              foregroundColor: isDisabled ? Colors.grey[400] : Colors.red[600],
+              side: BorderSide(color: isDisabled ? Colors.grey[300]! : Colors.red[200]!),
               elevation: 0,
             ),
             icon: Icon(Icons.cancel, size: 16),

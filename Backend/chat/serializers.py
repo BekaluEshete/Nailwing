@@ -41,20 +41,26 @@ class ChatRoomSerializer(serializers.ModelSerializer):
     
     def get_unread_count(self, obj):
         """Calculate unread message count for current user"""
-        request = self.context.get("request")
-        if request and request.user.is_authenticated:
-            from .models import Message, ReadReceipt
-            # Count messages in this room that:
-            # 1. Are not from the current user
-            # 2. Don't have a read receipt from the current user
-            unread_count = Message.objects.filter(
-                room=obj
-            ).exclude(
-                user=request.user
-            ).exclude(
-                read_receipts__user=request.user
-            ).count()
-            return unread_count
+        try:
+            request = self.context.get("request")
+            if request and request.user.is_authenticated:
+                from .models import Message, ReadReceipt
+                # Count messages in this room that:
+                # 1. Are not from the current user
+                # 2. Don't have a read receipt from the current user
+                unread_count = Message.objects.filter(
+                    room=obj
+                ).exclude(
+                    user=request.user
+                ).exclude(
+                    read_receipts__user=request.user
+                ).count()
+                return unread_count
+        except Exception as e:
+            # If ReadReceipt table doesn't exist yet (migration not run) or other error
+            # Return 0 as fallback
+            print(f"⚠️ Error calculating unread count: {e}")
+            return 0
         return 0
 
 
@@ -69,10 +75,16 @@ class MessageSerializer(serializers.ModelSerializer):
     
     def get_is_read(self, obj):
         """Check if current user has read this message"""
-        request = self.context.get("request")
-        if request and request.user.is_authenticated:
-            from .models import ReadReceipt
-            return ReadReceipt.objects.filter(message=obj, user=request.user).exists()
+        try:
+            request = self.context.get("request")
+            if request and request.user.is_authenticated:
+                from .models import ReadReceipt
+                return ReadReceipt.objects.filter(message=obj, user=request.user).exists()
+        except Exception as e:
+            # If ReadReceipt table doesn't exist yet (migration not run) or other error
+            # Return False as fallback (assume unread)
+            print(f"⚠️ Error checking read status: {e}")
+            return False
         return False
 
 

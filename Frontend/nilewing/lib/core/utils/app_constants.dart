@@ -41,6 +41,9 @@ class AppConstants {
   static const String placesEndpoint = '$recommendationsBaseUrl/places/';
   static const String recommendationsEndpoint =
       '$recommendationsBaseUrl/recommendations/';
+  
+  // Google Maps API
+  static const String googleMapsApiKey = 'AIzaSyDHzbqstWXpYy7ce4IN-J-2YYKBxKrE2dk';
 
   // Chat Endpoints
   static const String chatBaseUrl = '$baseUrl/chat';

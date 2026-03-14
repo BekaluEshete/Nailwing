@@ -401,7 +401,7 @@ class MatchDetailScreen extends ConsumerWidget {
               currentMatch.status,
               style: TextStyle(
                 fontSize: 14,
-                color: _getStatusColor(match.status),
+                color: _getStatusColor(currentMatch.status),
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -443,8 +443,7 @@ class MatchDetailScreen extends ConsumerWidget {
               child: const Text('Connect'),
             )
           // Show Accept/Reject buttons if connection request received (NOT sent by current user)
-          else if ((currentMatch.status.toLowerCase() == 'connection request' ||
-                   currentMatch.status.toLowerCase() == 'connection_requested') &&
+          else if (currentMatch.status.toLowerCase() == 'connection request' &&
                    !currentMatch.isRequestSentByCurrentUser)
             Row(
               children: [
@@ -482,9 +481,8 @@ class MatchDetailScreen extends ConsumerWidget {
             )
           // Show "Request Sent" status if connection request was sent by current user
           else if (currentMatch.status.toLowerCase() == 'request sent' ||
-                   (currentMatch.status.toLowerCase() == 'connection request' ||
-                    currentMatch.status.toLowerCase() == 'connection_requested') &&
-                   currentMatch.isRequestSentByCurrentUser)
+                   (currentMatch.status.toLowerCase() == 'connection request' &&
+                    currentMatch.isRequestSentByCurrentUser))
             Container(
               padding: const EdgeInsets.symmetric(
                 horizontal: 16,
@@ -551,7 +549,7 @@ class MatchDetailScreen extends ConsumerWidget {
       
       // Close loading dialog BEFORE showing success message
       if (context.mounted) {
-        Navigator.of(context).pop();
+        Navigator.of(context, rootNavigator: true).pop();
       }
 
       // Show success message
@@ -569,7 +567,7 @@ class MatchDetailScreen extends ConsumerWidget {
       
       // Close loading dialog if still open
       if (context.mounted) {
-        Navigator.of(context).pop();
+        Navigator.of(context, rootNavigator: true).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error: ${e.toString()}'),
@@ -606,7 +604,7 @@ class MatchDetailScreen extends ConsumerWidget {
 
       // Close loading dialog BEFORE creating chat
       if (context.mounted) {
-        Navigator.of(context).pop();
+        Navigator.of(context, rootNavigator: true).pop();
       }
 
       // Show success message
@@ -630,7 +628,7 @@ class MatchDetailScreen extends ConsumerWidget {
       
       // Close loading dialog if still open
       if (context.mounted) {
-        Navigator.of(context).pop();
+        Navigator.of(context, rootNavigator: true).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error: ${e.toString()}'),
@@ -688,7 +686,7 @@ class MatchDetailScreen extends ConsumerWidget {
 
       // Close loading dialog
       if (context.mounted) {
-        Navigator.of(context).pop();
+        Navigator.of(context, rootNavigator: true).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Connection canceled. You cannot chat with this person.'),
@@ -701,7 +699,7 @@ class MatchDetailScreen extends ConsumerWidget {
       
       // Close loading dialog if still open
       if (context.mounted) {
-        Navigator.of(context).pop();
+        Navigator.of(context, rootNavigator: true).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error: ${e.toString()}'),

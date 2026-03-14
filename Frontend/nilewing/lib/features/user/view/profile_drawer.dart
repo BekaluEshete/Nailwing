@@ -20,7 +20,7 @@ class ProfileDrawer extends ConsumerWidget {
           children: [
             // Profile Header Section
             _buildProfileHeader(context, ref, profile),
-            
+
             // Menu Items
             Expanded(
               child: ListView(
@@ -31,7 +31,7 @@ class ProfileDrawer extends ConsumerWidget {
                     context: context,
                     icon: Icons.person_outline,
                     title: 'View Profile',
-                    subtitle: 'See your complete profile',
+                    subtitle: 'See and update  your complete profile',
                     onTap: () {
                       Navigator.pop(context); // Close drawer
                       Future.delayed(const Duration(milliseconds: 100), () {
@@ -39,24 +39,24 @@ class ProfileDrawer extends ConsumerWidget {
                       });
                     },
                   ),
-                  
+
                   // Edit your information
-                  _buildMenuItem(
-                    context: context,
-                    icon: Icons.edit_outlined,
-                    title: 'Edit your information',
-                    subtitle: 'Update your profile details',
-                    onTap: () {
-                      Navigator.pop(context); // Close drawer
-                      Future.delayed(const Duration(milliseconds: 100), () {
-                        context.go('/profile');
-                        // Trigger edit mode - you may need to add a parameter or state
-                      });
-                    },
-                  ),
-                  
-                  const Divider(height: 1),
-                  
+                  // _buildMenuItem(
+                  //   context: context,
+                  //   icon: Icons.edit_outlined,
+                  //   title: 'Edit your information',
+                  //   subtitle: 'Update your profile details',
+                  //   onTap: () {
+                  //     Navigator.pop(context); // Close drawer
+                  //     Future.delayed(const Duration(milliseconds: 100), () {
+                  //       context.go('/profile');
+                  //       // Trigger edit mode - you may need to add a parameter or state
+                  //     });
+                  //   },
+                  // ),
+
+                  // const Divider(height: 1),
+
                   // About Nile Wing
                   _buildMenuItem(
                     context: context,
@@ -65,7 +65,7 @@ class ProfileDrawer extends ConsumerWidget {
                     subtitle: 'Learn about our mission',
                     onTap: () => _showAboutDialog(context),
                   ),
-                  
+
                   // App info & developer credits
                   _buildMenuItem(
                     context: context,
@@ -74,9 +74,9 @@ class ProfileDrawer extends ConsumerWidget {
                     subtitle: 'Version and credits',
                     onTap: () => _showAppInfoDialog(context),
                   ),
-                  
+
                   const Divider(height: 1),
-                  
+
                   // Hotel Suggestions
                   _buildMenuItem(
                     context: context,
@@ -85,7 +85,7 @@ class ProfileDrawer extends ConsumerWidget {
                     subtitle: 'Find nearby accommodations',
                     onTap: () => _navigateToRecommendations(context),
                   ),
-                  
+
                   // Find nearby accommodations
                   _buildMenuItem(
                     context: context,
@@ -94,9 +94,9 @@ class ProfileDrawer extends ConsumerWidget {
                     subtitle: 'Search hotels near you',
                     onTap: () => _navigateToRecommendations(context),
                   ),
-                  
+
                   const Divider(height: 1),
-                  
+
                   // Safe Woman
                   _buildMenuItem(
                     context: context,
@@ -105,7 +105,7 @@ class ProfileDrawer extends ConsumerWidget {
                     subtitle: 'Safety features & resources',
                     onTap: () => _showSafeWomanComingSoon(context),
                   ),
-                  
+
                   // Reports/Blocked
                   _buildMenuItem(
                     context: context,
@@ -114,9 +114,9 @@ class ProfileDrawer extends ConsumerWidget {
                     subtitle: 'Manage blocked users',
                     onTap: () => _showBlockedUsers(context),
                   ),
-                  
+
                   const Divider(height: 1),
-                  
+
                   // Help and Support
                   _buildMenuItem(
                     context: context,
@@ -125,7 +125,7 @@ class ProfileDrawer extends ConsumerWidget {
                     subtitle: 'Get assistance',
                     onTap: () => _showHelpSupport(context),
                   ),
-                  
+
                   // Terms of Use
                   _buildMenuItem(
                     context: context,
@@ -134,9 +134,9 @@ class ProfileDrawer extends ConsumerWidget {
                     subtitle: 'Legal information',
                     onTap: () => _showTermsOfUse(context),
                   ),
-                  
+
                   const Divider(height: 1),
-                  
+
                   // Settings
                   _buildMenuItem(
                     context: context,
@@ -145,7 +145,7 @@ class ProfileDrawer extends ConsumerWidget {
                     subtitle: 'App preferences',
                     onTap: () => _showSettings(context),
                   ),
-                  
+
                   // Account
                   _buildMenuItem(
                     context: context,
@@ -154,9 +154,9 @@ class ProfileDrawer extends ConsumerWidget {
                     subtitle: 'Manage your account',
                     onTap: () => _showAccountSettings(context),
                   ),
-                  
+
                   const Divider(height: 1),
-                  
+
                   // Delete Account
                   _buildMenuItem(
                     context: context,
@@ -167,9 +167,9 @@ class ProfileDrawer extends ConsumerWidget {
                     iconColor: Colors.red,
                     onTap: () => _handleDeleteAccount(context, ref),
                   ),
-                  
+
                   const SizedBox(height: 8),
-                  
+
                   // Logout
                   _buildMenuItem(
                     context: context,
@@ -180,7 +180,7 @@ class ProfileDrawer extends ConsumerWidget {
                     iconColor: Colors.red,
                     onTap: () => _handleLogout(context, ref),
                   ),
-                  
+
                   const SizedBox(height: 16),
                 ],
               ),
@@ -203,97 +203,110 @@ class ProfileDrawer extends ConsumerWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.only(top: 50, bottom: 24, left: 20, right: 20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            AppColors.primary,
-            AppColors.primary.withOpacity(0.8),
-          ],
+          colors: [AppColors.primary, AppColors.primary.withOpacity(0.9)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
       ),
-      child: Column(
-        children: [
-          // Profile Photo
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 3),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
-                  blurRadius: 10,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-            child: ClipOval(
-              child: profileImageUrl != null && profileImageUrl.isNotEmpty
-                  ? Image.network(
-                      profileImageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return _buildDefaultAvatar();
-                      },
-                    )
-                  : _buildDefaultAvatar(),
-            ),
-          ),
-          const SizedBox(height: 16),
-          
-          // Name
-          Text(
-            fullName,
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          
-          // Email
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.email_outlined, color: Colors.white70, size: 16),
-              const SizedBox(width: 4),
-              Flexible(
-                child: Text(
-                  email,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: Colors.white70,
+      child: InkWell(
+        onTap: () {
+          Navigator.pop(context); // Close drawer
+          Future.delayed(const Duration(milliseconds: 100), () {
+            context.go('/profile');
+          });
+        },
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Profile Photo - Larger, more prominent
+            Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 4),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 15,
+                    spreadRadius: 2,
                   ),
-                  textAlign: TextAlign.center,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                ],
               ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          
-          // Nationality
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.flag_outlined, color: Colors.white70, size: 16),
-              const SizedBox(width: 4),
-              Text(
-                nationality,
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: Colors.white70,
-                ),
+              child: ClipOval(
+                child: profileImageUrl != null && profileImageUrl.isNotEmpty
+                    ? Image.network(
+                        profileImageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return _buildDefaultAvatar();
+                        },
+                      )
+                    : _buildDefaultAvatar(),
               ),
-            ],
-          ),
-        ],
+            ),
+            const SizedBox(height: 20),
+
+            // Name - Larger, bolder
+            Text(
+              fullName,
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                letterSpacing: 0.5,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 8),
+
+            // Email - More visible
+            if (email.isNotEmpty)
+              Row(
+                children: [
+                  const Icon(
+                    Icons.email_outlined,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      email,
+                      style: const TextStyle(fontSize: 15, color: Colors.white),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+
+            if (email.isNotEmpty &&
+                nationality.isNotEmpty &&
+                nationality != 'Not specified')
+              const SizedBox(height: 6),
+
+            // Nationality - More visible
+            if (nationality.isNotEmpty && nationality != 'Not specified')
+              Row(
+                children: [
+                  const Icon(
+                    Icons.flag_outlined,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    nationality,
+                    style: const TextStyle(fontSize: 15, color: Colors.white),
+                  ),
+                ],
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -301,11 +314,7 @@ class ProfileDrawer extends ConsumerWidget {
   Widget _buildDefaultAvatar() {
     return Container(
       color: Colors.white.withOpacity(0.2),
-      child: const Icon(
-        Icons.person,
-        size: 40,
-        color: Colors.white,
-      ),
+      child: const Icon(Icons.person, size: 40, color: Colors.white),
     );
   }
 
@@ -318,33 +327,60 @@ class ProfileDrawer extends ConsumerWidget {
     Color? textColor,
     Color? iconColor,
   }) {
-    return ListTile(
-      leading: Icon(
-        icon,
-        color: iconColor ?? AppColors.primary,
-        size: 24,
-      ),
-      title: Text(
-        title,
-        style: TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w500,
-          color: textColor ?? Colors.black87,
-        ),
-      ),
-      subtitle: Text(
-        subtitle,
-        style: TextStyle(
-          fontSize: 12,
-          color: Colors.grey[600],
-        ),
-      ),
-      trailing: Icon(
-        Icons.chevron_right,
-        color: Colors.grey[400],
-      ),
+    final isDestructive = textColor == Colors.red;
+
+    return InkWell(
       onTap: onTap,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            // Icon with background
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: (iconColor ?? AppColors.primary).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                icon,
+                color: iconColor ?? AppColors.primary,
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 16),
+
+            // Title and Subtitle
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: textColor ?? Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: isDestructive ? Colors.red[300] : Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Chevron
+            Icon(Icons.chevron_right, color: Colors.grey[400], size: 20),
+          ],
+        ),
+      ),
     );
   }
 
@@ -356,39 +392,39 @@ class ProfileDrawer extends ConsumerWidget {
         context: context,
         builder: (dialogContext) => AlertDialog(
           title: const Text('About Nile Wing'),
-        content: const SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Nile Wing',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 12),
-              Text(
-                'Nile Wing is a travel companion app designed to help travelers connect with like-minded people on their journeys.',
-              ),
-              SizedBox(height: 12),
-              Text(
-                'Our Mission:',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 8),
-              Text(
-                'To make travel safer, more social, and more enjoyable by connecting travelers who share similar routes, destinations, and interests.',
-              ),
-            ],
+          content: const SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Nile Wing',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: 12),
+                Text(
+                  'Nile Wing is a travel companion app designed to help travelers connect with like-minded people on their journeys.',
+                ),
+                SizedBox(height: 12),
+                Text(
+                  'Our Mission:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'To make travel safer, more social, and more enjoyable by connecting travelers who share similar routes, destinations, and interests.',
+                ),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Close'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
+      );
     });
   }
 
@@ -399,37 +435,37 @@ class ProfileDrawer extends ConsumerWidget {
         context: context,
         builder: (dialogContext) => AlertDialog(
           title: const Text('App Information'),
-        content: const SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Nile Wing',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 8),
-              Text('Version: 1.0.0'),
-              SizedBox(height: 16),
-              Text(
-                'Developer Credits:',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 8),
-              Text('Developed by Nile Wing Team'),
-              SizedBox(height: 8),
-              Text('© 2024 Nile Wing. All rights reserved.'),
-            ],
+          content: const SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Nile Wing',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: 8),
+                Text('Version: 1.0.0'),
+                SizedBox(height: 16),
+                Text(
+                  'Developer Credits:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: 8),
+                Text('Developed by Nile Wing Team'),
+                SizedBox(height: 8),
+                Text('© 2025 Nile Wing. All rights reserved.'),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Close'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
+      );
     });
   }
 
@@ -472,49 +508,49 @@ class ProfileDrawer extends ConsumerWidget {
         context: context,
         builder: (dialogContext) => AlertDialog(
           title: const Text('Help & Support'),
-        content: const SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Get Assistance',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
-              SizedBox(height: 12),
-              Text('Email: support@nilewing.com'),
-              SizedBox(height: 8),
-              Text('Phone: +1 (555) 123-4567'),
-              SizedBox(height: 8),
-              Text('Hours: Mon-Fri, 9 AM - 6 PM'),
-              SizedBox(height: 12),
-              Text(
-                'Common Questions:',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 8),
-              Text('• How to add a flight?'),
-              Text('• How to connect with travelers?'),
-              Text('• How to report a user?'),
-              Text('• How to update my profile?'),
-            ],
+          content: const SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Get Assistance',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                SizedBox(height: 12),
+                Text('Email: support@nilewing.com'),
+                SizedBox(height: 8),
+                Text('Phone: +1 (555) 123-4567'),
+                SizedBox(height: 8),
+                Text('Hours: Mon-Fri, 9 AM - 6 PM'),
+                SizedBox(height: 12),
+                Text(
+                  'Common Questions:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: 8),
+                Text('• How to add a flight?'),
+                Text('• How to connect with travelers?'),
+                Text('• How to report a user?'),
+                Text('• How to update my profile?'),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Close'),
+            ),
+            TextButton(
+              onPressed: () {
+                // TODO: Open email client
+                Navigator.pop(dialogContext);
+              },
+              child: const Text('Contact Support'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Close'),
-          ),
-          TextButton(
-            onPressed: () {
-              // TODO: Open email client
-              Navigator.pop(dialogContext);
-            },
-            child: const Text('Contact Support'),
-          ),
-        ],
-      ),
-    );
+      );
     });
   }
 
@@ -525,43 +561,45 @@ class ProfileDrawer extends ConsumerWidget {
         context: context,
         builder: (dialogContext) => AlertDialog(
           title: const Text('Terms of Use'),
-        content: const SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Legal Information',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
-              SizedBox(height: 12),
-              Text(
-                'By using Nile Wing, you agree to the following terms:',
-              ),
-              SizedBox(height: 8),
-              Text('1. You must be 18 years or older to use this app.'),
-              SizedBox(height: 8),
-              Text('2. You are responsible for your interactions with other users.'),
-              SizedBox(height: 8),
-              Text('3. You must not share false information.'),
-              SizedBox(height: 8),
-              Text('4. We reserve the right to suspend accounts that violate our terms.'),
-              SizedBox(height: 12),
-              Text(
-                'For the complete terms of service, please visit our website.',
-                style: TextStyle(fontStyle: FontStyle.italic),
-              ),
-            ],
+          content: const SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Legal Information',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                SizedBox(height: 12),
+                Text('By using Nile Wing, you agree to the following terms:'),
+                SizedBox(height: 8),
+                Text('1. You must be 18 years or older to use this app.'),
+                SizedBox(height: 8),
+                Text(
+                  '2. You are responsible for your interactions with other users.',
+                ),
+                SizedBox(height: 8),
+                Text('3. You must not share false information.'),
+                SizedBox(height: 8),
+                Text(
+                  '4. We reserve the right to suspend accounts that violate our terms.',
+                ),
+                SizedBox(height: 12),
+                Text(
+                  'For the complete terms of service, please visit our website.',
+                  style: TextStyle(fontStyle: FontStyle.italic),
+                ),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Close'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
+      );
     });
   }
 
@@ -588,7 +626,7 @@ class ProfileDrawer extends ConsumerWidget {
 
   Future<void> _handleDeleteAccount(BuildContext context, WidgetRef ref) async {
     Navigator.of(context).pop(); // Close drawer
-    
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -615,9 +653,7 @@ class ProfileDrawer extends ConsumerWidget {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(),
-        ),
+        builder: (context) => const Center(child: CircularProgressIndicator()),
       );
 
       // TODO: Implement delete account API call
@@ -625,12 +661,12 @@ class ProfileDrawer extends ConsumerWidget {
 
       if (context.mounted) {
         Navigator.pop(context); // Close loading
-        
+
         // Logout after deletion
         final loginService = LoginService();
         await loginService.logout();
         ref.read(authStateProvider.notifier).logout();
-        
+
         if (context.mounted) {
           context.go('/login');
         }
@@ -640,7 +676,7 @@ class ProfileDrawer extends ConsumerWidget {
 
   Future<void> _handleLogout(BuildContext context, WidgetRef ref) async {
     Navigator.of(context).pop(); // Close drawer
-    
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -663,13 +699,12 @@ class ProfileDrawer extends ConsumerWidget {
     if (confirm == true) {
       final loginService = LoginService();
       await loginService.logout();
-      
+
       ref.read(authStateProvider.notifier).logout();
-      
+
       if (context.mounted) {
         context.go('/login');
       }
     }
   }
 }
-

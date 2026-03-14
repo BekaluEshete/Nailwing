@@ -12,15 +12,18 @@ class MatchService {
 
   final TokenStorage _tokenStorage = TokenStorage();
   final HttpClient _httpClient = HttpClient();
+  String? _cachedCurrentUserId;
 
   Future<String?> _getAuthToken() async {
     return await _tokenStorage.getAccessToken();
   }
 
   Future<String?> _getCurrentUserId() async {
+    if (_cachedCurrentUserId != null) return _cachedCurrentUserId;
     try {
       final userData = await _tokenStorage.getUserData();
-      return userData?['id']?.toString();
+      _cachedCurrentUserId = userData?['id']?.toString();
+      return _cachedCurrentUserId;
     } catch (e) {
       print('❌ [MatchService] Error getting current user ID: $e');
       return null;
@@ -400,8 +403,11 @@ class MatchService {
     Map<String, dynamic>? otherFlightData;
     bool? currentUserIsUser1;
     
-    final user1Id = user1Data['id']?.toString();
-    final user2Id = user2Data['id']?.toString();
+    // Check both user1 field and user1_data/id for robust matching
+    final user1Id = json['user1']?.toString() ?? 
+                    (json['user1_data'] as Map?)?['id']?.toString();
+    final user2Id = json['user2']?.toString() ?? 
+                    (json['user2_data'] as Map?)?['id']?.toString();
     
     if (currentUserId != null && user1Id == currentUserId) {
       // Current user is user1, so other user is user2
@@ -515,43 +521,29 @@ class MatchService {
     final commonInterestsList = json['common_interests'];
     List<String> commonInterests = [];
     
-    print('🔍 [MatchService] Raw common_interests from JSON: $commonInterestsList (type: ${commonInterestsList.runtimeType})');
-    
     if (commonInterestsList != null) {
       if (commonInterestsList is List) {
         commonInterests = commonInterestsList
             .map((e) => e?.toString().trim() ?? '')
             .where((e) => e.isNotEmpty)
             .toList();
-        print('🔍 [MatchService] Parsed as List: $commonInterests');
       } else if (commonInterestsList is String) {
-        // Handle case where it might be a JSON string
         try {
           final parsed = jsonDecode(commonInterestsList) as List;
           commonInterests = parsed
               .map((e) => e?.toString().trim() ?? '')
               .where((e) => e.isNotEmpty)
               .toList();
-          print('🔍 [MatchService] Parsed as JSON string: $commonInterests');
         } catch (e) {
-          // If parsing fails, treat as single interest
           final trimmed = commonInterestsList.toString().trim();
           if (trimmed.isNotEmpty) {
             commonInterests = [trimmed];
-            print('🔍 [MatchService] Treated as single interest: $commonInterests');
           }
         }
-      } else {
-        print('⚠️ [MatchService] Unknown type for common_interests: ${commonInterestsList.runtimeType}');
-          }
-    } else {
-      print('⚠️ [MatchService] common_interests is null or missing in JSON');
+      }
     }
     
-    print('🔍 [MatchService] Final common interests parsed: $commonInterests (count: ${commonInterests.length})');
-    
-    // Get user's own interests (not common interests) - this should come from user data
-    // For now, we'll use an empty list or try to get from user2_data if available
+    // Get user's own interests
     List<String> userInterests = [];
     if (otherUserData['interests'] != null) {
       if (otherUserData['interests'] is List) {
@@ -562,9 +554,9 @@ class MatchService {
       }
     }
     
-    // Parse user1_liked and user2_liked
-    final user1Liked = json['user1_liked'] as bool? ?? false;
-    final user2Liked = json['user2_liked'] as bool? ?? false;
+    // Parse liked status robustly
+    final user1Liked = _parseBool(json['user1_liked']);
+    final user2Liked = _parseBool(json['user2_liked']);
     
     return Match(
       id: json['id'].toString(),
@@ -582,7 +574,7 @@ class MatchService {
         languages: otherUserData['language'] != null
             ? [otherUserData['language']]
             : [],
-        interests: userInterests, // User's own interests, not common interests
+        interests: userInterests,
         verified: false,
         bio: '',
         rating: 0.0,
@@ -629,18 +621,36 @@ class MatchService {
           ? DateTime.parse(json['created_at'])
           : DateTime.now(),
       matchType: matchType,
-      commonInterests: commonInterests, // Set common interests on Match object
+      commonInterests: commonInterests,
       tripPurpose: null,
     );
+  }
+
+  // Helper to parse booleans robustly from JSON (handles String, int, bool)
+  bool _parseBool(dynamic value) {
+    if (value == null) return false;
+    if (value is bool) return value;
+    if (value is int) return value == 1;
+    if (value is String) {
+      final s = value.toLowerCase();
+      return s == 'true' || s == '1' || s == 'yes';
+    }
+    return false;
   }
 
   // Helper: Get display text for match status
   String _getStatusDisplayText(Map<String, dynamic> json, String? currentUserId) {
     final status = json['status']?.toString().toLowerCase() ?? 'pending';
-    final user1Liked = json['user1_liked'] ?? false;
-    final user2Liked = json['user2_liked'] ?? false;
-    final user1Id = json['user1']?.toString();
-    final user2Id = json['user2']?.toString();
+    
+    // Use robust boolean parsing
+    final user1Liked = _parseBool(json['user1_liked']);
+    final user2Liked = _parseBool(json['user2_liked']);
+    
+    // Check both user1 field and user1_data/id
+    final user1Id = json['user1']?.toString() ?? 
+                    (json['user1_data'] as Map?)?['id']?.toString();
+    final user2Id = json['user2']?.toString() ?? 
+                    (json['user2_data'] as Map?)?['id']?.toString();
     
     // Determine if current user sent the request or received it
     bool currentUserSentRequest = false;

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nilewing/core/theme/app_colors.dart';
 import 'package:nilewing/features/home/model/home_model.dart';
 import 'package:nilewing/features/home/viewmodel/home_view_model.dart';
+import 'package:nilewing/features/user/view/profile_drawer.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   final VoidCallback? onNavigateToNotifications;
@@ -51,6 +52,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         (viewModel.user == null || viewModel.userFlight == null)) {
       return Scaffold(
         backgroundColor: Colors.white,
+        drawer: const ProfileDrawer(),
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -77,6 +79,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     if (user == null) {
       return Scaffold(
         backgroundColor: Colors.white,
+        drawer: const ProfileDrawer(),
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -94,6 +97,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     if (flight == null) {
       return Scaffold(
         backgroundColor: Colors.white,
+        drawer: const ProfileDrawer(),
         body: SafeArea(
           child: Column(
             children: [
@@ -104,29 +108,55 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.flight_takeoff, size: 64, color: Colors.grey[300]),
-                      SizedBox(height: 16),
-                      Text(
-                        'No Upcoming Flights',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey[800],
-                        ),
-                      ),
-                      SizedBox(height: 8),
-                      Text(
-                        'Add a flight to see matches and recommendations',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
-                        ),
-                        textAlign: TextAlign.center,
+                      Icon(
+                        Icons.airplanemode_active_rounded,
+                        size: 80,
+                        color: AppColors.primary.withOpacity(0.15),
                       ),
                       SizedBox(height: 24),
-                      ElevatedButton(
+                      Text(
+                        'Ready for your next journey?',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.grey[800],
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                      SizedBox(height: 12),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 40),
+                        child: Text(
+                          'Add your upcoming flight details to unlock matches, travel companions, and personalized recommendations.',
+                          style: TextStyle(
+                            fontSize: 15,
+                            color: Colors.grey[600],
+                            height: 1.5,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                      SizedBox(height: 32),
+                      ElevatedButton.icon(
                         onPressed: widget.onNavigateToMyFlights,
-                        child: Text('Add Flight'),
+                        icon: Icon(Icons.add_circle_outline, size: 20, color: Colors.white),
+                        label: Text(
+                          'Add Your Flight',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.5,
+                            color: Colors.white,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          padding: EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 2,
+                        ),
                       ),
                     ],
                   ),
@@ -140,6 +170,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return Scaffold(
       backgroundColor: Colors.white,
+      drawer: const ProfileDrawer(),
       body: SafeArea(
         child: Column(
           children: [
@@ -167,10 +198,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         builder: (context, value, child) {
                           return Transform.translate(
                             offset: Offset(0, 20 * (1 - value)),
-                            child: Opacity(
-                              opacity: value,
-                              child: child,
-                            ),
+                            child: Opacity(opacity: value, child: child),
                           );
                         },
                         child: _buildUpcomingFlightSection(viewModel, flight),
@@ -185,10 +213,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         builder: (context, value, child) {
                           return Transform.translate(
                             offset: Offset(0, 30 * (1 - value)),
-                            child: Opacity(
-                              opacity: value,
-                              child: child,
-                            ),
+                            child: Opacity(opacity: value, child: child),
                           );
                         },
                         child: _buildPreFlightMatchesSection(viewModel),
@@ -203,10 +228,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         builder: (context, value, child) {
                           return Transform.translate(
                             offset: Offset(0, 30 * (1 - value)),
-                            child: Opacity(
-                              opacity: value,
-                              child: child,
-                            ),
+                            child: Opacity(opacity: value, child: child),
                           );
                         },
                         child: _buildFlightStoriesSection(viewModel),
@@ -258,6 +280,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
       child: Row(
         children: [
+          // Hamburger Menu (Left side)
+          Builder(
+            builder: (context) => IconButton(
+              onPressed: () {
+                Scaffold.of(context).openDrawer();
+              },
+              icon: Icon(Icons.menu, color: Colors.white, size: 24),
+              tooltip: 'Menu',
+            ),
+          ),
+
+          SizedBox(width: 8),
+
           // Logo
           Row(
             children: [
@@ -277,66 +312,38 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
           Spacer(),
 
-          // Notifications and Profile
-          Row(
+          // Notifications (Right side only)
+          Stack(
             children: [
-              Stack(
-                children: [
-                  IconButton(
-                    onPressed: widget.onNavigateToNotifications,
-                    icon: Icon(Icons.notifications, color: Colors.white),
-                  ),
-                  if (viewModel.notificationCount > 0)
-                    Positioned(
-                      right: 8,
-                      top: 8,
-                      child: Container(
-                        padding: EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          color: Colors.red,
-                          shape: BoxShape.circle,
-                        ),
-                        constraints: BoxConstraints(
-                          minWidth: 18,
-                          minHeight: 18,
-                        ),
-                        child: Text(
-                          viewModel.notificationCount > 9
-                              ? '4+'
-                              : viewModel.notificationCount.toString(),
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
+              IconButton(
+                onPressed: widget.onNavigateToNotifications,
+                icon: Icon(Icons.notifications, color: Colors.white, size: 24),
+                tooltip: 'Notifications',
+              ),
+              if (viewModel.notificationCount > 0)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
                     ),
-                ],
-              ),
-              GestureDetector(
-                onTap: widget.onNavigateToProfile,
-                child: CircleAvatar(
-                  radius: 20,
-                  backgroundColor: Colors.white.withOpacity(0.3),
-                  child: user.profileImage != null
-                      ? CircleAvatar(
-                          radius: 18,
-                          backgroundImage: NetworkImage(user.profileImage!),
-                        )
-                      : Text(
-                          user.name.isNotEmpty 
-                              ? user.name.substring(0, user.name.length > 2 ? 2 : user.name.length).toUpperCase()
-                              : 'U',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
+                    constraints: BoxConstraints(minWidth: 18, minHeight: 18),
+                    child: Text(
+                      viewModel.notificationCount > 9
+                          ? '9+'
+                          : viewModel.notificationCount.toString(),
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
                 ),
-              ),
             ],
           ),
         ],
@@ -373,15 +380,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
               ),
               Spacer(),
-              GestureDetector(
-                onTap: widget.onNavigateToMyFlights,
-                child: Text(
-                  'View All',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w600,
+              TextButton(
+                onPressed: widget.onNavigateToMyFlights,
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
                   ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'View All',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    SizedBox(width: 4),
+                    Icon(Icons.arrow_forward_ios, size: 12, color: AppColors.primary),
+                  ],
                 ),
               ),
             ],
@@ -759,15 +781,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
               ),
               Spacer(),
-              GestureDetector(
-                onTap: widget.onNavigateToPreFlightMatching,
-                child: Text(
-                  'View All',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w600,
+              TextButton(
+                onPressed: widget.onNavigateToPreFlightMatching,
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
                   ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'View All',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    SizedBox(width: 4),
+                    Icon(Icons.arrow_forward_ios, size: 12, color: AppColors.primary),
+                  ],
                 ),
               ),
             ],
@@ -1095,15 +1132,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
               ),
               Spacer(),
-              GestureDetector(
-                onTap: widget.onNavigateToMatch,
-                child: Text(
-                  'View All',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w600,
+              TextButton(
+                onPressed: widget.onNavigateToMatch,
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
                   ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'View All',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    SizedBox(width: 4),
+                    Icon(Icons.arrow_forward_ios, size: 12, color: AppColors.primary),
+                  ],
                 ),
               ),
             ],
@@ -1383,14 +1435,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                   ],
                 ),
-                GestureDetector(
-                  onTap: widget.onNavigateToProfile,
+                TextButton(
+                  onPressed: widget.onNavigateToProfile,
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    backgroundColor: AppColors.primary.withOpacity(0.05),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                  ),
                   child: Text(
                     'View Profile',
                     style: TextStyle(
                       fontSize: 12,
                       color: AppColors.primary,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),

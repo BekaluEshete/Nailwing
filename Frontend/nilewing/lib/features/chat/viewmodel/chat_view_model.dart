@@ -94,8 +94,22 @@ class ChatViewModel extends StateNotifier<ChatState> {
       // Store mapping of room name to chat ID for real-time message routing
       _roomNameToChatId[_currentRoomName!] = contactId;
 
-      // Mark messages as read (non-blocking)
-      _chatService.markAsRead(contactId);
+      // Mark messages as read (non-blocking, but update unread count after)
+      // This will call the backend API to mark all messages as read
+      _chatService.markAsRead(contactId).then((_) {
+        // Update unread count to 0 after successfully marking as read
+        final updatedContacts = state.contacts.map((contact) {
+          if (contact.id == contactId) {
+            return contact.copyWith(unreadCount: 0);
+          }
+          return contact;
+        }).toList();
+        
+        state = state.copyWith(contacts: updatedContacts);
+        print('✅ [ChatViewModel] Updated unread count to 0 for chat: $contactId');
+      }).catchError((e) {
+        print('⚠️ [ChatViewModel] Error marking messages as read: $e');
+      });
 
       // ALWAYS load messages from database when selecting a chat
       // This ensures we have the latest persisted messages
@@ -216,16 +230,9 @@ class ChatViewModel extends StateNotifier<ChatState> {
         print('ℹ️ [ChatViewModel] WebSocket already connected for $contactId');
       }
 
-      // Update contact's unread count
-      final updatedContacts = state.contacts.map((contact) {
-        if (contact.id == contactId) {
-          return contact.copyWith(unreadCount: 0);
-        }
-        return contact;
-      }).toList();
-
+      // Note: Unread count is updated in markAsRead callback above
+      // Ensure loading is cleared
       state = state.copyWith(
-        contacts: updatedContacts,
         isLoading: false,  // Ensure loading is cleared even if WebSocket fails
       );
     } catch (e) {
@@ -418,15 +425,49 @@ class ChatViewModel extends StateNotifier<ChatState> {
         type: _parseMessageType(data['message_type'] ?? 'text'),
       );
 
-      currentMessages.add(newMessage);
+      // Check for optimistic duplicate to replace
+      int optimisticIndex = -1;
+      if (isMe) {
+        optimisticIndex = currentMessages.lastIndexWhere((m) => 
+          m.senderId == 'me' && 
+          !_isUuidFormat(m.id) && 
+          m.content == messageContent
+        );
+      }
+
+      if (optimisticIndex != -1) {
+        currentMessages[optimisticIndex] = newMessage;
+      } else {
+        currentMessages.add(newMessage);
+      }
       
       // Sort messages by ISO timestamp to ensure proper order
       currentMessages.sort(_compareMessagesByTimestamp);
       
       updatedMessages[chatId] = currentMessages;
 
-      // Update state - this triggers UI refresh (create new map to ensure change detection)
+      // Update unread count only if:
+      // 1. Message is not from current user
+      // 2. Chat is not currently selected (user is not viewing this chat)
+      if (!isMe && chatId != state.selectedChatId) {
+        final updatedContacts = state.contacts.map((contact) {
+          if (contact.id == chatId) {
+            return contact.copyWith(unreadCount: contact.unreadCount + 1);
+          }
+          return contact;
+        }).toList();
+        state = state.copyWith(
+          messages: Map<String, List<ChatMessage>>.from(updatedMessages),
+          contacts: updatedContacts,
+        );
+        print('📬 [ChatViewModel] Incremented unread count for chat: $chatId');
+      } else {
+        // Update state without changing unread count
       state = state.copyWith(messages: Map<String, List<ChatMessage>>.from(updatedMessages));
+        if (chatId == state.selectedChatId) {
+          print('✅ [ChatViewModel] Message received in active chat - no unread increment');
+        }
+      }
 
       print('✅ [ChatViewModel] REAL-TIME message added. Total messages: ${currentMessages.length}');
     } else {
@@ -455,16 +496,30 @@ class ChatViewModel extends StateNotifier<ChatState> {
         final existingIds = currentMessages.map((m) => m.id).toSet();
         if (!existingIds.contains(serverMessageId)) {
         final isoTime = messageData['timestamp']?.toString();
-        final newMessage = ChatMessage(
-          id: serverMessageId!,
-          senderId: isMe ? 'me' : userId ?? 'unknown',
-          content: messageContent,
+          final newMessage = ChatMessage(
+            id: serverMessageId!,
+            senderId: isMe ? 'me' : userId ?? 'unknown',
+            content: messageContent,
           timestamp: _formatTimestamp(isoTime),
           isoTimestamp: isoTime, // Store original ISO timestamp for sorting
-          type: _parseMessageType(messageData['message_type'] ?? 'text'),
-        );
+            type: _parseMessageType(messageData['message_type'] ?? 'text'),
+          );
 
-          currentMessages.add(newMessage);
+          // Check for optimistic duplicate
+          int optimisticIndex = -1;
+          if (isMe) {
+            optimisticIndex = currentMessages.lastIndexWhere((m) => 
+              m.senderId == 'me' && 
+              !_isUuidFormat(m.id) && 
+              m.content == messageContent
+            );
+          }
+
+          if (optimisticIndex != -1) {
+            currentMessages[optimisticIndex] = newMessage;
+          } else {
+            currentMessages.add(newMessage);
+          }
           
           // Sort messages by ISO timestamp
           currentMessages.sort(_compareMessagesByTimestamp);

@@ -255,10 +255,16 @@ class MatchViewSet(viewsets.ReadOnlyModelViewSet):
         match = self.get_object()
         user = request.user
 
+        # Check if already matched
+        if match.status == "matched":
+            serializer = self.get_serializer(match)
+            return Response(serializer.data)
+
         # Check if this is a connection request for the current user
-        if match.status != "connection_requested":
+        valid_statuses = ["connection_requested", "liked"]
+        if match.status not in valid_statuses:
             return Response(
-                {"error": "This is not a connection request"},
+                {"error": f"This is not a connection request (Current status: {match.status})"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
