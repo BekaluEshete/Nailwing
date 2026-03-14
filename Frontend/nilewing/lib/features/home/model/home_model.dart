@@ -75,6 +75,15 @@ class FlightPost {
     required this.flight,
     required this.post,
   });
+
+  factory FlightPost.fromJson(Map<String, dynamic> json) {
+    return FlightPost(
+      id: json['id']?.toString() ?? '',
+      user: PostUser.fromJson(json['user'] ?? {}),
+      flight: PostFlight.fromJson(json['flight'] ?? {}),
+      post: PostContent.fromJson(json['post'] ?? {}),
+    );
+  }
 }
 
 class PostUser {
@@ -83,6 +92,14 @@ class PostUser {
   final String nationality;
 
   PostUser({required this.name, this.avatar, required this.nationality});
+
+  factory PostUser.fromJson(Map<String, dynamic> json) {
+    return PostUser(
+      name: json['name'] ?? 'User',
+      avatar: json['avatar'],
+      nationality: json['nationality'] ?? 'Global',
+    );
+  }
 }
 
 class PostFlight {
@@ -90,6 +107,13 @@ class PostFlight {
   final String route;
 
   PostFlight({required this.number, required this.route});
+
+  factory PostFlight.fromJson(Map<String, dynamic> json) {
+    return PostFlight(
+      number: json['number'] ?? '',
+      route: json['route'] ?? '',
+    );
+  }
 }
 
 class PostContent {
@@ -112,6 +136,19 @@ class PostContent {
     required this.isLiked,
     required this.rating,
   });
+
+  factory PostContent.fromJson(Map<String, dynamic> json) {
+    return PostContent(
+      title: json['title'] ?? '',
+      content: json['content'] ?? '',
+      fullContent: json['full_content'] ?? json['fullContent'],
+      timestamp: json['timestamp'] ?? '',
+      likes: json['likes'] ?? 0,
+      comments: json['comments'] ?? 0,
+      isLiked: json['isLiked'] ?? false,
+      rating: json['rating'] ?? 5,
+    );
+  }
 }
 
 class BottomNavItem {

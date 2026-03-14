@@ -224,14 +224,35 @@ class FlightService {
     );
   }
 
-  // Get community flight posts (mock data for now - no backend endpoint)
+  // Get community flight posts from backend
   Future<List<FlightPost>> getFlightPosts({
     int page = 1,
     int limit = 10,
   }) async {
-    // TODO: Implement when backend endpoint is available
-    await Future.delayed(Duration(milliseconds: 300));
-    return [];
+    try {
+      final token = await _getAuthToken();
+      if (token == null) {
+        throw Exception('Not authenticated');
+      }
+
+      final response = await http.get(
+        Uri.parse(AppConstants.communityPostsEndpoint),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> postsData = json.decode(response.body);
+        return postsData.map((data) => FlightPost.fromJson(data as Map<String, dynamic>)).toList();
+      }
+      
+      return [];
+    } catch (e) {
+      print('Error getting community posts: $e');
+      return [];
+    }
   }
 
   // Get pre-flight matches - This is now handled by MatchService in home_view_model

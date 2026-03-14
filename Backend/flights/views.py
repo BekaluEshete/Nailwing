@@ -74,6 +74,52 @@ class FlightViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(flight)
         return Response(serializer.data)
 
+    @action(detail=False, methods=['get'])
+    def community_posts(self, request):
+        """Get community flight posts"""
+        flights = Flight.objects.filter(
+            is_visible=True,
+            departure_datetime__gte=timezone.now()
+        ).order_by('-created_at')[:20]
+
+        posts = []
+        for flight in flights:
+            user = flight.user
+            avatar = user.profile_image_url if user.profile_image_url else None
+            if not avatar and user.profile_image:
+                avatar = user.profile_image.url
+                
+            content = f"Hey everyone! I'll be flying from {flight.departure_city} to {flight.arrival_city} on {flight.departure_datetime.strftime('%b %d')}."
+            full_content = content
+            if flight.has_layover and flight.layover_city:
+                full_content += f" Looking forward to meeting new people during my layover in {flight.layover_city}!"
+            else:
+                full_content += " Direct flight! Let me know if anyone is on the same route."
+
+            posts.append({
+                "id": str(flight.id),
+                "user": {
+                    "name": user.full_name if user.full_name else user.email.split('@')[0],
+                    "avatar": avatar,
+                    "nationality": user.nationality or "Global",
+                },
+                "flight": {
+                    "number": flight.flight_number,
+                    "route": flight.route,
+                },
+                "post": {
+                    "title": f"Traveling to {flight.arrival_city}",
+                    "content": content,
+                    "full_content": full_content,
+                    "timestamp": flight.created_at.isoformat(),
+                    "likes": 0,
+                    "comments": 0,
+                    "isLiked": False,
+                    "rating": 5
+                }
+            })
+        return Response(posts)
+
 
 class UserInterestViewSet(viewsets.ModelViewSet):
     serializer_class = UserInterestSerializer

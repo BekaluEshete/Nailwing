@@ -26,6 +26,7 @@ class AppConstants {
   static const String flightsBaseUrl = '$apiBaseUrl/flights';
   static const String flightsEndpoint = '$flightsBaseUrl/flights/';
   static const String upcomingFlightsEndpoint = '$flightsEndpoint/upcoming/';
+  static const String communityPostsEndpoint = '$flightsEndpoint/community_posts/';
   static const String currentFlightEndpoint = '$flightsEndpoint/current/';
   static const String interestsEndpoint = '$flightsBaseUrl/interests/';
   static const String preferencesEndpoint = '$flightsBaseUrl/preferences/';
