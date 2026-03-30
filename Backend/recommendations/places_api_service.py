@@ -9,10 +9,17 @@ from django.conf import settings
 
 class PlacesAPIService:
     """Service to fetch places from third-party APIs"""
-    
-    # Try to get API keys from environment variables
-    GOOGLE_PLACES_API_KEY = os.environ.get('GOOGLE_PLACES_API_KEY', '')
-    FOURSQUARE_API_KEY = os.environ.get('FOURSQUARE_API_KEY', '')
+
+    # Read keys at call time (not class load time) so .env is already loaded
+    @classmethod
+    def _google_key(cls) -> str:
+        return os.environ.get('GOOGLE_PLACES_API_KEY', '')
+
+    @classmethod
+    def _foursquare_key(cls) -> str:
+        return os.environ.get('FOURSQUARE_API_KEY', '')
+
+    # Keep these as properties for backward compat
     FOURSQUARE_API_SECRET = os.environ.get('FOURSQUARE_API_SECRET', '')
     
     @staticmethod
@@ -106,7 +113,7 @@ class PlacesAPIService:
         Fetch places from Foursquare API
         Categories: hotel, cafe, restaurant
         """
-        if not PlacesAPIService.FOURSQUARE_API_KEY:
+        if not PlacesAPIService._foursquare_key():
             return []
         
         try:
@@ -122,7 +129,7 @@ class PlacesAPIService:
             url = "https://api.foursquare.com/v3/places/search"
             headers = {
                 "Accept": "application/json",
-                "Authorization": PlacesAPIService.FOURSQUARE_API_KEY
+                "Authorization": PlacesAPIService._foursquare_key()
             }
             params = {
                 "ll": f"{lat},{lng}",
@@ -171,7 +178,7 @@ class PlacesAPIService:
         """
         Fetch places from Google Places API
         """
-        if not PlacesAPIService.GOOGLE_PLACES_API_KEY:
+        if not PlacesAPIService._google_key():
             return []
         
         try:
@@ -190,7 +197,7 @@ class PlacesAPIService:
                 'location': f'{lat},{lng}',
                 'radius': 10000,  # 10km
                 'type': place_type,
-                'key': PlacesAPIService.GOOGLE_PLACES_API_KEY
+                'key': PlacesAPIService._google_key()
             }
             
             response = requests.get(search_url, params=params, timeout=10)
@@ -310,21 +317,26 @@ class PlacesAPIService:
         
         for category in categories:
             places = []
-            
+
             # Try Google Places first
-            if PlacesAPIService.GOOGLE_PLACES_API_KEY:
+            if PlacesAPIService._google_key():
                 places = PlacesAPIService.fetch_places_from_google(
                     coords['lat'], coords['lng'], category, limit_per_category
                 )
-            
+                if places:
+                    print(f"✅ Google Places returned {len(places)} {category}s for {airport_code}")
+
             # Fallback to Foursquare
-            if not places and PlacesAPIService.FOURSQUARE_API_KEY:
+            if not places and PlacesAPIService._foursquare_key():
                 places = PlacesAPIService.fetch_places_from_foursquare(
                     coords['lat'], coords['lng'], category, limit_per_category
                 )
-            
+                if places:
+                    print(f"✅ Foursquare returned {len(places)} {category}s for {airport_code}")
+
             # Final fallback to Overpass (OpenStreetMap) - always available
             if not places:
+                print(f"⚠️ Falling back to Overpass for {category}s at {airport_code}")
                 places = PlacesAPIService.fetch_places_from_overpass(
                     coords['lat'], coords['lng'], category, limit_per_category
                 )

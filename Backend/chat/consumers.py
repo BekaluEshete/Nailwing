@@ -107,6 +107,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 await self.handle_typing(data)
             elif message_type == "read_receipt":
                 await self.handle_read_receipt(data)
+            elif message_type == "call_signal":
+                await self.handle_call_signal(data)
 
         except Exception as e:
             print(f"Error processing message: {e}")
@@ -193,6 +195,23 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 "user_id": self.user_id,
                 "username": self.username,
                 "room_name": self.room_name,  # Include room name for frontend routing
+            },
+        )
+
+    async def handle_call_signal(self, data):
+        """Handle video/audio call signaling"""
+        signal_type = data.get("signal_type")  # offer, answer, hangup
+        is_video = data.get("is_video", False)
+        
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {
+                "type": "call_signal",
+                "signal_type": signal_type,
+                "is_video": is_video,
+                "user_id": self.user_id,
+                "username": self.username,
+                "room_name": self.room_name,
             },
         )
 
@@ -287,6 +306,25 @@ class ChatConsumer(AsyncWebsocketConsumer):
             print(f"✅ [ChatConsumer] Read receipt sent for message {event['message_id']}")
         except Exception as e:
             print(f"❌ [ChatConsumer] Error sending read_receipt event: {e}")
+
+    async def call_signal(self, event):
+        """Handle call signal event"""
+        try:
+            await self.send(
+                text_data=json.dumps(
+                    {
+                        "type": "call_signal",
+                        "signal_type": event["signal_type"],
+                        "is_video": event["is_video"],
+                        "user_id": event["user_id"],
+                        "username": event["username"],
+                        "room_name": event.get("room_name", self.room_name),
+                    }
+                )
+            )
+            print(f"📞 [ChatConsumer] Call signal {event['signal_type']} sent")
+        except Exception as e:
+            print(f"❌ [ChatConsumer] Error sending call_signal event: {e}")
 
     async def send_previous_messages(self):
         """Send cached messages when user connects"""

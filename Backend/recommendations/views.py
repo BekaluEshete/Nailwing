@@ -205,9 +205,15 @@ class RecommendationViewSet(viewsets.ModelViewSet):
             for match in matches:
                 # Determine which user is the other person
                 other_user = match.user2 if match.user1 == user else match.user1
-                other_flight = (
-                    match.flight2 if match.flight1.user == user else match.flight1
-                )
+                
+                # Safely determine other flight (flight1/flight2 can be null)
+                try:
+                    if match.flight1 and match.flight1.user == user:
+                        other_flight = match.flight2
+                    else:
+                        other_flight = match.flight1
+                except Exception:
+                    other_flight = None
 
                 # Get user profile information
                 people_matches.append(
