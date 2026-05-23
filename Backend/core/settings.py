@@ -17,11 +17,11 @@ DEBUG = os.getenv("DEBUG", "False") == "True"
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "*").split(",")
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://nilewing-backend.onrender.com",
+    "http://164.68.109.145",
 ]
 
-CSRF_COOKIE_SECURE = True
-SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = False
+SESSION_COOKIE_SECURE = False
 
 # =========================
 # APPLICATIONS
@@ -184,8 +184,8 @@ try:
 
     # Test Redis connection
     redis_client_test = redis.from_url(REDIS_URL)
-    redis_client_test.ping()
-    redis_client_test.close()
+    # redis_client_test.ping()
+    # redis_client_test.close()
 
     redis_host_port, redis_db = parse_redis_url(REDIS_URL)
 
@@ -199,9 +199,9 @@ try:
             },
         },
     }
-    print(f"✅ Using Redis Channel Layer at {redis_host_port}")
+    # print(f"SUCCESS: Using Redis Channel Layer at {redis_host_port}")
 except (redis.ConnectionError, ValueError, AttributeError, Exception) as e:
-    print(f"⚠️ Redis not available, using InMemoryChannelLayer: {e}")
+    print(f"WARNING: Redis not available, using InMemoryChannelLayer: {e}")
     CHANNEL_LAYERS = {
         "default": {
             "BACKEND": "channels.layers.InMemoryChannelLayer",
@@ -215,8 +215,8 @@ try:
     import redis
 
     redis_client_test = redis.from_url(REDIS_URL)
-    redis_client_test.ping()
-    redis_client_test.close()
+    # redis_client_test.ping()
+    # redis_client_test.close()
 
     CACHES = {
         "default": {
@@ -227,9 +227,9 @@ try:
             },
         }
     }
-    print(f"✅ Using Redis Cache at {REDIS_URL}")
+    # print(f"SUCCESS: Using Redis Cache at {REDIS_URL}")
 except (redis.ConnectionError, ValueError, AttributeError, Exception) as e:
-    print(f"⚠️ Redis not available, using LocMemCache: {e}")
+    print(f"WARNING: Redis not available, using LocMemCache: {e}")
     CACHES = {
         "default": {
             "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
