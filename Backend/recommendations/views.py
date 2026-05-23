@@ -73,16 +73,25 @@ class RecommendationViewSet(viewsets.ModelViewSet):
         user = request.user
 
         # Get user's upcoming flight (focus on arrival airport)
+        # Look back 24h (in case flight is in progress) and forward 30 days
         flight = (
             Flight.objects.filter(
                 user=user,
                 is_visible=True,
-                departure_datetime__gte=timezone.now() - timedelta(hours=2),
+                departure_datetime__gte=timezone.now() - timedelta(hours=24),
                 departure_datetime__lte=timezone.now() + timedelta(days=30),
             )
             .order_by("departure_datetime")
             .first()
         )
+
+        # If no flight in that window, try any visible flight
+        if not flight:
+            flight = (
+                Flight.objects.filter(user=user, is_visible=True)
+                .order_by("-departure_datetime")
+                .first()
+            )
 
         if not flight:
             return Response(
