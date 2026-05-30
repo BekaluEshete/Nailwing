@@ -1,10 +1,12 @@
 // features/home/screens/home_screen.dart
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nilewing/core/theme/app_colors.dart';
 import 'package:nilewing/features/home/model/home_model.dart';
 import 'package:nilewing/features/home/viewmodel/home_view_model.dart';
 import 'package:nilewing/features/user/view/profile_drawer.dart';
+import 'package:nilewing/features/my_flights/view/flight_detail_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   final VoidCallback? onNavigateToNotifications;
@@ -51,22 +53,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     if (viewModel.isLoading &&
         (viewModel.user == null || viewModel.userFlight == null)) {
       return Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
         drawer: const ProfileDrawer(),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1E40AF)),
+        body: Stack(
+          children: [
+            _buildBackground(),
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                  ),
+                  SizedBox(height: 16),
+                  Text(
+                    'Loading your flight information...',
+                    style: TextStyle(color: Colors.grey[600], fontSize: 16),
+                  ),
+                ],
               ),
-              SizedBox(height: 16),
-              Text(
-                'Loading your flight information...',
-                style: TextStyle(color: Colors.grey[600], fontSize: 16),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       );
     }
@@ -78,17 +85,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // Show message if no user or flight data
     if (user == null) {
       return Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
         drawer: const ProfileDrawer(),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('Loading your profile...'),
-            ],
-          ),
+        body: Stack(
+          children: [
+            _buildBackground(),
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary)),
+                  SizedBox(height: 16),
+                  Text('Loading your profile...', style: TextStyle(color: Colors.grey[600])),
+                ],
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -96,11 +108,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // If no flight, show a message
     if (flight == null) {
       return Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
         drawer: const ProfileDrawer(),
-        body: SafeArea(
-          child: Column(
-            children: [
+        body: Stack(
+          children: [
+            _buildBackground(),
+            SafeArea(
+              child: Column(
+                children: [
               _buildStatusBar(viewModel),
               _buildTopHeader(viewModel, user),
               Expanded(
@@ -165,15 +180,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ],
           ),
         ),
-      );
-    }
+      ],
+    ),
+  );
+}
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      extendBodyBehindAppBar: true,
+      backgroundColor: Colors.transparent,
       drawer: const ProfileDrawer(),
-      body: SafeArea(
-        child: Column(
-          children: [
+      body: Stack(
+        children: [
+          _buildBackground(),
+          SafeArea(
+            child: Column(
+              children: [
             // Status Bar
             _buildStatusBar(viewModel),
 
@@ -242,111 +263,123 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ),
 
-            // Bottom Navigation
-            //  _buildBottomNavigation(viewModel),
-          ],
-        ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBackground() {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFFF8FAFC),
+      ),
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    const Color(0xFFF8FAFC),
+                    const Color(0xFFECFEFF).withOpacity(0.8),
+                    const Color(0xFFF0F9FF),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: -100,
+            right: -50,
+            child: _buildBlob(250, const Color(0xFFCFFAFE).withOpacity(0.5)),
+          ),
+          Positioned(
+            bottom: -50,
+            left: -100,
+            child: _buildBlob(300, const Color(0xFFE0F2FE).withOpacity(0.6)),
+          ),
+          Positioned(
+            top: 400,
+            left: -50,
+            child: _buildBlob(200, const Color(0xFFECFEFF).withOpacity(0.4)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBlob(double size, Color color) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
+        child: Container(color: Colors.transparent),
       ),
     );
   }
 
   Widget _buildStatusBar(HomeViewModel viewModel) {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [AppColors.primary, AppColors.primary, AppColors.primary],
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [],
-      ),
-    );
+    return const SizedBox.shrink();
   }
 
   Widget _buildTopHeader(HomeViewModel viewModel, User user) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [AppColors.primary, AppColors.primary, AppColors.primary],
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-        ),
-      ),
-      child: Row(
-        children: [
-          // Hamburger Menu (Left side)
-          Builder(
-            builder: (context) => IconButton(
-              onPressed: () {
-                Scaffold.of(context).openDrawer();
-              },
-              icon: Icon(Icons.menu, color: Colors.white, size: 24),
-              tooltip: 'Menu',
-            ),
-          ),
-
-          SizedBox(width: 8),
-
-          // Logo
-          Row(
-            children: [
-              Icon(Icons.flight, color: Colors.white, size: 24),
-              SizedBox(width: 8),
-              Text(
-                'NILE WING',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.2,
-                ),
+    return ClipRRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.7),
+            border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.5))),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 5),
               ),
             ],
           ),
-
-          Spacer(),
-
-          // Notifications (Right side only)
-          Stack(
+          child: Row(
             children: [
-              IconButton(
-                onPressed: widget.onNavigateToNotifications,
-                icon: Icon(Icons.notifications, color: Colors.white, size: 24),
-                tooltip: 'Notifications',
+              Builder(
+                builder: (context) => IconButton(
+                  onPressed: () {
+                    Scaffold.of(context).openDrawer();
+                  },
+                  icon: Icon(Icons.menu_rounded, color: AppColors.primary, size: 28),
+                  tooltip: 'Menu',
+                ),
               ),
-              if (viewModel.notificationCount > 0)
-                Positioned(
-                  right: 8,
-                  top: 8,
-                  child: Container(
-                    padding: EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
-                    ),
-                    constraints: BoxConstraints(minWidth: 18, minHeight: 18),
-                    child: Text(
-                      viewModel.notificationCount > 9
-                          ? '9+'
-                          : viewModel.notificationCount.toString(),
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
+              const SizedBox(width: 8),
+              Row(
+                children: [
+                  Image.asset(
+                    'assets/images/nilewing_logo.jpeg',
+                    height: 28,
+                    fit: BoxFit.contain,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'NILE WING',
+                    style: TextStyle(
+                      color: AppColors.primary,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.2,
                     ),
                   ),
-                ),
+                ],
+              ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -408,25 +441,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ],
           ),
-          SizedBox(height: 12),
-          Card(
-            elevation: 4,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                gradient: LinearGradient(
-                  colors: [Colors.white, Color(0xFFF0F9FF)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+          const SizedBox(height: 12),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.65),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: Colors.white.withOpacity(0.6), width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withOpacity(0.08),
+                  blurRadius: 30,
+                  offset: const Offset(0, 10),
                 ),
-              ),
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Column(
-                  children: [
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    children: [
                     // Flight Header
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -435,91 +471,108 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           children: [
                             Container(
                               padding: EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
+                                horizontal: 10,
+                                vertical: 6,
                               ),
                               decoration: BoxDecoration(
-                                color: AppColors.primary,
-                                borderRadius: BorderRadius.circular(6),
+                                color: AppColors.primary.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: AppColors.primary.withOpacity(0.2)),
                               ),
                               child: Text(
                                 flight.flightNumber,
                                 style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.primary,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.5,
                                 ),
                               ),
                             ),
-                            SizedBox(width: 8),
+                            SizedBox(width: 12),
                             Text(
                               flight.airline,
                               style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[600],
+                                fontSize: 13,
+                                color: Colors.grey[700],
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
                           ],
                         ),
-                        Row(
-                          children: [
-                            Container(
-                              width: 8,
-                              height: 8,
-                              decoration: BoxDecoration(
-                                color: Colors.green,
-                                shape: BoxShape.circle,
+                        Container(
+                          padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.green.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.green.withOpacity(0.2)),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 6,
+                                height: 6,
+                                decoration: BoxDecoration(
+                                  color: Colors.green,
+                                  shape: BoxShape.circle,
+                                ),
                               ),
-                            ),
-                            SizedBox(width: 4),
-                            Text(
-                              flight.status,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.green,
-                                fontWeight: FontWeight.w600,
+                              SizedBox(width: 6),
+                              Text(
+                                flight.status,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.green[700],
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ],
                     ),
-                    SizedBox(height: 16),
+                    SizedBox(height: 24),
 
                     // Route
                     Row(
                       children: [
                         Expanded(
                           child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
                                 flight.departure.airport,
                                 style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.grey[800],
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.grey[900],
+                                  letterSpacing: -0.5,
                                 ),
                               ),
+                              SizedBox(height: 2),
                               Text(
                                 flight.departure.city,
                                 style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey[600],
+                                  fontSize: 13,
+                                  color: Colors.grey[500],
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
+                              SizedBox(height: 8),
                               Text(
                                 flight.departure.time,
                                 style: TextStyle(
-                                  fontSize: 14,
+                                  fontSize: 16,
                                   color: AppColors.primary,
-                                  fontWeight: FontWeight.w600,
+                                  fontWeight: FontWeight.w800,
                                 ),
                               ),
                               Text(
                                 flight.departure.date,
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: Colors.grey[600],
+                                  color: Colors.grey[500],
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
                             ],
@@ -531,35 +584,74 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             children: [
                               Row(
                                 children: [
-                                  Expanded(
-                                    child: Divider(color: AppColors.primary),
-                                  ),
-                                  Transform.rotate(
-                                    angle: 0.8,
-                                    child: Icon(
-                                      Icons.flight_takeoff,
-                                      color: AppColors.primary,
-                                      size: 16,
+                                  Container(
+                                    width: 6,
+                                    height: 6,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      border: Border.all(color: AppColors.primary, width: 2),
                                     ),
                                   ),
                                   Expanded(
-                                    child: Divider(color: AppColors.primary),
+                                    child: Container(
+                                      height: 1,
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          colors: [
+                                            AppColors.primary.withOpacity(0.2),
+                                            AppColors.primary,
+                                            AppColors.primary.withOpacity(0.2),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  Transform.rotate(
+                                    angle: 1.5708, // 90 degrees
+                                    child: Icon(
+                                      Icons.flight,
+                                      color: AppColors.primary,
+                                      size: 20,
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: Container(
+                                      height: 1,
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          colors: [
+                                            AppColors.primary.withOpacity(0.2),
+                                            AppColors.primary.withOpacity(0.5),
+                                            AppColors.primary.withOpacity(0.2),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  Container(
+                                    width: 6,
+                                    height: 6,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primary,
+                                      shape: BoxShape.circle,
+                                    ),
                                   ),
                                 ],
                               ),
-                              SizedBox(height: 4),
-                              Text(
-                                flight.duration,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey[600],
+                              SizedBox(height: 8),
+                              Container(
+                                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[100],
+                                  borderRadius: BorderRadius.circular(10),
                                 ),
-                              ),
-                              Text(
-                                flight.aircraft,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey[600],
+                                child: Text(
+                                  flight.duration,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey[600],
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ),
                             ],
@@ -568,35 +660,41 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
                         Expanded(
                           child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
                               Text(
                                 flight.arrival.airport,
                                 style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.grey[800],
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.grey[900],
+                                  letterSpacing: -0.5,
                                 ),
                               ),
+                              SizedBox(height: 2),
                               Text(
                                 flight.arrival.city,
                                 style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey[600],
+                                  fontSize: 13,
+                                  color: Colors.grey[500],
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
+                              SizedBox(height: 8),
                               Text(
                                 flight.arrival.time,
                                 style: TextStyle(
-                                  fontSize: 14,
+                                  fontSize: 16,
                                   color: AppColors.primary,
-                                  fontWeight: FontWeight.w600,
+                                  fontWeight: FontWeight.w800,
                                 ),
                               ),
                               Text(
                                 flight.arrival.date,
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: Colors.grey[600],
+                                  color: Colors.grey[500],
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
                             ],
@@ -605,137 +703,143 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ],
                     ),
 
+                    SizedBox(height: 24),
+                    Divider(color: Colors.grey.withOpacity(0.2), thickness: 1),
                     SizedBox(height: 16),
-                    Divider(),
-                    SizedBox(height: 12),
 
                     // Flight Details
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Column(
-                          children: [
-                            Icon(
-                              Icons.place,
-                              color: Colors.grey[600],
-                              size: 16,
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              'Gate ${flight.gate}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                            Text(
-                              'Terminal ${flight.departure.terminal}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.grey[800],
-                              ),
-                            ),
-                          ],
+                        _buildFlightDetailItem(
+                          icon: Icons.meeting_room_outlined,
+                          title: 'Gate',
+                          value: flight.gate,
                         ),
-                        Column(
-                          children: [
-                            Icon(
-                              Icons.people,
-                              color: Colors.grey[600],
-                              size: 16,
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              'Seat ${flight.seat}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                            Text(
-                              'Window',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.grey[800],
-                              ),
-                            ),
-                          ],
+                        Container(width: 1, height: 30, color: Colors.grey.withOpacity(0.2)),
+                        _buildFlightDetailItem(
+                          icon: Icons.chair_alt_outlined,
+                          title: 'Seat',
+                          value: flight.seat,
                         ),
-                        Column(
-                          children: [
-                            Icon(
-                              Icons.access_time,
-                              color: Colors.grey[600],
-                              size: 16,
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              'Departure in',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                            Text(
-                              flight.timeUntilDeparture,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.primary,
-                              ),
-                            ),
-                          ],
+                        Container(width: 1, height: 30, color: Colors.grey.withOpacity(0.2)),
+                        _buildFlightDetailItem(
+                          icon: Icons.timer_outlined,
+                          title: 'Departs In',
+                          value: flight.timeUntilDeparture,
+                          valueColor: AppColors.primary,
                         ),
                       ],
                     ),
 
-                    SizedBox(height: 16),
+                    SizedBox(height: 24),
 
                     // Quick Actions
                     Row(
                       children: [
                         Expanded(
-                          child: ElevatedButton(
-                            onPressed: viewModel.isLoading
-                                ? null
-                                : viewModel.checkIn,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primary,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            height: 50,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              gradient: LinearGradient(
+                                colors: viewModel.isCheckedIn
+                                    ? [Colors.green, Colors.green.shade400]
+                                    : [AppColors.primary, AppColors.primary.withBlue(200)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
                               ),
-                              padding: EdgeInsets.symmetric(vertical: 12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: viewModel.isCheckedIn
+                                      ? Colors.green.withOpacity(0.3)
+                                      : AppColors.primary.withOpacity(0.3),
+                                  blurRadius: 15,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ],
                             ),
-                            child: viewModel.isLoading
-                                ? SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        Colors.white,
-                                      ),
-                                    ),
-                                  )
-                                : Text('Check In'),
+                            child: ElevatedButton(
+                              onPressed: (viewModel.isLoading || viewModel.isCheckedIn)
+                                  ? null
+                                  : () async {
+                                      await viewModel.checkIn();
+                                      if (context.mounted && viewModel.isCheckedIn) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(
+                                            content: Text('Check-in requested successfully!'),
+                                            backgroundColor: Colors.green,
+                                          ),
+                                        );
+                                      }
+                                    },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.transparent,
+                                foregroundColor: Colors.white,
+                                shadowColor: Colors.transparent,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                disabledForegroundColor: Colors.white.withOpacity(0.9),
+                                disabledBackgroundColor: Colors.transparent,
+                              ),
+                              child: viewModel.isLoading
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white)),
+                                    )
+                                  : viewModel.isCheckedIn
+                                      ? const Row(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(Icons.check_circle, size: 16, color: Colors.white),
+                                            SizedBox(width: 4),
+                                            Text('Checked In', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                                          ],
+                                        )
+                                      : const Text('Check In', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                            ),
                           ),
                         ),
-                        SizedBox(width: 8),
+                        const SizedBox(width: 12),
                         Expanded(
-                          child: OutlinedButton(
-                            onPressed: viewModel.isLoading
-                                ? null
-                                : viewModel.viewFlightDetails,
-                            style: OutlinedButton.styleFrom(
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              padding: EdgeInsets.symmetric(vertical: 12),
+                          child: Container(
+                            height: 50,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.5),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: AppColors.primary.withOpacity(0.3), width: 1.5),
                             ),
-                            child: Text('Details'),
+                            child: ElevatedButton(
+                              onPressed: viewModel.isLoading
+                                  ? null
+                                  : () async {
+                                      await viewModel.viewFlightDetails();
+                                      if (context.mounted) {
+                                        if (flight.id != null) {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) => FlightDetailScreen(
+                                                flightId: flight.id!,
+                                                onNavigateBack: () => Navigator.pop(context),
+                                              ),
+                                            ),
+                                          );
+                                        } else {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            const SnackBar(content: Text('Cannot find flight ID for details.'), backgroundColor: Colors.red),
+                                          );
+                                        }
+                                      }
+                                    },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.transparent,
+                                foregroundColor: AppColors.primary,
+                                shadowColor: Colors.transparent,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              ),
+                              child: const Text('Details', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                            ),
                           ),
                         ),
                       ],
@@ -745,8 +849,46 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
+    ),
+    );
+  }
+
+  Widget _buildFlightDetailItem({required IconData icon, required String title, required String value, Color? valueColor}) {
+    return Column(
+      children: [
+        Container(
+          padding: EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.grey.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(
+            icon,
+            color: Colors.grey[600],
+            size: 20,
+          ),
+        ),
+        SizedBox(height: 8),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey[500],
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        SizedBox(height: 2),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: valueColor ?? Colors.grey[800],
+          ),
+        ),
+      ],
     );
   }
 
@@ -809,24 +951,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ],
           ),
-          SizedBox(height: 12),
-          Card(
-            elevation: 4,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                gradient: LinearGradient(
-                  colors: [Color(0xFFF0FDF4), Color(0xFFF0F9FF)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+          const SizedBox(height: 12),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.7),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white, width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
                 ),
-              ),
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Column(
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
                   children: [
                     Row(
                       children: [
@@ -898,11 +1043,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     if ((matches?['matchCount'] ?? 0) > 0) ...[
                       // Match Preview
                       Container(
-                        padding: EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.6),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.green[200]!),
+                          color: Colors.white.withOpacity(0.8),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.green.shade200.withOpacity(0.5), width: 1.5),
+                          boxShadow: [
+                            BoxShadow(color: Colors.green.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
+                          ],
                         ),
                         child: Row(
                           children: [
@@ -981,48 +1129,47 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     Row(
                       children: [
                         Expanded(
-                          child: DecoratedBox(
+                          child: Container(
+                            height: 48,
                             decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(14),
                               gradient: const LinearGradient(
-                                colors: [Colors.green, Colors.blue],
+                                colors: [Colors.green, Colors.teal],
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                               ),
-                              borderRadius: BorderRadius.circular(8),
+                              boxShadow: [
+                                BoxShadow(color: Colors.green.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4)),
+                              ],
                             ),
                             child: ElevatedButton(
-                              onPressed: (matches?['matchCount'] ?? 0) > 0
-                                  ? () => widget.onNavigateToPreFlightMatching
-                                        ?.call()
-                                  : null,
+                              onPressed: (matches?['matchCount'] ?? 0) > 0 ? () => widget.onNavigateToPreFlightMatching?.call() : null,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.transparent,
                                 shadowColor: Colors.transparent,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 12,
-                                ),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                               ),
-                              child: const Text('Connect Now'),
+                              child: const Text('Connect Now', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                             ),
                           ),
                         ),
-                        SizedBox(width: 8),
+                        const SizedBox(width: 12),
                         Expanded(
-                          child: OutlinedButton(
-                            onPressed: () => widget.onNavigateToMatch?.call(),
-                            style: OutlinedButton.styleFrom(
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              side: BorderSide(color: Colors.green),
-                              padding: EdgeInsets.symmetric(vertical: 12),
+                          child: Container(
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.5),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: Colors.green.withOpacity(0.5), width: 1.5),
                             ),
-                            child: Text(
-                              'Browse All',
-                              style: TextStyle(color: Colors.green),
+                            child: ElevatedButton(
+                              onPressed: () => widget.onNavigateToMatch?.call(),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.transparent,
+                                shadowColor: Colors.transparent,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              ),
+                              child: const Text('Browse All', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
                             ),
                           ),
                         ),
@@ -1033,11 +1180,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
                     // Benefits Info
                     Container(
-                      padding: EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.blue[50],
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.blue[200]!),
+                        color: Colors.blue.shade50.withOpacity(0.7),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.blue.shade100.withOpacity(0.5), width: 1.5),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1098,9 +1245,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ),
           ),
-        ],
-      ),
-    );
+        ),
+      ],
+    ),
+  );
   }
 
   Widget _buildFlightStoriesSection(HomeViewModel viewModel) {
@@ -1202,15 +1350,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ? post.post.fullContent!
         : post.post.content;
 
-    return Card(
-      elevation: 2,
-      margin: EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.85),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white, width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
             // User Header
             Row(
               children: [
@@ -1280,17 +1442,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
             // Flight Info
             Container(
-              padding: EdgeInsets.all(12),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    Color(0xFF1E40AF).withOpacity(0.1),
-                    Color(0xFF06B6D4).withOpacity(0.1),
+                    AppColors.primary.withOpacity(0.08),
+                    Colors.cyan.withOpacity(0.05),
                   ],
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.primary.withOpacity(0.1)),
               ),
               child: Row(
                 children: [
@@ -1438,26 +1601,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 TextButton(
                   onPressed: widget.onNavigateToProfile,
                   style: TextButton.styleFrom(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     minimumSize: Size.zero,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    backgroundColor: AppColors.primary.withOpacity(0.05),
+                    backgroundColor: AppColors.primary.withOpacity(0.1),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
                     ),
                   ),
-                  child: Text(
+                  child: const Text(
                     'View Profile',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: 13,
                       color: AppColors.primary,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
               ],
             ),
-          ],
+              ],
+            ),
+          ),
         ),
       ),
     );

@@ -394,7 +394,43 @@ class ChatViewModel extends StateNotifier<ChatState> {
           contacts: updatedContacts,
         );
       }
+    } else if (messageType == 'call_signal') {
+      // Handle call signaling (incoming call notification)
+      final signalType = data['signal_type'];
+      final isVideo = data['is_video'] == true;
+      final roomName = data['room_name'] ?? _currentRoomName;
+      final senderId = data['user_id']?.toString();
+
+      if (signalType == 'offer' && senderId != null && senderId != _currentUserId) {
+        print('📞 [ChatViewModel] Incoming call signal (offer) from: $senderId');
+        // We need to find the contact info to show the name
+        final contactId = _roomNameToChatId[roomName] ?? senderId;
+        final contact = state.contacts.firstWhere(
+          (c) => c.id == contactId,
+          orElse: () => ChatContact(id: contactId, name: 'Incoming Call', avatar: null, isOnline: true, lastMessage: '', timestamp: '', unreadCount: 0, flight: '', gate: ''),
+        );
+
+        // Update state with incoming call
+        state = state.copyWith(
+          incomingCall: IncomingCall(
+            senderId: senderId,
+            contactName: contact.name,
+            isVideo: isVideo,
+            roomName: roomName!,
+          ),
+        );
+      } else if (signalType == 'hangup') {
+        print('📞 [ChatViewModel] Call hung up by: $senderId');
+        // Clear incoming call if it's from this sender
+        if (state.incomingCall?.senderId == senderId) {
+          state = state.copyWith(clearIncomingCall: true);
+        }
+      }
     }
+  }
+
+  void dismissIncomingCall() {
+    state = state.copyWith(clearIncomingCall: true);
   }
 
   // Process incoming message - extracted for reuse
@@ -581,6 +617,17 @@ class ChatViewModel extends StateNotifier<ChatState> {
       print('⌨️ [ChatViewModel] Sent typing indicator: $isTyping');
     } catch (e) {
       print('⚠️ [ChatViewModel] Error sending typing indicator: $e');
+    }
+  }
+
+  // Send call signaling via WebSocket
+  void sendCallSignal(String type, bool isVideo) {
+    if (_currentRoomName == null) return;
+    try {
+      _chatService.sendCallSignal(_currentRoomName!, isVideo, type);
+      print('📞 [ChatViewModel] Sent call signal: $type (is_video: $isVideo)');
+    } catch (e) {
+      print('⚠️ [ChatViewModel] Error sending call signal: $e');
     }
   }
 

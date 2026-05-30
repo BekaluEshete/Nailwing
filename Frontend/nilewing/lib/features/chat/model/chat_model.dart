@@ -1,6 +1,7 @@
 // features/chat/models/chat_models.dart
 class ChatContact {
   final String id;
+  final String? userId;
   final String name;
   final String? avatar;
   final bool isOnline;
@@ -12,6 +13,7 @@ class ChatContact {
 
   ChatContact({
     required this.id,
+    this.userId,
     required this.name,
     this.avatar,
     required this.isOnline,
@@ -25,6 +27,7 @@ class ChatContact {
   factory ChatContact.fromJson(Map<String, dynamic> json) {
     return ChatContact(
       id: json['id'],
+      userId: json['userId'],
       name: json['name'],
       avatar: json['avatar'],
       isOnline: json['isOnline'],
@@ -39,6 +42,7 @@ class ChatContact {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
+      'userId': userId,
       'name': name,
       'avatar': avatar,
       'isOnline': isOnline,
@@ -155,6 +159,7 @@ class ChatState {
   final String? error;
   final Map<String, bool> typingUsers; // Map of chatId -> userId -> isTyping
   final Map<String, Set<String>> onlineUsers; // Map of chatId -> Set of online user IDs
+  final IncomingCall? incomingCall;
 
   const ChatState({
     required this.contacts,
@@ -164,6 +169,7 @@ class ChatState {
     this.error,
     Map<String, bool>? typingUsers,
     Map<String, Set<String>>? onlineUsers,
+    this.incomingCall,
   }) : typingUsers = typingUsers ?? const {},
        onlineUsers = onlineUsers ?? const {};
 
@@ -175,6 +181,8 @@ class ChatState {
     String? error,
     Map<String, bool>? typingUsers,
     Map<String, Set<String>>? onlineUsers,
+    IncomingCall? incomingCall,
+    bool clearIncomingCall = false,
   }) {
     return ChatState(
       contacts: contacts ?? this.contacts,
@@ -184,6 +192,7 @@ class ChatState {
       error: error ?? this.error,
       typingUsers: typingUsers ?? this.typingUsers,
       onlineUsers: onlineUsers ?? this.onlineUsers,
+      incomingCall: clearIncomingCall ? null : (incomingCall ?? this.incomingCall),
     );
   }
 
@@ -206,4 +215,18 @@ class ChatState {
   List<ChatContact> get onlineContacts {
     return contacts.where((contact) => contact.isOnline).toList();
   }
+}
+
+class IncomingCall {
+  final String senderId;
+  final String contactName;
+  final bool isVideo;
+  final String roomName;
+
+  IncomingCall({
+    required this.senderId,
+    required this.contactName,
+    required this.isVideo,
+    required this.roomName,
+  });
 }

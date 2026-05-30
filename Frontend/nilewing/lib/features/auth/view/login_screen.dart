@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,11 +12,11 @@ class LoginScreen extends ConsumerStatefulWidget {
   final VoidCallback? onLoginSuccess;
 
   const LoginScreen({
-    Key? key,
+    super.key,
     this.onSwitchToRegister,
     this.onSwitchToPostFlight,
     this.onLoginSuccess,
-  }) : super(key: key);
+  });
 
   @override
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
@@ -27,84 +28,122 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final viewModel = ref.watch(loginViewModelProvider);
 
     return Scaffold(
-      backgroundColor: Color(0xFFF8FAFC),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              // Nile Wing Branding Header
-              _buildHeader(),
-              const SizedBox(height: 24),
+      body: Stack(
+        children: [
+          // Premium Background
+          _buildBackground(),
 
-              // Error Message Banner
-              if (viewModel.errorMessage != null &&
-                  viewModel.errorMessage!.isNotEmpty)
-                _buildErrorBanner(viewModel.errorMessage!),
-
-              // Login Form Card
-              Card(
-                elevation: 4,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
                 child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Card Header with Gradient
+                    _buildHeader(),
+                    const SizedBox(height: 40),
+
+                    if (viewModel.errorMessage != null &&
+                        viewModel.errorMessage!.isNotEmpty)
+                      _buildErrorBanner(viewModel.errorMessage!),
+
+                    // Glassmorphic Form Card
                     Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [AppColors.primary, AppColors.primary],
-                          begin: Alignment.centerLeft,
-                          end: Alignment.centerRight,
-                        ),
-                        borderRadius: BorderRadius.only(
-                          topLeft: Radius.circular(12),
-                          topRight: Radius.circular(12),
-                        ),
-                      ),
-                      child: Column(
-                        children: [
-                          Text(
-                            'Sign In',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            'Access your Nile Wing account',
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.9),
-                              fontSize: 14,
-                            ),
+                        color: Colors.white.withOpacity(0.85),
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: Colors.white, width: 2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 24,
+                            offset: const Offset(0, 8),
                           ),
                         ],
                       ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(24),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                          child: Padding(
+                            padding: const EdgeInsets.all(32),
+                            child: _buildLoginForm(viewModel),
+                          ),
+                        ),
+                      ),
                     ),
 
-                    // Form Content
-                    Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: _buildLoginForm(viewModel),
+                    const SizedBox(height: 32),
+                    Text(
+                      '© 2025 Nile Wing Airlines. All rights reserved.',
+                      style: TextStyle(
+                          color: Colors.grey[500],
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500),
                     ),
                   ],
                 ),
               ),
-
-              // Footer
-              const SizedBox(height: 24),
-              Text(
-                '© 2025 Nile Wing Airlines. All rights reserved.',
-                style: TextStyle(color: Colors.grey[600], fontSize: 12),
-              ),
-            ],
+            ),
           ),
-        ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBackground() {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFFF8FAFC),
+      ),
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    const Color(0xFFF8FAFC),
+                    const Color(0xFFECFEFF).withOpacity(0.8),
+                    const Color(0xFFF0F9FF),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: -100,
+            right: -50,
+            child: _buildBlob(250, const Color(0xFFCFFAFE).withOpacity(0.5)),
+          ),
+          Positioned(
+            bottom: -50,
+            left: -100,
+            child: _buildBlob(300, const Color(0xFFE0F2FE).withOpacity(0.6)),
+          ),
+          Positioned(
+            top: 200,
+            left: -30,
+            child: _buildBlob(150, const Color(0xFFECFEFF).withOpacity(0.4)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBlob(double size, Color color) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+      ),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
+        child: Container(color: Colors.transparent),
       ),
     );
   }
@@ -112,21 +151,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget _buildErrorBanner(String error) {
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.red[50],
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.red[200]!),
+        color: Colors.red.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.red.shade200),
       ),
       child: Row(
         children: [
-          Icon(Icons.error_outline, color: Colors.red[600], size: 20),
-          const SizedBox(width: 8),
+          Icon(Icons.error_outline_rounded, color: Colors.red.shade600, size: 20),
+          const SizedBox(width: 12),
           Expanded(
             child: Text(
               error,
-              style: TextStyle(color: Colors.red[800], fontSize: 14),
+              style: TextStyle(color: Colors.red.shade800, fontSize: 14, fontWeight: FontWeight.w500),
             ),
           ),
         ],
@@ -137,68 +176,45 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget _buildHeader() {
     return Column(
       children: [
-        // Logo and Title
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // Logo placeholder
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                shape: BoxShape.circle,
+        // Logo
+        Container(
+          width: 80,
+          height: 80,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primary.withOpacity(0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
               ),
-              child: Icon(
-                Icons.airplanemode_active,
-                color: Colors.white,
-                size: 24,
-              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(40),
+            child: Image.asset(
+              'assets/images/nilewing_logo.jpeg',
+              width: 80,
+              height: 80,
+              fit: BoxFit.contain,
             ),
-            const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'NILE WING',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primary,
-                    letterSpacing: 1.0,
-                  ),
-                ),
-                Text(
-                  'AVIATION EXCELLENCE',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Colors.grey[600],
-                    letterSpacing: 2.0,
-                  ),
-                ),
-              ],
-            ),
-          ],
+          ),
         ),
-        const SizedBox(height: 20),
-
-        // Welcome Text
-        Column(
-          children: [
-            Text(
-              'Welcome Back',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey[800],
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Login to continue your journey',
-              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-            ),
-          ],
+        const SizedBox(height: 24),
+        
+        const Text(
+          'Welcome Back',
+          style: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF1E293B),
+            letterSpacing: -0.5,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Sign in to continue your journey',
+          style: TextStyle(fontSize: 16, color: Colors.grey[600], fontWeight: FontWeight.w400),
         ),
       ],
     );
@@ -208,35 +224,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return Form(
       child: Column(
         children: [
-          // Email Field
           _buildEmailField(viewModel),
           const SizedBox(height: 20),
-
-          // Password Field
           _buildPasswordField(viewModel),
           const SizedBox(height: 16),
-
-          // Remember Me & Forgot Password
           _buildRememberMeAndForgotPassword(viewModel),
-          const SizedBox(height: 24),
-
-          // Login Button
+          const SizedBox(height: 32),
           _buildLoginButton(viewModel),
-          const SizedBox(height: 20),
-
-          // Divider
-          // _buildDivider(),
-          // const SizedBox(height: 20),
-
-          // Google Login
-          // _buildGoogleLoginButton(viewModel),
-          // const SizedBox(height: 16),
-
-          // // Demo Link
-          // _buildDemoLink(),
-          // const SizedBox(height: 20),
-
-          // Register Redirect
+          const SizedBox(height: 24),
           _buildRegisterRedirect(),
         ],
       ),
@@ -250,56 +245,46 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         Text(
           'Email Address',
           style: TextStyle(
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w600,
             color: Colors.grey[800],
             fontSize: 14,
           ),
         ),
         const SizedBox(height: 8),
         Container(
-          height: 48,
           decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: viewModel.emailError.isNotEmpty
-                  ? Colors.red
-                  : Colors.grey[300]!,
+                  ? Colors.red.shade300
+                  : Colors.grey.shade200,
+              width: 1.5,
             ),
-            borderRadius: BorderRadius.circular(8),
-            color: Colors.white,
           ),
-          child: Row(
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(left: 16),
-                child: Icon(
-                  Icons.mail_outline,
-                  size: 20,
-                  color: viewModel.emailError.isNotEmpty
-                      ? Colors.red
-                      : Colors.grey[500],
-                ),
+          child: TextFormField(
+            keyboardType: TextInputType.emailAddress,
+            style: const TextStyle(fontSize: 15),
+            decoration: InputDecoration(
+              hintText: 'you@example.com',
+              hintStyle: TextStyle(color: Colors.grey[400]),
+              prefixIcon: Icon(
+                Icons.mail_outline_rounded,
+                color: viewModel.emailError.isNotEmpty
+                    ? Colors.red.shade400
+                    : Colors.grey[400],
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextFormField(
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: InputDecoration(
-                    hintText: 'you@example.com',
-                    border: InputBorder.none,
-                    hintStyle: TextStyle(color: Colors.grey[500]),
-                    errorText: null, // We handle error separately
-                  ),
-                  onChanged: viewModel.setEmail,
-                ),
-              ),
-            ],
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            ),
+            onChanged: viewModel.setEmail,
           ),
         ),
         if (viewModel.emailError.isNotEmpty) ...[
           const SizedBox(height: 4),
           Text(
             viewModel.emailError,
-            style: TextStyle(color: Colors.red, fontSize: 12),
+            style: TextStyle(color: Colors.red.shade600, fontSize: 12),
           ),
         ],
       ],
@@ -313,68 +298,56 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         Text(
           'Password',
           style: TextStyle(
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w600,
             color: Colors.grey[800],
             fontSize: 14,
           ),
         ),
         const SizedBox(height: 8),
         Container(
-          height: 48,
           decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: viewModel.passwordError.isNotEmpty
-                  ? Colors.red
-                  : Colors.grey[300]!,
+                  ? Colors.red.shade300
+                  : Colors.grey.shade200,
+              width: 1.5,
             ),
-            borderRadius: BorderRadius.circular(8),
-            color: Colors.white,
           ),
-          child: Row(
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(left: 16),
-                child: Icon(
-                  Icons.lock_outline,
-                  size: 20,
-                  color: viewModel.passwordError.isNotEmpty
-                      ? Colors.red
-                      : Colors.grey[500],
-                ),
+          child: TextFormField(
+            obscureText: !viewModel.showPassword,
+            style: const TextStyle(fontSize: 15),
+            decoration: InputDecoration(
+              hintText: '••••••••',
+              hintStyle: TextStyle(color: Colors.grey[400]),
+              prefixIcon: Icon(
+                Icons.lock_outline_rounded,
+                color: viewModel.passwordError.isNotEmpty
+                    ? Colors.red.shade400
+                    : Colors.grey[400],
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextFormField(
-                  obscureText: !viewModel.showPassword,
-                  decoration: InputDecoration(
-                    hintText: '••••••••',
-                    border: InputBorder.none,
-                    hintStyle: TextStyle(color: Colors.grey[500]),
-                    errorText: null, // We handle error separately
-                  ),
-                  onChanged: viewModel.setPassword,
-                ),
-              ),
-              IconButton(
+              suffixIcon: IconButton(
                 icon: Icon(
                   viewModel.showPassword
-                      ? Icons.visibility_off
-                      : Icons.visibility,
-                  color: viewModel.passwordError.isNotEmpty
-                      ? Colors.red
-                      : Colors.grey[600],
+                      ? Icons.visibility_off_rounded
+                      : Icons.visibility_rounded,
+                  color: Colors.grey[400],
                   size: 20,
                 ),
                 onPressed: viewModel.togglePasswordVisibility,
               ),
-            ],
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            ),
+            onChanged: viewModel.setPassword,
           ),
         ),
         if (viewModel.passwordError.isNotEmpty) ...[
           const SizedBox(height: 4),
           Text(
             viewModel.passwordError,
-            style: TextStyle(color: Colors.red, fontSize: 12),
+            style: TextStyle(color: Colors.red.shade600, fontSize: 12),
           ),
         ],
       ],
@@ -391,32 +364,34 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             GestureDetector(
               onTap: () =>
                   viewModel.setRememberMe(!viewModel.loginData.rememberMe),
-              child: Container(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
                 width: 20,
                 height: 20,
                 decoration: BoxDecoration(
                   border: Border.all(
                     color: viewModel.loginData.rememberMe
                         ? AppColors.primary
-                        : Colors.grey[400]!,
+                        : Colors.grey.shade300,
+                    width: 1.5,
                   ),
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(6),
                   color: viewModel.loginData.rememberMe
                       ? AppColors.primary
                       : Colors.transparent,
                 ),
                 child: viewModel.loginData.rememberMe
-                    ? Icon(Icons.check, size: 14, color: Colors.white)
+                    ? const Icon(Icons.check_rounded, size: 14, color: Colors.white)
                     : null,
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 10),
             GestureDetector(
               onTap: () =>
                   viewModel.setRememberMe(!viewModel.loginData.rememberMe),
               child: Text(
                 'Remember me',
-                style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                style: TextStyle(fontSize: 14, color: Colors.grey[700], fontWeight: FontWeight.w500),
               ),
             ),
           ],
@@ -430,7 +405,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             style: TextStyle(
               fontSize: 14,
               color: AppColors.primary,
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ),
@@ -439,75 +414,87 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Widget _buildLoginButton(LoginViewModel viewModel) {
-    return SizedBox(
+    return Container(
       width: double.infinity,
-      height: 52,
+      height: 56,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        gradient: LinearGradient(
+          colors: [AppColors.primary, AppColors.primary.withBlue(200)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withOpacity(0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
       child: ElevatedButton(
         onPressed: viewModel.isLoading || !viewModel.isFormValid
             ? null
             : () async {
                 final success = await viewModel.login();
                 if (success) {
-                  // Update auth state
                   ref.read(authStateProvider.notifier).login();
-
-                  // Navigate to home
                   if (widget.onLoginSuccess != null) {
                     widget.onLoginSuccess!();
                   } else {
-                    context.go('/home');
+                    if (context.mounted) context.go('/home');
                   }
                 }
               },
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary,
+          backgroundColor: Colors.transparent,
           foregroundColor: Colors.white,
-          elevation: 2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          shadowColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         ),
         child: viewModel.isLoading
-            ? SizedBox(
-                width: 20,
-                height: 20,
+            ? const SizedBox(
+                width: 24,
+                height: 24,
                 child: CircularProgressIndicator(
-                  strokeWidth: 2,
+                  strokeWidth: 2.5,
                   valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                 ),
               )
-            : Text(
-                'Login',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            : const Text(
+                'Sign In',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 0.5),
               ),
       ),
     );
   }
 
   Widget _buildRegisterRedirect() {
-    return Container(
-      padding: EdgeInsets.only(top: 16),
-      decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: Colors.grey[300]!)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            "Don't have an account? ",
-            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-          ),
-          GestureDetector(
-            onTap: () => context.go('/registration'),
-            child: Text(
-              'Register',
-              style: TextStyle(
-                fontSize: 14,
-                color: AppColors.primary,
-                fontWeight: FontWeight.w600,
-              ),
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          "Don't have an account? ",
+          style: TextStyle(fontSize: 14, color: Colors.grey[600], fontWeight: FontWeight.w500),
+        ),
+        GestureDetector(
+          onTap: () {
+            if (widget.onSwitchToRegister != null) {
+              widget.onSwitchToRegister!();
+            } else {
+              context.go('/registration');
+            }
+          },
+          child: Text(
+            'Create one',
+            style: TextStyle(
+              fontSize: 14,
+              color: AppColors.primary,
+              fontWeight: FontWeight.w700,
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -519,37 +506,54 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         String email = '';
 
         return AlertDialog(
-          title: Text('Reset Password'),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text('Reset Password', style: TextStyle(fontWeight: FontWeight.bold)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Enter your email address to reset your password.'),
-              SizedBox(height: 16),
+              Text(
+                'Enter your email address and we\'ll send you a link to reset your password.',
+                style: TextStyle(color: Colors.grey.shade600, height: 1.5),
+              ),
+              const SizedBox(height: 20),
               TextFormField(
                 decoration: InputDecoration(
                   labelText: 'Email Address',
-                  border: OutlineInputBorder(),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: AppColors.primary, width: 2),
+                  ),
                 ),
                 onChanged: (value) => email = value,
               ),
             ],
           ),
+          actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text('Cancel'),
+              child: Text('Cancel', style: TextStyle(color: Colors.grey.shade600)),
             ),
             ElevatedButton(
               onPressed: () async {
                 final success = await viewModel.resetPassword(email);
-                Navigator.pop(context);
-                if (success) {
+                if (context.mounted) Navigator.pop(context);
+                if (success && context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Password reset email sent!')),
+                    const SnackBar(
+                      content: Text('Password reset email sent!'),
+                      behavior: SnackBarBehavior.floating,
+                    ),
                   );
                 }
               },
-              child: Text('Reset Password'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('Send Link'),
             ),
           ],
         );

@@ -43,11 +43,14 @@ class PlaceCard extends StatelessWidget {
                           children: [
                             _getTypeIcon(place.type),
                             const SizedBox(width: 8),
-                            Text(
-                              place.name,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
+                            Expanded(
+                              child: Text(
+                                place.name,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],
@@ -188,22 +191,19 @@ class PlaceCard extends StatelessWidget {
     final lat = place.coordinates.lat;
     final lng = place.coordinates.lng;
     
-    // Create Google Maps URL for directions
-    final url = 'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=walking';
+    // Create Google Maps URL for directions using the provided API key
+    final url = 'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=walking&key=${AppConstants.googleMapsApiKey}';
     
     final uri = Uri.parse(url);
     
     try {
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else {
-        // Fallback: try to open with place name search
-        final searchUrl = Uri.parse(
-          'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(place.name + ' ' + place.address)}'
-        );
-        if (await canLaunchUrl(searchUrl)) {
-          await launchUrl(searchUrl, mode: LaunchMode.externalApplication);
-        }
+      // Bypass canLaunchUrl check because it will return false on Android 11+ without AndroidManifest.xml queries
+      final launched = await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
+      
+      if (!launched) {
+        // Fallback: Geo Intent
+        final geoUrl = Uri.parse('geo:$lat,$lng?q=$lat,$lng(${Uri.encodeComponent(place.name)})');
+        await launchUrl(geoUrl, mode: LaunchMode.externalApplication); // Geo intents must be external
       }
     } catch (e) {
       print('Error opening Google Maps: $e');

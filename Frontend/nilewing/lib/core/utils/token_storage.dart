@@ -59,5 +59,16 @@ class TokenStorage {
     final token = await getAccessToken();
     return token != null && token.isNotEmpty;
   }
+
+  // Onboarding status
+  Future<void> saveHasSeenOnboarding(bool hasSeen) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('has_seen_onboarding', hasSeen);
+  }
+
+  Future<bool> getHasSeenOnboarding() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('has_seen_onboarding') ?? false;
+  }
 }
 

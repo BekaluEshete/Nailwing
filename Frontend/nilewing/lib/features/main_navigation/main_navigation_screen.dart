@@ -1,17 +1,20 @@
-// features/main_navigation/main_navigation_screen.dart
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nilewing/features/chat/viewmodel/chat_view_model.dart';
+import 'package:nilewing/features/chat/view/call_screen.dart';
+import 'package:nilewing/features/chat/model/chat_model.dart';
 
-class MainNavigationScreen extends StatefulWidget {
+class MainNavigationScreen extends ConsumerStatefulWidget {
   final Widget child;
 
   const MainNavigationScreen({super.key, required this.child});
 
   @override
-  State<MainNavigationScreen> createState() => _MainNavigationScreenState();
+  ConsumerState<MainNavigationScreen> createState() => _MainNavigationScreenState();
 }
 
-class _MainNavigationScreenState extends State<MainNavigationScreen> {
+class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen> {
   int _getCurrentIndex(BuildContext context) {
     final location = GoRouterState.of(context).uri.toString();
 
@@ -47,6 +50,31 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   @override
   Widget build(BuildContext context) {
     final currentIndex = _getCurrentIndex(context);
+
+    // Listen for incoming calls
+    ref.listen<ChatState>(chatViewModelProvider, (previous, next) {
+      if (next.incomingCall != null && previous?.incomingCall == null) {
+        // New incoming call!
+        final call = next.incomingCall!;
+        
+        // Show incoming call overlay or navigate
+        // For simplicity, let's navigate to CallScreen directly
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => CallScreen(
+              channelName: call.roomName,
+              contactName: call.contactName,
+              contactId: call.senderId,
+              isVideoCall: call.isVideo,
+            ),
+          ),
+        ).then((_) {
+          // Clear incoming call state when returning
+          ref.read(chatViewModelProvider.notifier).dismissIncomingCall();
+        });
+      }
+    });
 
     return Scaffold(
       body: widget.child,

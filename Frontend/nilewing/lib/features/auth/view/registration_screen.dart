@@ -1,5 +1,5 @@
-// registration_screen.dart
 import 'dart:io';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -12,10 +12,10 @@ class RegistrationScreen extends ConsumerStatefulWidget {
   final VoidCallback? onRegistrationSuccess;
 
   const RegistrationScreen({
-    Key? key,
+    super.key,
     this.onSwitchToLogin,
     this.onRegistrationSuccess,
-  }) : super(key: key);
+  });
 
   @override
   ConsumerState<RegistrationScreen> createState() => _RegistrationScreenState();
@@ -35,42 +35,122 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     final viewModel = ref.watch(registrationViewModelProvider);
 
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              _buildHeader(),
-              const SizedBox(height: 24),
+      body: Stack(
+        children: [
+          // Premium Background
+          _buildBackground(),
 
-              // Error Message
-              if (viewModel.errorMessage != null)
-                _buildErrorBanner(viewModel.errorMessage!),
+          SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+              child: Column(
+                children: [
+                  _buildHeader(),
+                  const SizedBox(height: 32),
 
-              Card(
-                elevation: 8,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Column(
-                  children: [
-                    _buildCardHeader(),
-                    Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: _buildRegistrationForm(viewModel),
+                  if (viewModel.errorMessage != null)
+                    _buildErrorBanner(viewModel.errorMessage!),
+
+                  // Glassmorphic Form Card
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.85),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: Colors.white, width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 24,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
                     ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(24),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                        child: Column(
+                          children: [
+                            _buildCardHeader(),
+                            Padding(
+                              padding: const EdgeInsets.all(32),
+                              child: _buildRegistrationForm(viewModel),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  Text(
+                    '© 2025 Nile Wing Airlines. All rights reserved.',
+                    style: TextStyle(
+                        color: Colors.grey[500],
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBackground() {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFFF8FAFC),
+      ),
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    const Color(0xFFF8FAFC),
+                    const Color(0xFFECFEFF).withOpacity(0.8),
+                    const Color(0xFFF0F9FF),
                   ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
               ),
-              const SizedBox(height: 24),
-              Text(
-                '© 2025 Nile Wing Airlines. All rights reserved.',
-                style: TextStyle(color: Colors.grey[600], fontSize: 12),
-              ),
-            ],
+            ),
           ),
-        ),
+          Positioned(
+            top: -100,
+            right: -50,
+            child: _buildBlob(250, const Color(0xFFCFFAFE).withOpacity(0.5)),
+          ),
+          Positioned(
+            bottom: -50,
+            left: -100,
+            child: _buildBlob(300, const Color(0xFFE0F2FE).withOpacity(0.6)),
+          ),
+          Positioned(
+            top: 400,
+            left: -50,
+            child: _buildBlob(200, const Color(0xFFECFEFF).withOpacity(0.4)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBlob(double size, Color color) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+      ),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
+        child: Container(color: Colors.transparent),
       ),
     );
   }
@@ -78,21 +158,21 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   Widget _buildErrorBanner(String error) {
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.red[50],
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.red[200]!),
+        color: Colors.red.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.red.shade200),
       ),
       child: Row(
         children: [
-          Icon(Icons.error_outline, color: Colors.red[600], size: 20),
-          const SizedBox(width: 8),
+          Icon(Icons.error_outline_rounded, color: Colors.red.shade600, size: 20),
+          const SizedBox(width: 12),
           Expanded(
             child: Text(
               error,
-              style: TextStyle(color: Colors.red[800], fontSize: 14),
+              style: TextStyle(color: Colors.red.shade800, fontSize: 14, fontWeight: FontWeight.w500),
             ),
           ),
         ],
@@ -100,161 +180,137 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     );
   }
 
-  Widget _buildHeader() => Column(
-    children: [
-      Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // Replace with your actual logo
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: AppColors.primary,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(Icons.flight, color: Colors.white, size: 32),
-          ),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'NILE WING',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.primary,
-                ),
-              ),
-              Text(
-                'Aviation Excellence',
-                style: TextStyle(
-                  fontSize: 10,
-                  color: Colors.grey[600],
-                  letterSpacing: 1.5,
-                ),
+  Widget _buildHeader() {
+    return Column(
+      children: [
+        Container(
+          width: 80,
+          height: 80,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primary.withOpacity(0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
               ),
             ],
           ),
-        ],
-      ),
-      const SizedBox(height: 16),
-      Column(
-        children: [
-          Text(
-            'Create Your Account',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey[800],
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(40),
+            child: Image.asset(
+              'assets/images/nilewing_logo.jpeg',
+              width: 80,
+              height: 80,
+              fit: BoxFit.contain,
             ),
           ),
-          const SizedBox(height: 4),
+        ),
+        const SizedBox(height: 24),
+        const Text(
+          'Create Account',
+          style: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF1E293B),
+            letterSpacing: -0.5,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Join our premium flight experience',
+          style: TextStyle(fontSize: 16, color: Colors.grey[600], fontWeight: FontWeight.w400),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCardHeader() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 32),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [AppColors.primary, AppColors.primary.withBlue(200)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           Text(
-            'Join our premium flight experience',
-            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+            'Personal Details',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          SizedBox(height: 4),
+          Text(
+            'Please fill in your information below',
+            style: TextStyle(color: Colors.white70, fontSize: 14),
           ),
         ],
       ),
-    ],
-  );
-
-  Widget _buildCardHeader() => Container(
-    width: double.infinity,
-    padding: const EdgeInsets.all(16),
-    decoration: const BoxDecoration(
-      gradient: LinearGradient(
-        colors: [AppColors.primary, AppColors.primary],
-        begin: Alignment.centerLeft,
-        end: Alignment.centerRight,
-      ),
-      borderRadius: BorderRadius.only(
-        topLeft: Radius.circular(16),
-        topRight: Radius.circular(16),
-      ),
-    ),
-    child: const Column(
-      children: [
-        Text(
-          'Registration Form',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        SizedBox(height: 4),
-        Text(
-          'Please provide your details below',
-          style: TextStyle(color: Colors.white70, fontSize: 14),
-        ),
-      ],
-    ),
-  );
+    );
+  }
 
   Widget _buildRegistrationForm(RegistrationViewModel viewModel) {
     return Form(
       child: Column(
         children: [
-          // Profile Picture
           _buildProfilePicture(viewModel),
-          const SizedBox(height: 24),
+          const SizedBox(height: 32),
 
-          // Full Name
           _buildTextField(
             label: 'Full Name *',
             hintText: 'Enter your full name',
+            icon: Icons.person_outline_rounded,
             onChanged: viewModel.setFullName,
             errorText: viewModel.fullNameError,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
 
-          // Age
           _buildTextField(
             label: 'Age *',
             hintText: 'Enter your age',
+            icon: Icons.calendar_today_rounded,
             keyboardType: TextInputType.number,
             onChanged: viewModel.setAge,
             errorText: viewModel.ageError,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
 
-          // Gender
           _buildGenderSelector(viewModel),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
 
-          // Email
           _buildTextField(
             label: 'Email Address *',
             hintText: 'your.email@example.com',
+            icon: Icons.mail_outline_rounded,
             keyboardType: TextInputType.emailAddress,
             onChanged: viewModel.setEmail,
             errorText: viewModel.emailError,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
 
-          // Password
           _buildPasswordField(viewModel),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
 
-          // Nationality
           _buildNationalityDropdown(viewModel),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
 
-          // Language - Now shows ALL languages
           _buildLanguageDropdown(viewModel),
-          const SizedBox(height: 24),
+          const SizedBox(height: 32),
 
-          // Terms and Privacy
           _buildTermsNotice(),
+          const SizedBox(height: 32),
+
+          _buildRegisterButton(viewModel),
           const SizedBox(height: 24),
 
-          // Register Button
-          _buildRegisterButton(viewModel),
-          const SizedBox(height: 16),
-
-          // Login Redirect
           _buildLoginRedirect(),
         ],
       ),
@@ -269,23 +325,30 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
             GestureDetector(
               onTap: _showImagePickerOptions,
               child: Container(
-                width: 100,
-                height: 100,
+                width: 120,
+                height: 120,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(color: Colors.grey[300]!, width: 2),
-                  color: Colors.grey[100],
+                  color: Colors.grey.shade50,
+                  border: Border.all(color: Colors.grey.shade200, width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
                 ),
                 child: viewModel.profileImage != null
                     ? ClipOval(
                         child: Image.file(
                           viewModel.profileImage!,
                           fit: BoxFit.cover,
-                          width: 100,
-                          height: 100,
+                          width: 120,
+                          height: 120,
                         ),
                       )
-                    : Icon(Icons.person, size: 40, color: Colors.grey[400]),
+                    : Icon(Icons.add_a_photo_rounded, size: 40, color: Colors.grey[400]),
               ),
             ),
             if (viewModel.profileImage != null)
@@ -296,21 +359,28 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                   onTap: viewModel.removeProfileImage,
                   child: Container(
                     decoration: BoxDecoration(
-                      color: Colors.red,
+                      color: Colors.red.shade400,
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
+                      border: Border.all(color: Colors.white, width: 3),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
-                    child: Icon(Icons.close, color: Colors.white, size: 18),
-                    padding: const EdgeInsets.all(2),
+                    padding: const EdgeInsets.all(4),
+                    child: const Icon(Icons.close_rounded, color: Colors.white, size: 16),
                   ),
                 ),
               ),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         Text(
-          'Tap to upload photo',
-          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+          'Upload Profile Photo',
+          style: TextStyle(fontSize: 14, color: Colors.grey[600], fontWeight: FontWeight.w500),
         ),
       ],
     );
@@ -319,28 +389,40 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   void _showImagePickerOptions() {
     showModalBottomSheet(
       context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (context) => SafeArea(
-        child: Wrap(
-          children: [
-            ListTile(
-              leading: const Icon(Icons.photo_library),
-              title: const Text('Choose from Gallery'),
-              onTap: () {
-                Navigator.pop(context);
-                ref.read(registrationViewModelProvider).pickImageFromGallery();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_camera),
-              title: const Text('Take a Photo'),
-              onTap: () {
-                Navigator.pop(context);
-                ref
-                    .read(registrationViewModelProvider)
-                    .captureImageFromCamera();
-              },
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: Colors.blue.shade50, shape: BoxShape.circle),
+                  child: Icon(Icons.photo_library_rounded, color: Colors.blue.shade700),
+                ),
+                title: const Text('Choose from Gallery', style: TextStyle(fontWeight: FontWeight.w500)),
+                onTap: () {
+                  Navigator.pop(context);
+                  ref.read(registrationViewModelProvider).pickImageFromGallery();
+                },
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: Colors.green.shade50, shape: BoxShape.circle),
+                  child: Icon(Icons.photo_camera_rounded, color: Colors.green.shade700),
+                ),
+                title: const Text('Take a Photo', style: TextStyle(fontWeight: FontWeight.w500)),
+                onTap: () {
+                  Navigator.pop(context);
+                  ref.read(registrationViewModelProvider).captureImageFromCamera();
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -349,47 +431,44 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   Widget _buildTextField({
     required String label,
     required String hintText,
+    required IconData icon,
     TextInputType? keyboardType,
     required Function(String) onChanged,
-    required String errorText, // Add this parameter
+    required String errorText,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: TextStyle(
-            fontWeight: FontWeight.w500,
-            color: Colors.grey[800],
-          ),
+          style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey[800], fontSize: 14),
         ),
         const SizedBox(height: 8),
-        TextFormField(
-          keyboardType: keyboardType,
-          decoration: InputDecoration(
-            hintText: hintText,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(
-                color: errorText.isNotEmpty ? Colors.red : Colors.grey[300]!,
-              ),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(
-                color: errorText.isNotEmpty ? Colors.red : Color(0xFF1E40AF),
-              ),
-            ),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 12,
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: errorText.isNotEmpty ? Colors.red.shade300 : Colors.grey.shade200,
+              width: 1.5,
             ),
           ),
-          onChanged: onChanged,
+          child: TextFormField(
+            keyboardType: keyboardType,
+            style: const TextStyle(fontSize: 15),
+            decoration: InputDecoration(
+              hintText: hintText,
+              hintStyle: TextStyle(color: Colors.grey[400]),
+              prefixIcon: Icon(icon, color: errorText.isNotEmpty ? Colors.red.shade400 : Colors.grey[400]),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            ),
+            onChanged: onChanged,
+          ),
         ),
         if (errorText.isNotEmpty) ...[
           const SizedBox(height: 4),
-          Text(errorText, style: TextStyle(color: Colors.red, fontSize: 12)),
+          Text(errorText, style: TextStyle(color: Colors.red.shade600, fontSize: 12)),
         ],
       ],
     );
@@ -401,30 +480,60 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       children: [
         Text(
           'Gender *',
-          style: TextStyle(
-            fontWeight: FontWeight.w500,
-            color: Colors.grey[800],
-          ),
+          style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey[800], fontSize: 14),
         ),
         const SizedBox(height: 8),
         Row(
           children: [
             Expanded(
-              child: RadioListTile<String>(
-                title: const Text('Male'),
-                value: 'male',
-                groupValue: viewModel.registrationData.gender,
-                onChanged: (value) => viewModel.setGender(value!),
-                contentPadding: EdgeInsets.zero,
+              child: GestureDetector(
+                onTap: () => viewModel.setGender('male'),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  decoration: BoxDecoration(
+                    color: viewModel.registrationData.gender == 'male' ? AppColors.primary.withOpacity(0.1) : Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: viewModel.registrationData.gender == 'male' ? AppColors.primary : Colors.grey.shade200,
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      'Male',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: viewModel.registrationData.gender == 'male' ? AppColors.primary : Colors.grey[600],
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
+            const SizedBox(width: 16),
             Expanded(
-              child: RadioListTile<String>(
-                title: const Text('Female'),
-                value: 'female',
-                groupValue: viewModel.registrationData.gender,
-                onChanged: (value) => viewModel.setGender(value!),
-                contentPadding: EdgeInsets.zero,
+              child: GestureDetector(
+                onTap: () => viewModel.setGender('female'),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  decoration: BoxDecoration(
+                    color: viewModel.registrationData.gender == 'female' ? AppColors.primary.withOpacity(0.1) : Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: viewModel.registrationData.gender == 'female' ? AppColors.primary : Colors.grey.shade200,
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      'Female',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: viewModel.registrationData.gender == 'female' ? AppColors.primary : Colors.grey[600],
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
           ],
@@ -439,44 +548,39 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       children: [
         Text(
           'Password *',
-          style: TextStyle(
-            fontWeight: FontWeight.w500,
-            color: Colors.grey[800],
-          ),
+          style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey[800], fontSize: 14),
         ),
         const SizedBox(height: 8),
-        TextFormField(
-          obscureText: !viewModel.showPassword,
-          decoration: InputDecoration(
-            hintText: 'Create a strong password',
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Color(0xFF1E40AF)),
-            ),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 12,
-            ),
-            suffixIcon: IconButton(
-              icon: Icon(
-                viewModel.showPassword
-                    ? Icons.visibility_off
-                    : Icons.visibility,
-                color: Colors.grey[600],
-              ),
-              onPressed: viewModel.togglePasswordVisibility,
-            ),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade200, width: 1.5),
           ),
-          onChanged: viewModel.setPassword,
+          child: TextFormField(
+            obscureText: !viewModel.showPassword,
+            style: const TextStyle(fontSize: 15),
+            decoration: InputDecoration(
+              hintText: 'Create a strong password',
+              hintStyle: TextStyle(color: Colors.grey[400]),
+              prefixIcon: Icon(Icons.lock_outline_rounded, color: Colors.grey[400]),
+              suffixIcon: IconButton(
+                icon: Icon(
+                  viewModel.showPassword ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+                  color: Colors.grey[400],
+                ),
+                onPressed: viewModel.togglePasswordVisibility,
+              ),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            ),
+            onChanged: viewModel.setPassword,
+          ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 6),
         Text(
-          'Password must be at least 6 characters',
-          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+          'Must be at least 6 characters',
+          style: TextStyle(fontSize: 12, color: Colors.grey[500]),
         ),
       ],
     );
@@ -488,18 +592,16 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       children: [
         Text(
           'Nationality *',
-          style: TextStyle(
-            fontWeight: FontWeight.w500,
-            color: Colors.grey[800],
-          ),
+          style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey[800], fontSize: 14),
         ),
         const SizedBox(height: 8),
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey[300]!),
-            borderRadius: BorderRadius.circular(8),
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade200, width: 1.5),
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
@@ -507,28 +609,23 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                   ? viewModel.registrationData.nationality
                   : null,
               hint: viewModel.isLoadingCountries
-                  ? const Row(
+                  ? Row(
                       children: [
-                        SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                        SizedBox(width: 8),
-                        Text('Loading countries...'),
+                        SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary)),
+                        const SizedBox(width: 12),
+                        Text('Loading countries...', style: TextStyle(color: Colors.grey[500])),
                       ],
                     )
-                  : const Text('Select your nationality'),
+                  : Text('Select your nationality', style: TextStyle(color: Colors.grey[400])),
               isExpanded: true,
+              icon: Icon(Icons.keyboard_arrow_down_rounded, color: Colors.grey[600]),
               items: viewModel.countries.map((country) {
                 return DropdownMenuItem<String>(
                   value: country.code,
                   child: Text(country.name),
                 );
               }).toList(),
-              onChanged: viewModel.isLoadingCountries
-                  ? null
-                  : (value) => viewModel.setNationality(value!),
+              onChanged: viewModel.isLoadingCountries ? null : (value) => viewModel.setNationality(value!),
             ),
           ),
         ),
@@ -542,18 +639,16 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       children: [
         Text(
           'Preferred Language *',
-          style: TextStyle(
-            fontWeight: FontWeight.w500,
-            color: Colors.grey[800],
-          ),
+          style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey[800], fontSize: 14),
         ),
         const SizedBox(height: 8),
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey[300]!),
-            borderRadius: BorderRadius.circular(8),
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade200, width: 1.5),
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
@@ -561,35 +656,25 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                   ? viewModel.registrationData.language
                   : null,
               hint: viewModel.isLoadingCountries
-                  ? const Row(
+                  ? Row(
                       children: [
-                        SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                        SizedBox(width: 8),
-                        Text('Loading languages...'),
+                        SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary)),
+                        const SizedBox(width: 12),
+                        Text('Loading languages...', style: TextStyle(color: Colors.grey[500])),
                       ],
                     )
-                  : const Text('Select any language'),
+                  : Text('Select your language', style: TextStyle(color: Colors.grey[400])),
               isExpanded: true,
+              icon: Icon(Icons.keyboard_arrow_down_rounded, color: Colors.grey[600]),
               items: viewModel.languages.map((language) {
                 return DropdownMenuItem<String>(
                   value: language.code,
                   child: Text(language.name),
                 );
               }).toList(),
-              onChanged: viewModel.isLoadingCountries
-                  ? null
-                  : (value) => viewModel.setLanguage(value!),
+              onChanged: viewModel.isLoadingCountries ? null : (value) => viewModel.setLanguage(value!),
             ),
           ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Choose any language you prefer to use',
-          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
         ),
       ],
     );
@@ -600,21 +685,20 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey[300]!),
+        color: AppColors.primary.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withOpacity(0.1)),
       ),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'By creating an account, you agree to Nile Wing\'s Terms of Service and Privacy Policy.',
-            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Your data will be processed in accordance with GDPR regulations.',
-            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+          Icon(Icons.info_outline_rounded, size: 20, color: AppColors.primary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'By creating an account, you agree to our Terms of Service and Privacy Policy. Your data is protected.',
+              style: TextStyle(fontSize: 13, color: Colors.grey[700], height: 1.4),
+            ),
           ),
         ],
       ),
@@ -622,85 +706,90 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   }
 
   Widget _buildRegisterButton(RegistrationViewModel viewModel) {
-    return SizedBox(
+    return Container(
       width: double.infinity,
-      height: 50,
+      height: 56,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        gradient: LinearGradient(
+          colors: [AppColors.primary, AppColors.primary.withBlue(200)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withOpacity(0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
       child: ElevatedButton(
         onPressed: (viewModel.isLoading || !viewModel.isFormValid)
             ? null
             : () => _handleRegistration(viewModel),
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary,
+          backgroundColor: Colors.transparent,
           foregroundColor: Colors.white,
-          elevation: 4,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          shadowColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         ),
         child: viewModel.isLoading
             ? const SizedBox(
-                width: 20,
-                height: 20,
+                width: 24,
+                height: 24,
                 child: CircularProgressIndicator(
-                  strokeWidth: 2,
+                  strokeWidth: 2.5,
                   valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                 ),
               )
-            : Text(
-                'Create Nile Wing Account',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            : const Text(
+                'Create Account',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 0.5),
               ),
       ),
     );
   }
 
   Future<void> _handleRegistration(RegistrationViewModel viewModel) async {
-    // Only proceed if form is valid
-    if (!viewModel.isFormValid) {
-      return;
-    }
+    if (!viewModel.isFormValid) return;
 
     final success = await viewModel.submitRegistration();
     if (success) {
-      // Update auth state
       ref.read(authStateProvider.notifier).login();
-
-      // Navigate to home only on successful registration
-      if (mounted) {
-        context.go('/home');
-      }
-
+      if (mounted) context.go('/home');
       if (widget.onRegistrationSuccess != null) {
         widget.onRegistrationSuccess!();
       }
     }
-    // Error is already handled in the viewModel
   }
 
   Widget _buildLoginRedirect() {
-    return Container(
-      padding: const EdgeInsets.only(top: 16),
-      decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: Colors.grey[300]!)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            'Already have a Nile Wing account? ',
-            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-          ),
-          GestureDetector(
-            onTap: () => context.go('/login'),
-            child: const Text(
-              'Sign In',
-              style: TextStyle(
-                fontSize: 14,
-                color: AppColors.primary,
-                fontWeight: FontWeight.w600,
-              ),
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          'Already have an account? ',
+          style: TextStyle(fontSize: 14, color: Colors.grey[600], fontWeight: FontWeight.w500),
+        ),
+        GestureDetector(
+          onTap: () {
+            if (widget.onSwitchToLogin != null) {
+              widget.onSwitchToLogin!();
+            } else {
+              context.go('/login');
+            }
+          },
+          child: const Text(
+            'Sign In',
+            style: TextStyle(
+              fontSize: 14,
+              color: AppColors.primary,
+              fontWeight: FontWeight.w700,
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

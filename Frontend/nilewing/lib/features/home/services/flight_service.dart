@@ -17,7 +17,7 @@ class FlightService {
   }
 
   // Get user's upcoming flight from backend
-  Future<Flight> getUserUpcomingFlight(String userId) async {
+  Future<Flight?> getUserUpcomingFlight(String userId) async {
     try {
       print('🛫 [HomeFlightService] Getting upcoming flight...');
       final token = await _getAuthToken();
@@ -79,11 +79,10 @@ class FlightService {
         }
       }
 
-      throw Exception('No flights found');
+      return null;
     } catch (e) {
       print('❌ [HomeFlightService] Error loading flight: $e');
-      // Return a fallback flight if API fails
-      return _getFallbackFlight();
+      return null;
     }
   }
 
@@ -129,6 +128,7 @@ class FlightService {
     final boardingTime = departureDateTime.subtract(const Duration(hours: 1));
 
     return Flight(
+      id: json['id']?.toString(),
       flightNumber: json['flight_number'] ?? 'N/A',
       airline: json['airline'] ?? 'Unknown',
       route: route,
@@ -196,6 +196,7 @@ class FlightService {
 
   Flight _getFallbackFlight() {
     return Flight(
+      id: null,
       flightNumber: "N/A",
       airline: "No Flight",
       route: "No upcoming flights",

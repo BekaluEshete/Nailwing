@@ -29,7 +29,10 @@ class RecommendationsViewModel with ChangeNotifier {
   Map<String, dynamic>? _recommendationData;
   Map<String, dynamic>? get recommendationData => _recommendationData;
 
-  Future<void> loadRecommendations() async {
+  Future<void> loadRecommendations({bool forceRefresh = false}) async {
+    // Don't reload if already loaded and not forcing refresh
+    if (!forceRefresh && _state.places.isNotEmpty) return;
+
     _updateState(state.copyWith(isLoading: true, error: null));
 
     try {
@@ -64,12 +67,21 @@ class RecommendationsViewModel with ChangeNotifier {
         ),
       );
     } catch (e) {
-      _updateState(
-        state.copyWith(
+      final errorMsg = e.toString();
+      // Connection abort usually means app went to background mid-request — not a real error
+      if (errorMsg.contains('Software caused connection abort') ||
+          errorMsg.contains('Connection reset') ||
+          errorMsg.contains('SocketException')) {
+        _updateState(state.copyWith(
           isLoading: false,
-          error: 'Failed to load recommendations: $e',
-        ),
-      );
+          error: 'Connection interrupted. Pull to refresh.',
+        ));
+      } else {
+        _updateState(state.copyWith(
+          isLoading: false,
+          error: 'Failed to load recommendations. Tap retry.',
+        ));
+      }
     }
   }
   
@@ -79,7 +91,7 @@ class RecommendationsViewModel with ChangeNotifier {
       id: json['user_id']?.toString() ?? json['id']?.toString() ?? '',
       name: json['name']?.toString() ?? 'Unknown',
       avatar: json['avatar']?.toString(),
-      age: json['age'] ?? 0,
+      age: json['age'] is num ? (json['age'] as num).toInt() : int.tryParse(json['age']?.toString() ?? '0') ?? 0,
       nationality: json['nationality']?.toString() ?? '',
       currentLocation: json['matching_airport']?.toString() ?? 
           json['arrival_airport']?.toString() ?? '',
@@ -117,9 +129,10 @@ class RecommendationsViewModel with ChangeNotifier {
   }
 
   Future<void> connectWithUser(String userId) async {
-    // TODO: Implement user connection (could navigate to chat or match screen)
-    // For now, just log
+    // Navigate to the match screen — the user is already matched
+    // (they appear in recommendations only if matched)
     print('Connect with user: $userId');
+    // TODO: Navigate to chat with this user when chat contact is available
   }
 
   Future<void> getDirections(Place place) async {

@@ -286,9 +286,6 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
                     // Flight Status Card
                     _buildStatusCard(),
                     const SizedBox(height: 16),
-                    // Flight Management Actions
-                    _buildManagementCard(),
-                    const SizedBox(height: 16),
                     // Route Information
                     _buildRouteCard(),
                     const SizedBox(height: 16),
@@ -297,6 +294,9 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
                     const SizedBox(height: 16),
                     // Flight Timeline
                     _buildTimelineCard(),
+                    const SizedBox(height: 16),
+                    // Flight Management Actions
+                    _buildManagementCard(),
                     const SizedBox(height: 16),
                   ],
                 ),
@@ -314,94 +314,127 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
         gradient: LinearGradient(
           colors: [
             AppColors.primary,
-            AppColors.accent,
+            AppColors.primary.withBlue(200),
           ],
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withOpacity(0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(24),
+          bottomRight: Radius.circular(24),
         ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            IconButton(
-              onPressed: widget.onNavigateBack,
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _flightDetail['flightNumber'],
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    _flightDetail['airline'],
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.8),
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 16, 16, 24),
+          child: Row(
+            children: [
+              IconButton(
+                onPressed: widget.onNavigateBack,
+                icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
               ),
-            ),
-            Row(
-              children: [
-                IconButton(
-                  onPressed: () {
-                    // Share functionality
-                    _showSnackBar('Share flight details');
-                  },
-                  icon: const Icon(Icons.share, color: Colors.white, size: 20),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _flightDetail['flightNumber'],
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _flightDetail['airline'],
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.85),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
-                IconButton(
-                  onPressed: () {
-                    // Download functionality
-                    _showSnackBar('Download flight details');
-                  },
-                  icon: const Icon(
-                    Icons.download,
-                    color: Colors.white,
-                    size: 20,
-                  ),
+              ),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              ],
-            ),
-          ],
+                child: Row(
+                  children: [
+                    IconButton(
+                      onPressed: () {
+                        _showSnackBar('Share flight details');
+                      },
+                      icon: const Icon(Icons.share_outlined, color: Colors.white, size: 20),
+                      constraints: const BoxConstraints(),
+                      padding: const EdgeInsets.all(10),
+                    ),
+                    Container(width: 1, height: 20, color: Colors.white.withOpacity(0.3)),
+                    IconButton(
+                      onPressed: () {
+                        _showSnackBar('Download flight details');
+                      },
+                      icon: const Icon(Icons.file_download_outlined, color: Colors.white, size: 20),
+                      constraints: const BoxConstraints(),
+                      padding: const EdgeInsets.all(10),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildStatusCard() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: Colors.green.withOpacity(0.3), width: 1.5),
+      ),
       child: Container(
         decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
           gradient: LinearGradient(
-            colors: [Colors.white, Colors.green[50]!, Colors.green[50]!],
+            colors: [Colors.green.withOpacity(0.05), Colors.green.withOpacity(0.15)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
         ),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           child: Column(
             children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Container(
-                    width: 12,
-                    height: 12,
-                    decoration: BoxDecoration(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
                       color: Colors.green,
                       shape: BoxShape.circle,
                     ),
@@ -411,16 +444,17 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
                     _flightDetail['status'],
                     style: const TextStyle(
                       fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w800,
                       color: Colors.green,
+                      letterSpacing: 0.5,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Text(
                 'Boarding starts at ${_getBoardingTime()}',
-                style: const TextStyle(fontSize: 14, color: Colors.grey),
+                style: TextStyle(fontSize: 13, color: Colors.green[800], fontWeight: FontWeight.w500),
                 textAlign: TextAlign.center,
               ),
             ],
@@ -470,39 +504,54 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
   }
 
   Widget _buildManagementCard() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.orange.withOpacity(0.3), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
       child: Container(
         decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
           gradient: LinearGradient(
-            colors: [Colors.orange[50]!, Colors.red[50]!],
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
+            colors: [Colors.orange.withOpacity(0.05), Colors.red.withOpacity(0.05)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
-          border: Border.all(color: Colors.orange[200]!),
         ),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  Icon(Icons.warning, size: 20, color: Colors.orange[600]),
-                  const SizedBox(width: 8),
-                  const Text(
+                  Icon(Icons.warning_amber_rounded, size: 24, color: Colors.orange[600]),
+                  const SizedBox(width: 10),
+                  Text(
                     'Flight Management',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontSize: 18, 
+                      fontWeight: FontWeight.w800,
+                      color: Colors.grey[800],
+                      letterSpacing: -0.2,
+                    ),
                   ),
                 ],
               ),
               const SizedBox(height: 12),
-              const Text(
+              Text(
                 'Need to make changes to your flight? Use the options below to update or cancel.',
-                style: TextStyle(fontSize: 14, color: Colors.grey),
+                style: TextStyle(fontSize: 13, color: Colors.grey[600], height: 1.4),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
               Row(
                 children: [
                   Expanded(
@@ -512,25 +561,34 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
                           ? null
                           : () => _showDelayDialog(),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.transparent,
+                        backgroundColor: Colors.white,
                         foregroundColor: (_flight?.status == FlightStatus.completed || 
                                          _flight?.status == FlightStatus.cancelled)
                             ? Colors.grey[400]
-                            : Colors.orange[600],
+                            : Colors.orange[700],
                         side: BorderSide(
                           color: (_flight?.status == FlightStatus.completed || 
                                  _flight?.status == FlightStatus.cancelled)
-                              ? Colors.grey[300]!
-                              : Colors.orange[200]!,
+                              ? Colors.grey[200]!
+                              : Colors.orange[300]!,
                         ),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                         elevation: 0,
                       ),
-                      child: const Row(
+                      child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.access_time, size: 16),
-                          SizedBox(width: 4),
-                          Text('Delay Flight'),
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          Icon(Icons.access_time_filled, size: 16),
+                          SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              'Delay Flight',
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -543,7 +601,7 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
                           ? null
                           : () => _showCancelDialog(),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.transparent,
+                        backgroundColor: Colors.white,
                         foregroundColor: (_flight?.status == FlightStatus.completed || 
                                          _flight?.status == FlightStatus.cancelled)
                             ? Colors.grey[400]
@@ -551,54 +609,64 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
                         side: BorderSide(
                           color: (_flight?.status == FlightStatus.completed || 
                                  _flight?.status == FlightStatus.cancelled)
-                              ? Colors.grey[300]!
+                              ? Colors.grey[200]!
                               : Colors.red[200]!,
                         ),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                         elevation: 0,
                       ),
-                      child: const Row(
+                      child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.cancel, size: 14),
-                          SizedBox(width: 3),
-                          Text('Cancel '),
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          Icon(Icons.cancel, size: 16),
+                          SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              'Cancel',
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                            ),
+                          ),
                         ],
                       ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: Colors.amber[50],
                   border: Border.all(color: Colors.amber[200]!),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.info, size: 16, color: Colors.amber[600]),
-                    const SizedBox(width: 8),
+                    Icon(Icons.info_outline, size: 20, color: Colors.amber[700]),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Important Notice:',
+                          Text(
+                            'Important Notice',
                             style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.amber,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.amber[800],
                             ),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             'These actions will affect your visibility to other travelers and any active connections. Make sure to coordinate with anyone you\'ve already connected with.',
                             style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.amber[700],
+                              fontSize: 12,
+                              color: Colors.amber[900],
+                              height: 1.4,
                             ),
                           ),
                         ],
@@ -618,193 +686,276 @@ class _FlightDetailScreenState extends State<FlightDetailScreen> {
     final departure = _flightDetail['departure'];
     final arrival = _flightDetail['arrival'];
 
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.white, Colors.blue[50]!, Colors.cyan[50]!],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey.withOpacity(0.1)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 20,
+            offset: const Offset(0, 6),
           ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Column(
-                      children: [
-                        Text(
-                          departure['airport'],
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        departure['airport'],
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.grey[900],
+                          letterSpacing: -0.5,
                         ),
-                        Text(
-                          departure['city'],
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey,
-                          ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        departure['city'],
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey[500],
+                          fontWeight: FontWeight.w500,
                         ),
-                        Text(
-                          departure['time'],
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.primary,
-                          ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        departure['time'],
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.primary,
                         ),
-                        Text(
-                          departure['date'],
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
-                          ),
+                      ),
+                      Text(
+                        departure['date'],
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[500],
+                          fontWeight: FontWeight.w500,
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                  Expanded(
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(child: Divider(color: AppColors.primary)),
-                            Icon(
-                              Icons.flight_takeoff,
-                              size: 20,
-                              color: AppColors.primary,
+                ),
+                Expanded(
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: AppColors.primary, width: 2),
                             ),
-                            Expanded(child: Divider(color: AppColors.primary)),
-                          ],
+                          ),
+                          Expanded(
+                            child: Container(
+                              height: 1,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    AppColors.primary.withOpacity(0.2),
+                                    AppColors.primary,
+                                    AppColors.primary.withOpacity(0.2),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          Transform.rotate(
+                            angle: 1.5708, // 90 degrees
+                            child: Icon(
+                              Icons.flight,
+                              color: AppColors.primary,
+                              size: 24,
+                            ),
+                          ),
+                          Expanded(
+                            child: Container(
+                              height: 1,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    AppColors.primary.withOpacity(0.2),
+                                    AppColors.primary.withOpacity(0.5),
+                                    AppColors.primary.withOpacity(0.2),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: AppColors.primary,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[100],
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        Text(
+                        child: Text(
                           _flightDetail['duration'],
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey,
-                          ),
-                        ),
-                        Text(
-                          _flightDetail['aircraft'],
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    child: Column(
-                      children: [
-                        Text(
-                          arrival['airport'],
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          arrival['city'],
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey,
-                          ),
-                        ),
-                        Text(
-                          arrival['time'],
                           style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                        Text(
-                          arrival['date'],
-                          style: const TextStyle(
                             fontSize: 12,
-                            color: Colors.grey,
+                            color: Colors.grey[600],
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _flightDetail['aircraft'],
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey[400],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        arrival['airport'],
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.grey[900],
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        arrival['city'],
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey[500],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        arrival['time'],
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                      Text(
+                        arrival['date'],
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[500],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            Divider(color: Colors.grey.withOpacity(0.15), thickness: 1),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _buildGateTerminalItem(
+                  'Departure',
+                  departure['terminal'],
+                  departure['gate'],
+                ),
+                Container(width: 1, height: 40, color: Colors.grey.withOpacity(0.15)),
+                _buildGateTerminalItem(
+                  'Arrival',
+                  arrival['terminal'],
+                  arrival['gate'],
+                  isArrival: true,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGateTerminalItem(String title, String terminal, String gate, {bool isArrival = false}) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: isArrival ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[400],
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: isArrival ? MainAxisAlignment.end : MainAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  'T $terminal',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
-              const SizedBox(height: 16),
-              const Divider(),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Departure',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        Text(
-                          'Terminal ${departure['terminal']}',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey,
-                          ),
-                        ),
-                        Text(
-                          'Gate ${departure['gate']}',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      ],
-                    ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  'Gate $gate',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey[800],
+                    fontWeight: FontWeight.w700,
                   ),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Arrival',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        Text(
-                          'Terminal ${arrival['terminal']}',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey,
-                          ),
-                        ),
-                        Text(
-                          'Gate ${arrival['gate']}',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                ),
               ),
             ],
           ),
-        ),
+        ],
       ),
     );
   }

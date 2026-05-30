@@ -3,17 +3,21 @@ import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nilewing/features/chat/viewModel/call_view_model.dart';
+import 'package:nilewing/features/chat/viewmodel/chat_view_model.dart';
+import 'package:nilewing/features/chat/model/chat_model.dart';
 import 'package:nilewing/core/theme/app_colors.dart';
 
 class CallScreen extends ConsumerStatefulWidget {
   final String channelName;
   final String contactName;
+  final String contactId;
   final bool isVideoCall;
 
   const CallScreen({
     Key? key,
     required this.channelName,
     required this.contactName,
+    required this.contactId,
     required this.isVideoCall,
   }) : super(key: key);
 
@@ -42,6 +46,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
       ref.read(callViewModelProvider.notifier).initAgoraAndJoinChannel(
             channelName: widget.channelName,
             isVideoCall: widget.isVideoCall,
+            contactId: widget.contactId,
           );
     });
   }
@@ -56,6 +61,15 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
   Widget build(BuildContext context) {
     final state = ref.watch(callViewModelProvider);
     final viewModel = ref.read(callViewModelProvider.notifier);
+
+    // Listen for hangup signal or remote user leaving
+    ref.listen<ChatState>(chatViewModelProvider, (previous, next) {
+      if (next.incomingCall == null && previous?.incomingCall != null) {
+        // Call was hung up by remote user
+        viewModel.leaveChannel();
+        if (mounted) Navigator.pop(context);
+      }
+    });
 
     return Scaffold(
       body: Container(
@@ -222,7 +236,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with SingleTickerProvid
                           onPressed: () {
                             setState(() {
                               _isSpeakerOn = !_isSpeakerOn;
-                              viewModel.engine?.setEnableSpeakerphone(_isSpeakerOn);
+                              ref.read(callViewModelProvider.notifier).setSpeakerphone(_isSpeakerOn);
                             });
                           },
                         ),

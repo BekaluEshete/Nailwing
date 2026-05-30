@@ -6,6 +6,9 @@ import 'package:nilewing/core/theme/app_colors.dart';
 import 'package:nilewing/features/chat/model/chat_model.dart';
 import 'package:nilewing/features/chat/viewmodel/chat_view_model.dart';
 import 'package:nilewing/features/chat/view/call_screen.dart';
+import 'package:nilewing/features/match/view/user_detail_screen.dart';
+import 'package:nilewing/features/match/model/match_model.dart' as match_model;
+import 'package:nilewing/core/utils/app_constants.dart';
 
 class ChatDetailScreen extends ConsumerStatefulWidget {
   final ChatContact contact;
@@ -237,67 +240,116 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
               icon: const Icon(Icons.arrow_back, color: Colors.white),
             ),
             const SizedBox(width: 8),
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: Colors.white.withOpacity(0.2),
-              child: Text(
-                _getInitials(widget.contact.name),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.contact.name,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
+              child: GestureDetector(
+                onTap: () {
+                  // Create a dummy user object with the contact's ID and name
+                  // The UserDetailScreen will fetch the full profile based on the ID
+                  final dummyUser = match_model.User(
+                    id: widget.contact.userId ?? widget.contact.id,
+                    name: widget.contact.name,
+                    avatar: widget.contact.avatar,
+                    age: 0,
+                    nationality: '',
+                    gender: '',
+                    languages: [],
+                    interests: [],
+                    verified: false,
+                    travelStats: const match_model.TravelStats(
+                      countriesVisited: 0,
+                      totalFlights: 0,
+                      flightsThisYear: 0,
+                      frequentFlyerTier: 'None',
                     ),
-                  ),
-                  Consumer(
-                    builder: (context, ref, child) {
-                      final chatState = ref.watch(chatViewModelProvider);
-                      final contact = chatState.selectedContact ?? widget.contact;
-                      return Row(
+                  );
+                  
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => UserDetailScreen(
+                        user: dummyUser,
+                        onNavigateBack: () => Navigator.pop(context),
+                      ),
+                    ),
+                  );
+                },
+                behavior: HitTestBehavior.opaque,
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: Colors.white.withOpacity(0.2),
+                      backgroundImage: widget.contact.avatar != null && widget.contact.avatar!.isNotEmpty
+                          ? NetworkImage(
+                              widget.contact.avatar!.startsWith('http')
+                                  ? widget.contact.avatar!
+                                  : '${AppConstants.baseUrl}${widget.contact.avatar}',
+                            )
+                          : null,
+                      child: widget.contact.avatar == null || widget.contact.avatar!.isEmpty
+                          ? Text(
+                              _getInitials(widget.contact.name),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            )
+                          : null,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: contact.isOnline
-                                  ? Colors.green
-                                  : Colors.grey,
-                              shape: BoxShape.circle,
+                          Text(
+                            widget.contact.name,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
-                          const SizedBox(width: 6),
-                          Text(
-                            contact.isOnline ? 'Online' : 'Offline',
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 12,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '• ${contact.flight}',
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 12,
-                            ),
+                          Consumer(
+                            builder: (context, ref, child) {
+                              final chatState = ref.watch(chatViewModelProvider);
+                              final contact = chatState.selectedContact ?? widget.contact;
+                              return Row(
+                                children: [
+                                  Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: BoxDecoration(
+                                      color: contact.isOnline
+                                          ? Colors.green
+                                          : Colors.grey,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    contact.isOnline ? 'Online' : 'Offline',
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    '• ${contact.flight}',
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
                           ),
                         ],
-                      );
-                    },
-                  ),
-                ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
             IconButton(
@@ -308,10 +360,13 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
                     builder: (context) => CallScreen(
                       channelName: widget.contact.id, // Use contact ID as unique channel
                       contactName: widget.contact.name,
+                      contactId: widget.contact.id,
                       isVideoCall: false,
                     ),
                   ),
-                );
+                ).then((_) {
+                  ref.read(chatViewModelProvider.notifier).dismissIncomingCall();
+                });
               },
               icon: const Icon(Icons.call, color: Colors.white, size: 20),
             ),
@@ -323,10 +378,13 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
                     builder: (context) => CallScreen(
                       channelName: widget.contact.id, // Use contact ID as unique channel
                       contactName: widget.contact.name,
+                      contactId: widget.contact.id,
                       isVideoCall: true,
                     ),
                   ),
-                );
+                ).then((_) {
+                  ref.read(chatViewModelProvider.notifier).dismissIncomingCall();
+                });
               },
               icon: const Icon(Icons.videocam, color: Colors.white, size: 20),
             ),

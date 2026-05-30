@@ -1,6 +1,6 @@
 class AppConstants {
   // Backend API Base URL - Production
-  static const String baseUrl = 'https://nilewing-backend.onrender.com';
+  static const String baseUrl = 'http://164.68.109.145';
 
   // For local development, uncomment one of these:
   // Android Emulator: static const String baseUrl = 'http://10.0.2.2:8000';
@@ -25,9 +25,9 @@ class AppConstants {
   // Flight Endpoints
   static const String flightsBaseUrl = '$apiBaseUrl/flights';
   static const String flightsEndpoint = '$flightsBaseUrl/flights/';
-  static const String upcomingFlightsEndpoint = '$flightsEndpoint/upcoming/';
-  static const String communityPostsEndpoint = '$flightsEndpoint/community_posts/';
-  static const String currentFlightEndpoint = '$flightsEndpoint/current/';
+  static const String upcomingFlightsEndpoint = '$flightsBaseUrl/flights/upcoming/';
+  static const String communityPostsEndpoint = '$flightsBaseUrl/flights/community_posts/';
+  static const String currentFlightEndpoint = '$flightsBaseUrl/flights/current/';
   static const String interestsEndpoint = '$flightsBaseUrl/interests/';
   static const String preferencesEndpoint = '$flightsBaseUrl/preferences/';
 
@@ -53,7 +53,8 @@ class AppConstants {
   // WebSocket URL (computed, not const)
   static String get chatWebSocketUrl {
     final wsBase = baseUrl.replaceAll('https://', '').replaceAll('http://', '');
-    return 'ws://$wsBase/ws/chat';
+    final scheme = baseUrl.startsWith('https') ? 'wss' : 'ws';
+    return '$scheme://$wsBase/ws/chat';
   }
 
   // Storage Keys

@@ -298,6 +298,23 @@ class ChatService {
     }
   }
 
+  // Send call signaling via WebSocket
+  void sendCallSignal(String roomName, bool isVideoCall, String type) {
+    final channel = _activeConnections[roomName];
+    if (channel == null) return;
+
+    try {
+      final signalData = json.encode({
+        'type': 'call_signal',
+        'signal_type': type, // 'offer', 'answer', 'hangup'
+        'is_video': isVideoCall,
+      });
+      channel.sink.add(signalData);
+    } catch (e) {
+      print('⚠️ [ChatService] Error sending call signal: $e');
+    }
+  }
+
   // Send typing indicator via WebSocket
   void sendTypingIndicator(String roomName, bool isTyping) {
     final channel = _activeConnections[roomName];
@@ -479,13 +496,8 @@ class ChatService {
       }
     }
 
-    // For cloud services (Render, Heroku, Railway), use standard ports
-    if (host.contains('onrender.com') ||
-        host.contains('herokuapp.com') ||
-        host.contains('railway.app') ||
-        host.contains('vercel.app')) {
-      port = null; // Use default port for the protocol
-    }
+    // Port handling is already done above via extraction from host
+
 
     // Clean room name (remove any special characters except underscore and hyphen)
     final cleanRoomName = roomName.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
@@ -576,6 +588,7 @@ class ChatService {
 
       String name = 'Unknown';
       String? avatar;
+      String? partnerUserId;
 
       // For personal chats, parse the room name to find the other user
       if (roomName.startsWith('personal_')) {
@@ -595,6 +608,8 @@ class ChatService {
             // If current user is not in the room name, use the one that's not created_by
             otherUserId = createdById == user1Id ? user2Id : user1Id;
           }
+          
+          partnerUserId = otherUserId;
 
           print(
             '💬 [ChatService] Personal chat - Current user: $currentUserId, Other user: $otherUserId',
@@ -647,6 +662,7 @@ class ChatService {
 
       return ChatContact(
         id: room['id']?.toString() ?? '',
+        userId: partnerUserId,
         name: name,
         avatar: avatar,
         isOnline: false, // Would need to check UserProfile
@@ -662,6 +678,7 @@ class ChatService {
       // Return a minimal contact to prevent complete failure
       return ChatContact(
         id: room['id']?.toString() ?? 'unknown',
+        userId: null,
         name: 'Unknown User',
         avatar: null,
         isOnline: false,

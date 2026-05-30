@@ -5,6 +5,7 @@ import 'dart:async';
 
 import 'package:nilewing/features/splash/splash_view_model.dart';
 import 'package:nilewing/core/providers/auth_provider.dart';
+import 'package:nilewing/core/utils/token_storage.dart';
 
 class SplashView extends ConsumerStatefulWidget {
   const SplashView({super.key});
@@ -52,13 +53,22 @@ class _SplashViewState extends ConsumerState<SplashView>
     });
   }
 
-  void _checkAuthAndNavigate() {
+  Future<void> _checkAuthAndNavigate() async {
     if (!_isDisposed && mounted) {
       final isAuthenticated = ref.read(authStateProvider);
       if (isAuthenticated) {
         context.go('/home');
       } else {
-        ref.read(splashViewModelProvider.notifier).navigateToOnboarding(context);
+        final hasSeenOnboarding = await TokenStorage().getHasSeenOnboarding();
+        if (hasSeenOnboarding) {
+          if (mounted) context.go('/login');
+        } else {
+          if (mounted) {
+            ref
+                .read(splashViewModelProvider.notifier)
+                .navigateToOnboarding(context);
+          }
+        }
       }
     }
   }
@@ -279,21 +289,14 @@ class _SplashViewState extends ConsumerState<SplashView>
   }
 
   Widget _buildNileWingLogo() {
-    return Container(
-      width: 64,
-      height: 64,
-      decoration: const BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: LinearGradient(
-          colors: [
-            Color(0xFF0EA5E9), // sky-500
-            Color(0xFF0369A1), // sky-700
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(32),
+      child: Image.asset(
+        'assets/images/nilewing_logo.jpeg',
+        width: 64,
+        height: 64,
+        fit: BoxFit.contain,
       ),
-      child: const Icon(Icons.flight, color: Colors.white, size: 32),
     );
   }
 

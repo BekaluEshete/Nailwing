@@ -16,6 +16,7 @@ class User {
 }
 
 class Flight {
+  final String? id;
   final String flightNumber;
   final String airline;
   final String route;
@@ -31,6 +32,7 @@ class Flight {
   final String timeUntilDeparture;
 
   Flight({
+    this.id,
     required this.flightNumber,
     required this.airline,
     required this.route,

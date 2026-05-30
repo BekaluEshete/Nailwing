@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nilewing/core/theme/app_colors.dart';
+import 'package:nilewing/features/recommendation/model/recommendation_model.dart';
 import 'package:nilewing/features/recommendation/view/widgets/place_card.dart';
 import 'package:nilewing/features/recommendation/view/widgets/user_card.dart';
 import 'package:nilewing/features/recommendation/viewmodel/recommandation_viewmodel.dart';
@@ -49,14 +50,16 @@ class _RecommendationsScreenState extends ConsumerState<RecommendationsScreen>
 
     return Scaffold(
       backgroundColor: Colors.white,
-      body: Column(
-        children: [
-          _buildHeader(viewModel),
-          _buildTabBar(viewModel),
-          if (state.isLoading) _buildLoading(),
-          if (state.error != null) _buildError(state.error!, viewModel),
-          if (!state.isLoading && state.error == null) _buildContent(viewModel),
-        ],
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildHeader(viewModel),
+            _buildTabBar(viewModel),
+            if (state.isLoading) _buildLoading(),
+            if (state.error != null) _buildError(state.error!, viewModel),
+            if (!state.isLoading && state.error == null) _buildContent(viewModel),
+          ],
+        ),
       ),
     );
   }
@@ -244,17 +247,33 @@ class _RecommendationsScreenState extends ConsumerState<RecommendationsScreen>
       child: TabBarView(
         controller: _tabController,
         children: [
-          _buildPlacesList(viewModel),
-          _buildPlacesList(viewModel),
-          _buildPlacesList(viewModel),
+          _buildPlacesListForTab(viewModel, 0), // Hotels
+          _buildPlacesListForTab(viewModel, 1), // Cafés
+          _buildPlacesListForTab(viewModel, 2), // Dining
           _buildUsersList(viewModel),
         ],
       ),
     );
   }
 
-  Widget _buildPlacesList(RecommendationsViewModel viewModel) {
-    final places = viewModel.state.filteredPlaces;
+  Widget _buildPlacesListForTab(RecommendationsViewModel viewModel, int tabIndex) {
+    // Filter places by the specific tab type, ignoring viewmodel's selectedTabIndex
+    // to avoid sync issues between TabController and viewmodel
+    final PlaceType? targetType = tabIndex == 0
+        ? PlaceType.hotel
+        : tabIndex == 1
+            ? PlaceType.cafe
+            : PlaceType.restaurant;
+
+    final places = viewModel.state.places.where((place) {
+      final matchesType = place.type == targetType;
+      final q = viewModel.state.searchQuery.toLowerCase();
+      final matchesSearch = q.isEmpty ||
+          place.name.toLowerCase().contains(q) ||
+          place.description.toLowerCase().contains(q) ||
+          (place.specialties?.any((s) => s.toLowerCase().contains(q)) ?? false);
+      return matchesType && matchesSearch;
+    }).toList();
 
     if (places.isEmpty) {
       return Center(
@@ -267,37 +286,43 @@ class _RecommendationsScreenState extends ConsumerState<RecommendationsScreen>
               'No places found',
               style: TextStyle(fontSize: 16, color: Colors.grey[600]),
             ),
+            const SizedBox(height: 12),
+            TextButton.icon(
+              onPressed: () => viewModel.loadRecommendations(forceRefresh: true),
+              icon: const Icon(Icons.refresh),
+              label: const Text('Refresh'),
+            ),
           ],
         ),
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: places.length,
-      itemBuilder: (context, index) {
-        final place = places[index];
-        return TweenAnimationBuilder<double>(
-          duration: Duration(milliseconds: 300 + (index * 50)),
-          tween: Tween(begin: 0.0, end: 1.0),
-          curve: Curves.easeOutCubic,
-          builder: (context, value, child) {
-            return Transform.translate(
-              offset: Offset(0, 20 * (1 - value)),
-              child: Opacity(
-                opacity: value,
-                child: child,
-              ),
-            );
-          },
-          child: PlaceCard(
-            place: place,
-            isFavorite: viewModel.state.favoriteIds.contains(place.id),
-            onTap: () => viewModel.setSelectedPlace(place),
-            onFavoriteTap: () => viewModel.toggleFavorite(place.id),
-          ),
-        );
-      },
+    return RefreshIndicator(
+      onRefresh: () => viewModel.loadRecommendations(forceRefresh: true),
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: places.length,
+        itemBuilder: (context, index) {
+          final place = places[index];
+          return TweenAnimationBuilder<double>(
+            duration: Duration(milliseconds: 300 + (index * 50)),
+            tween: Tween(begin: 0.0, end: 1.0),
+            curve: Curves.easeOutCubic,
+            builder: (context, value, child) {
+              return Transform.translate(
+                offset: Offset(0, 20 * (1 - value)),
+                child: Opacity(opacity: value, child: child),
+              );
+            },
+            child: PlaceCard(
+              place: place,
+              isFavorite: viewModel.state.favoriteIds.contains(place.id),
+              onTap: () => viewModel.setSelectedPlace(place),
+              onFavoriteTap: () => viewModel.toggleFavorite(place.id),
+            ),
+          );
+        },
+      ),
     );
   }
 

@@ -1,7 +1,6 @@
 // app_router.dart
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:nilewing/features/auth/view/login_screen.dart';
@@ -17,123 +16,92 @@ import 'package:nilewing/features/splash/splash_view.dart';
 import 'package:nilewing/features/main_navigation/main_navigation_screen.dart';
 import 'package:nilewing/core/providers/auth_provider.dart';
 import 'package:nilewing/features/user/view/profile_screen.dart';
-// Import other screens when you create them
 import 'package:nilewing/features/match/view/match_screen.dart';
 import 'package:nilewing/features/match/view/connection_requests_screen.dart';
 import 'package:nilewing/features/chat/view/chat_screen.dart';
 
-/// Centralized app router using GoRouter.
-/// Works perfectly with Riverpod and MVVM structure.
-class AppRouter {
-  static final GoRouter router = GoRouter(
-    // The first screen shown when the app starts
-    initialLocation: '/splash',
+final routerProvider = Provider<GoRouter>((ref) {
+  final notifier = ref.watch(routerNotifierProvider);
 
+  return GoRouter(
+    initialLocation: '/splash',
+    refreshListenable: notifier,
+    redirect: notifier.redirect,
     routes: [
       GoRoute(
         path: '/splash',
         name: 'splash',
         builder: (context, state) => const SplashView(),
       ),
-
       GoRoute(
         path: '/onboarding',
         name: 'onboarding',
         builder: (context, state) => const OnboardingView(),
       ),
-
       GoRoute(
         path: '/registration',
         name: 'registration',
         builder: (context, state) => const RegistrationScreen(),
       ),
-
       GoRoute(
         path: '/login',
         name: 'login',
         builder: (context, state) => LoginScreen(
-          onLoginSuccess: () {
-            context.go('/home');
-          },
+          onLoginSuccess: () => context.go('/home'),
         ),
       ),
 
-      // Main navigation shell with bottom navigation
+      // Shell with bottom navigation
       ShellRoute(
-        builder: (context, state, child) {
-          return MainNavigationScreen(child: child);
-        },
+        builder: (context, state, child) =>
+            MainNavigationScreen(child: child),
         routes: [
-          // Nested routes for bottom navigation tabs
+          GoRoute(
+            path: '/home',
+            name: 'home',
+            builder: (context, state) => HomeScreen(
+              onNavigateToProfile: () => context.go('/profile'),
+              onNavigateToMyFlights: () => context.go('/myflights'),
+              onNavigateToMatch: () => context.go('/match'),
+              onNavigateToPreFlightMatching: () => context.go('/match'),
+              onNavigateToChat: () => context.go('/chat'),
+              onNavigateToRecommendations: () => context.go('/recommendations'),
+            ),
+          ),
           GoRoute(
             path: '/myflights',
             name: 'myflights',
             builder: (context, state) => MyFlightsScreen(
               onNavigateBack: () {},
-              onNavigateToAddFlight: () {
-                // Handle navigation to add flight
-                context.push('/addflight');
-              },
-              onNavigateToFlightDetail: (flightId) {
-                // Handle navigation to flight detail
-                context.push('/flight/$flightId');
-              },
+              onNavigateToAddFlight: () => context.push('/addflight'),
+              onNavigateToFlightDetail: (flightId) =>
+                  context.push('/flight/$flightId'),
             ),
           ),
-
           GoRoute(
             path: '/match',
             name: 'match',
-            builder: (context, state) => MatchScreen(
-              onNavigateBack: () {
-                // Navigate back to home or another route when back is pressed
-                context.go('/home');
-              },
-            ),
+            builder: (context, state) =>
+                MatchScreen(onNavigateBack: () => context.go('/home')),
           ),
-
           GoRoute(
             path: '/connection-requests',
             name: 'connectionRequests',
-            builder: (context, state) => ConnectionRequestsScreen(
-              onNavigateBack: () {
-                context.pop();
-              },
-            ),
+            builder: (context, state) =>
+                ConnectionRequestsScreen(onNavigateBack: () => context.pop()),
           ),
-
           GoRoute(
             path: '/chat',
             name: 'chat',
-            builder: (context, state) => ChatScreen(
-              onNavigateBack: () {
-                // Navigate back to home or another route when back is pressed
-                context.go('/home');
-              },
-            ),
+            builder: (context, state) =>
+                ChatScreen(onNavigateBack: () => context.go('/home')),
           ),
-
           GoRoute(
             path: '/recommendations',
             name: 'recommendations',
             builder: (context, state) => RecommendationsScreen(
-              onNavigateBack: () {
-                // Navigate back to home or another route when back is pressed
-                context.go('/home');
-              },
-            ),
+                onNavigateBack: () => context.go('/home')),
           ),
-
-          GoRoute(
-            path: '/home',
-            name: 'home',
-            builder: (context, state) => HomeScreen(
-              onNavigateToProfile: () {
-                context.go('/profile');
-              },
-            ),
-          ),
-
           GoRoute(
             path: '/profile',
             name: 'profile',
@@ -141,30 +109,24 @@ class AppRouter {
           ),
         ],
       ),
+
+      // Chat detail — outside shell (no bottom nav)
       GoRoute(
         path: '/chat/:contactId',
         name: 'chatDetail',
         builder: (context, state) {
           final contactId = state.pathParameters['contactId']!;
-          // Use a Consumer to access Riverpod providers (we're in a regular builder)
           return Consumer(
             builder: (context, ref, _) {
               final chatState = ref.watch(chatViewModelProvider);
               final chatViewModel = ref.read(chatViewModelProvider.notifier);
-              
-              // Try to find the contact
+
               ChatContact? contact;
               try {
-                contact = chatState.contacts.firstWhere(
-                  (c) => c.id == contactId,
-                );
-                print('✅ [AppRouter] Found contact: ${contact.name}');
-              } catch (e) {
-                // Contact not found - refresh contacts and show loading
-                print('⚠️ [AppRouter] Contact $contactId not found, refreshing contacts...');
+                contact =
+                    chatState.contacts.firstWhere((c) => c.id == contactId);
+              } catch (_) {
                 chatViewModel.refreshContacts();
-                
-                // Show loading screen while we wait
                 return Scaffold(
                   appBar: AppBar(
                     title: const Text('Loading Chat...'),
@@ -183,23 +145,22 @@ class AppRouter {
                         const SizedBox(height: 8),
                         ElevatedButton(
                           onPressed: () {
-                            // Try to refresh and navigate again
                             chatViewModel.refreshContacts();
-                            Future.delayed(const Duration(milliseconds: 500), () {
-                              final updatedState = ref.read(chatViewModelProvider);
+                            Future.delayed(
+                                const Duration(milliseconds: 500), () {
                               try {
-                                updatedState.contacts.firstWhere(
-                                  (c) => c.id == contactId,
-                                );
-                                // If found, refresh to trigger rebuild
+                                ref
+                                    .read(chatViewModelProvider)
+                                    .contacts
+                                    .firstWhere((c) => c.id == contactId);
                                 ref.invalidate(chatViewModelProvider);
-                              } catch (e) {
-                                // Still not found, go back
+                              } catch (_) {
                                 if (context.mounted) {
                                   context.pop();
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
-                                      content: Text('Chat not found. Please try again.'),
+                                      content: Text(
+                                          'Chat not found. Please try again.'),
                                       backgroundColor: Colors.red,
                                     ),
                                   );
@@ -214,8 +175,7 @@ class AppRouter {
                   ),
                 );
               }
-              
-              // Contact found - show chat screen
+
               return ChatDetailScreen(
                 contact: contact,
                 onBack: () => context.pop(),
@@ -224,68 +184,46 @@ class AppRouter {
           );
         },
       ),
-
-      // Standalone routes (not part of bottom navigation)
-      // GoRoute(
-      //   path: '/addflight',
-      //   name: 'addflight',
-      //   builder: (context, state) => const AddFlightScreen(), // Create this screen
-      // ),
-
-      // GoRoute(
-      //   path: '/flight/:flightId',
-      //   name: 'flightDetail',
-      //   builder: (context, state) {
-      //     final flightId = state.pathParameters['flightId']!;
-      //     return FlightDetailScreen(flightId: flightId); // Create this screen
-      //   },
-      // ),
     ],
-
-    // Authentication guard - redirect based on auth status
-    redirect: (BuildContext context, GoRouterState state) {
-      try {
-        final container = ProviderScope.containerOf(context);
-        final isAuthenticated = container.read(authStateProvider);
-
-        // List of public routes that don't require authentication
-        final publicRoutes = [
-          '/splash',
-          '/onboarding',
-          '/login',
-          '/registration',
-        ];
-        final currentLocation = state.uri.path;
-        final isPublicRoute = publicRoutes.contains(currentLocation);
-
-        // If user is not authenticated and trying to access protected route
-        if (!isAuthenticated && !isPublicRoute) {
-          return '/login';
-        }
-
-        // If user is authenticated and trying to access auth pages
-        if (isAuthenticated &&
-            (currentLocation == '/login' ||
-                currentLocation == '/registration')) {
-          return '/home';
-        }
-
-        return null; // No redirect needed
-      } catch (e) {
-        // If there's an error accessing the provider, allow navigation
-        // This can happen during initial app load
-        return null;
-      }
-    },
-
-    // Optional: Handle wrong URLs gracefully
-    errorBuilder: (context, state) => Scaffold(
-      body: Center(
-        child: Text(
-          '404 — Page not found',
-          style: Theme.of(context).textTheme.headlineMedium,
-        ),
-      ),
-    ),
   );
+});
+
+final routerNotifierProvider = ChangeNotifierProvider<RouterNotifier>((ref) {
+  return RouterNotifier(ref);
+});
+
+class RouterNotifier extends ChangeNotifier {
+  final Ref _ref;
+
+  RouterNotifier(this._ref) {
+    _subscription = _ref.listen(authStateProvider, (previous, next) {
+      if (previous != next) {
+        debugPrint('RouterNotifier: Auth state changed from $previous to $next');
+        notifyListeners();
+      }
+    });
+  }
+
+  ProviderSubscription? _subscription;
+
+  String? redirect(BuildContext context, GoRouterState state) {
+    final isAuthenticated = _ref.read(authStateProvider);
+    debugPrint('Router Redirect Check: path=${state.uri.path}, auth=$isAuthenticated');
+
+    const publicRoutes = ['/splash', '/onboarding', '/login', '/registration'];
+    final path = state.uri.path;
+    final isPublic = publicRoutes.contains(path);
+
+    if (!isAuthenticated && !isPublic) return '/login';
+    if (isAuthenticated && (path == '/login' || path == '/registration')) {
+      return '/home';
+    }
+    return null;
+  }
+
+  @override
+  void dispose() {
+    _subscription?.close();
+    super.dispose();
+  }
 }

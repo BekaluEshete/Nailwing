@@ -21,6 +21,7 @@ class HomeViewModel with ChangeNotifier {
   String _activeTab = 'home';
   int _notificationCount = 0;
   bool _isLoading = false;
+  bool _isCheckedIn = false;
   bool _isOnline = true;
   double _batteryLevel = 78.0;
   final Set<String> _expandedPosts = {};
@@ -33,6 +34,7 @@ class HomeViewModel with ChangeNotifier {
   String get activeTab => _activeTab;
   int get notificationCount => _notificationCount;
   bool get isLoading => _isLoading;
+  bool get isCheckedIn => _isCheckedIn;
   bool get isOnline => _isOnline;
   double get batteryLevel => _batteryLevel;
   Set<String> get expandedPosts => _expandedPosts;
@@ -306,6 +308,7 @@ class HomeViewModel with ChangeNotifier {
 
       if (success) {
         // Handle successful check-in
+        _isCheckedIn = true;
         print('Check-in successful!');
       }
     } catch (e) {

@@ -1,0 +1,74 @@
+{
+  "default": {
+    "rating": 3,
+    "police": "112",
+    "ambulance": "112",
+    "fire": "112",
+    "cultural_tips": "Always remain aware of your surroundings.",
+    "safe_areas": "Well-lit public spaces, main airport terminals.",
+    "areas_to_avoid": "Unlit areas at night, deserted streets.",
+    "womens_helpline": "112",
+    "lgbtq_safety": "Exercise standard precautions.",
+    "common_scams": "Taxi overcharging, fake petitions."
+  },
+  "DE": {
+    "rating": 5,
+    "police": "110",
+    "ambulance": "112",
+    "fire": "112",
+    "cultural_tips": "Punctuality is highly valued. Cash is still widely used in smaller shops.",
+    "safe_areas": "Most city centers, public transit during daytime, tourist spots.",
+    "areas_to_avoid": "Parks at night, areas around major train stations late at night.",
+    "womens_helpline": "08000 116 016",
+    "lgbtq_safety": "Very safe and widely accepted. Berlin and Cologne are particularly LGBTQ+ friendly.",
+    "common_scams": "Fake petitions or charity workers near train stations."
+  },
+  "US": {
+    "rating": 4,
+    "police": "911",
+    "ambulance": "911",
+    "fire": "911",
+    "cultural_tips": "Tipping 15-20% is customary. Casual dress is generally acceptable.",
+    "safe_areas": "Downtown cores during daytime, university campuses, major tourist spots.",
+    "areas_to_avoid": "Certain inner-city neighborhoods at night. Research your specific destination city.",
+    "womens_helpline": "800-799-7233",
+    "lgbtq_safety": "Generally very safe and legally protected, though regional attitudes vary.",
+    "common_scams": "Fake taxis at airports, 'free' CD scams, ticket scalping."
+  },
+  "JP": {
+    "rating": 5,
+    "police": "110",
+    "ambulance": "119",
+    "fire": "119",
+    "cultural_tips": "Modest dress is appreciated. Remove shoes when entering homes or certain traditional venues.",
+    "safe_areas": "Virtually all areas are very safe, even at night.",
+    "areas_to_avoid": "Red-light districts (e.g., Kabukicho) can have aggressive touts but are rarely physically dangerous.",
+    "womens_helpline": "03-5774-0992",
+    "lgbtq_safety": "Very safe, though public displays of affection are generally uncommon for all couples.",
+    "common_scams": "Bar touts offering cheap drinks that result in exorbitant cover charges."
+  },
+  "GB": {
+    "rating": 4,
+    "police": "999",
+    "ambulance": "999",
+    "fire": "999",
+    "cultural_tips": "Queuing (lining up) is strictly observed. Politeness is highly valued.",
+    "safe_areas": "Central London, major tourist attractions, well-lit high streets.",
+    "areas_to_avoid": "Empty parks at night, some suburban estates.",
+    "womens_helpline": "0808-2000-247",
+    "lgbtq_safety": "Very safe with strong legal protections and visible communities.",
+    "common_scams": "Pickpocketing in crowded tourist areas or on the Tube, fake petitions."
+  },
+  "ET": {
+    "rating": 3,
+    "police": "991",
+    "ambulance": "907",
+    "fire": "939",
+    "cultural_tips": "Dress modestly, covering shoulders and knees. Greeting respectfully is important.",
+    "safe_areas": "Bole area in Addis Ababa, major hotels, tourist attractions during daytime.",
+    "areas_to_avoid": "Mercato at night, unlit streets, walking alone after dark.",
+    "womens_helpline": "805",
+    "lgbtq_safety": "Same-sex relationships are illegal and highly stigmatized. Extreme discretion is advised.",
+    "common_scams": "Overcharging for taxis (always negotiate or use a ride-hailing app like Ride), fake tour guides."
+  }
+}

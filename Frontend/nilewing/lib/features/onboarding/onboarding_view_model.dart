@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:nilewing/core/utils/token_storage.dart';
+import 'dart:ui';
 
 final onboardingViewModelProvider =
     StateNotifierProvider<OnboardingViewModel, OnboardingState>((ref) {
@@ -62,588 +64,235 @@ class OnboardingViewModel extends StateNotifier<OnboardingState> {
 
   static Widget _buildFirstIllustration() {
     return SizedBox(
-      height: 192,
+      height: 220,
       child: Stack(
+        clipBehavior: Clip.none,
         children: [
-          // Airplane
-          Positioned(
-            top: 8,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: Transform.rotate(
-                angle: 0.785, // 45 degrees
-                child: Icon(
-                  Icons.flight,
-                  size: 48,
-                  color: Colors.blue.shade700,
+          // Background Glow
+          Center(
+            child: Container(
+              width: 140,
+              height: 140,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [Colors.blue.shade100.withOpacity(0.5), Colors.transparent],
                 ),
               ),
             ),
           ),
 
-          // Left person with chat
-          Positioned(
-            bottom: 32,
-            left: 16,
-            child: Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Colors.blue.shade400, Colors.blue.shade600],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
+          // Main Airplane Icon
+          Center(
+            child: TweenAnimationBuilder(
+              duration: const Duration(seconds: 2),
+              tween: Tween(begin: 0.0, end: 1.0),
+              builder: (context, double value, child) {
+                return Transform.translate(
+                  offset: Offset(0, 5 * (1 - value)),
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.blue.shade200.withOpacity(0.4),
+                          blurRadius: 20,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
                     ),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(60),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: Image.asset(
+                          'assets/images/nilewing_logo.jpeg',
+                          width: 80,
+                          height: 80,
+                          fit: BoxFit.contain,
+                        ),
                       ),
-                    ],
+                    ),
                   ),
-                  child: const Icon(
-                    Icons.people,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 48,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade300,
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Container(
-                      width: 32,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade200,
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                );
+              },
             ),
           ),
 
-          // Right person with chat
+          // Floating Avatars
           Positioned(
-            bottom: 32,
-            right: 16,
-            child: Row(
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Container(
-                      width: 56,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade300,
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Container(
-                      width: 40,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade200,
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Colors.cyan.shade400, Colors.cyan.shade600],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.people,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                ),
-              ],
-            ),
+            top: 40,
+            left: 20,
+            child: _buildFloatingAvatar(Icons.person, Colors.orange.shade400),
           ),
-
-          // Connection circle with dashed circumference
           Positioned(
-            top: 0,
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: TweenAnimationBuilder(
-                duration: const Duration(seconds: 8),
-                tween: Tween(begin: 0.0, end: 2 * 3.14159),
-                builder: (context, value, child) {
-                  return Transform.rotate(
-                    angle: value,
-                    child: CustomPaint(
-                      size: const Size(96, 96),
-                      painter: DashedCirclePainter(),
-                    ),
-                  );
-                },
-              ),
-            ),
+            bottom: 40,
+            right: 20,
+            child: _buildFloatingAvatar(Icons.person_3, Colors.purple.shade400),
+          ),
+          Positioned(
+            top: 140,
+            left: 40,
+            child: _buildFloatingAvatar(Icons.person_2, Colors.green.shade400),
           ),
         ],
       ),
+    );
+  }
+
+  static Widget _buildFloatingAvatar(IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.2),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Icon(icon, size: 20, color: color),
     );
   }
 
   static Widget _buildSecondIllustration() {
     return SizedBox(
-      height: 192,
+      height: 220,
       child: Stack(
+        alignment: Alignment.center,
         children: [
-          // Map background
+          // Pulse Effect
+          ...List.generate(3, (index) {
+            return TweenAnimationBuilder(
+              duration: Duration(seconds: 2 + index),
+              tween: Tween(begin: 0.0, end: 1.0),
+              builder: (context, double value, child) {
+                return Container(
+                  width: 100 + (value * 100),
+                  height: 100 + (value * 100),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.blue.shade400.withOpacity(1 - value),
+                      width: 2,
+                    ),
+                  ),
+                );
+              },
+            );
+          }),
+
+          // Center Location Card
           Container(
-            width: double.infinity,
-            height: double.infinity,
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.green.shade100, Colors.blue.shade100],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(16),
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.1),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
                 ),
               ],
             ),
-            child: Stack(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                // Grid lines
+                Icon(Icons.location_on_rounded, size: 48, color: Colors.red.shade400),
+                const SizedBox(height: 8),
                 Container(
+                  width: 60,
+                  height: 8,
                   decoration: BoxDecoration(
-                    border: Border.all(
-                      color: Colors.grey.shade400.withOpacity(0.2),
-                      width: 1,
-                    ),
-                  ),
-                  child: Column(
-                    children: List.generate(
-                      3,
-                      (index) => Expanded(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                              color: Colors.grey.shade400.withOpacity(0.2),
-                              width: 1,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-
-                // Location pins
-                Positioned(
-                  top: 16,
-                  left: 32,
-                  child: _buildLocationPin(Colors.red.shade500),
-                ),
-                Positioned(
-                  top: 48,
-                  right: 40,
-                  child: _buildLocationPin(Colors.blue.shade500),
-                ),
-                Positioned(
-                  bottom: 32,
-                  left: 48,
-                  child: _buildLocationPin(Colors.purple.shade500),
-                ),
-
-                // Your location (center)
-                Positioned(
-                  top: 0,
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  child: Center(
-                    child: Stack(
-                      children: [
-                        Container(
-                          width: 20,
-                          height: 20,
-                          decoration: BoxDecoration(
-                            color: Colors.blue.shade700,
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.blue.shade700.withOpacity(0.3),
-                                blurRadius: 8,
-                                spreadRadius: 2,
-                              ),
-                            ],
-                          ),
-                        ),
-                        Positioned.fill(
-                          child: Container(
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.blue.shade700.withOpacity(0.3),
-                                width: 2,
-                              ),
-                            ),
-                            child: const Center(),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // Connection radius
-                Positioned(
-                  top: 0,
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  child: Center(
-                    child: Container(
-                      width: 80,
-                      height: 80,
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: Colors.blue.shade700.withOpacity(0.2),
-                          width: 2,
-                        ),
-                        shape: BoxShape.circle,
-                      ),
-                    ),
+                    color: Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(4),
                   ),
                 ),
               ],
             ),
+          ),
+
+          // Small Map Markers
+          Positioned(
+            top: 20,
+            right: 40,
+            child: Icon(Icons.location_on_outlined, size: 24, color: Colors.blue.shade300),
+          ),
+          Positioned(
+            bottom: 40,
+            left: 30,
+            child: Icon(Icons.location_on_outlined, size: 28, color: Colors.cyan.shade300),
           ),
         ],
       ),
     );
   }
 
-  static Widget _buildLocationPin(Color color) {
-    return Stack(
-      children: [
-        Icon(Icons.location_pin, size: 24, color: color),
-        Positioned(
-          top: 2,
-          right: 2,
-          child: Container(
-            width: 4,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.green.shade500,
-              shape: BoxShape.circle,
-            ),
+  static Widget _buildThirdIllustration() {
+    return SizedBox(
+      height: 220,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Chat Bubbles Layout
+          Positioned(
+            top: 10,
+            left: 20,
+            child: _buildChatBubble("Hey! 👋", true),
           ),
-        ),
-      ],
+          Positioned(
+            top: 80,
+            right: 10,
+            child: _buildChatBubble("Ready to explore?", false),
+          ),
+          Positioned(
+            bottom: 30,
+            left: 40,
+            child: _buildChatBubble("Let's go! ✈️", true),
+          ),
+
+          // Connection Line
+          CustomPaint(
+            size: const Size(200, 150),
+            painter: ConnectionLinePainter(),
+          ),
+        ],
+      ),
     );
   }
 
-  static Widget _buildThirdIllustration() {
-    return SizedBox(
-      height: 192,
-      child: Stack(
-        children: [
-          // Chat interface
-          Container(
-            width: double.infinity,
-            height: double.infinity,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-              border: Border.all(color: Colors.grey.shade200, width: 1),
-            ),
-            child: Column(
-              children: [
-                // Header
-                Container(
-                  height: 40,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Colors.blue.shade700, Colors.cyan.shade600],
-                      begin: Alignment.centerLeft,
-                      end: Alignment.centerRight,
-                    ),
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(16),
-                      topRight: Radius.circular(16),
-                    ),
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Row(
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            width: 10,
-                            height: 10,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Container(
-                            width: 32,
-                            height: 4,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.4),
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const Spacer(),
-                      Icon(
-                        Icons.chat_bubble_outline,
-                        size: 16,
-                        color: Colors.white,
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Chat messages
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(4),
-                    child: Column(
-                      children: [
-                        // Incoming message
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              width: 12,
-                              height: 12,
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    Colors.blue.shade400,
-                                    Colors.blue.shade600,
-                                  ],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            Container(
-                              width: 48,
-                              padding: const EdgeInsets.all(4),
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade100,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Column(
-                                children: [
-                                  Container(
-                                    width: 48,
-                                    height: 4,
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey.shade300,
-                                      borderRadius: BorderRadius.circular(2),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Container(
-                                    width: 32,
-                                    height: 4,
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey.shade200,
-                                      borderRadius: BorderRadius.circular(2),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-
-                        // Outgoing message
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            Container(
-                              width: 48,
-                              padding: const EdgeInsets.all(4),
-                              decoration: BoxDecoration(
-                                color: Colors.blue.shade700,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Column(
-                                children: [
-                                  Container(
-                                    width: 40,
-                                    height: 4,
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.8),
-                                      borderRadius: BorderRadius.circular(2),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Container(
-                                    width: 28,
-                                    height: 4,
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.6),
-                                      borderRadius: BorderRadius.circular(2),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            Container(
-                              width: 12,
-                              height: 12,
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    Colors.cyan.shade400,
-                                    Colors.cyan.shade600,
-                                  ],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // Input area
-                Container(
-                  height: 36,
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade50,
-                    border: Border(
-                      top: BorderSide(color: Colors.grey.shade200, width: 1),
-                    ),
-                  ),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.grey.shade200, width: 1),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 6,
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Container(
-                            height: 4,
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade200,
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Container(
-                          width: 12,
-                          height: 12,
-                          decoration: BoxDecoration(
-                            color: Colors.blue.shade700.withOpacity(0.2),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Floating indicators
-          Positioned(
-            top: -2,
-            right: -2,
-            child: Container(
-              width: 16,
-              height: 16,
-              decoration: BoxDecoration(
-                color: Colors.green.shade500,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Container(
-                width: 4,
-                height: 4,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
+  static Widget _buildChatBubble(String text, bool isLeft) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: isLeft ? Colors.white : Colors.blue.shade600,
+        borderRadius: BorderRadius.only(
+          topLeft: const Radius.circular(16),
+          topRight: const Radius.circular(16),
+          bottomLeft: Radius.circular(isLeft ? 0 : 16),
+          bottomRight: Radius.circular(isLeft ? 16 : 0),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
           ),
         ],
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: isLeft ? Colors.blue.shade900 : Colors.white,
+          fontWeight: FontWeight.w600,
+          fontSize: 14,
+        ),
       ),
     );
   }
@@ -670,8 +319,11 @@ class OnboardingViewModel extends StateNotifier<OnboardingState> {
     }
   }
 
-  void complete(BuildContext context) {
-    context.go('/registration');
+  void complete(BuildContext context) async {
+    await TokenStorage().saveHasSeenOnboarding(true);
+    if (context.mounted) {
+      context.go('/registration');
+    }
   }
 
   @override
@@ -681,39 +333,43 @@ class OnboardingViewModel extends StateNotifier<OnboardingState> {
   }
 }
 
-// Custom painter for dashed circle
-class DashedCirclePainter extends CustomPainter {
+class ConnectionLinePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.blue.shade300.withOpacity(0.5)
+      ..color = Colors.blue.shade200.withOpacity(0.5)
       ..strokeWidth = 2
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
 
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2 - 1;
+    final path = Path();
+    path.moveTo(size.width * 0.2, size.height * 0.2);
+    path.quadraticBezierTo(
+      size.width * 0.5,
+      size.height * 0.5,
+      size.width * 0.8,
+      size.height * 0.4,
+    );
 
-    // Create dashed effect by drawing arcs
-    const dashWidth = 4.0;
-    const dashSpace = 3.0;
-    const totalDashes = 20;
-
-    for (int i = 0; i < totalDashes; i++) {
-      final startAngle = (2 * 3.14159 / totalDashes) * i;
-      final sweepAngle =
-          (2 * 3.14159 / totalDashes) * (dashWidth / (dashWidth + dashSpace));
-
-      canvas.drawArc(
-        Rect.fromCircle(center: center, radius: radius),
-        startAngle,
-        sweepAngle,
-        false,
-        paint,
-      );
+    // Draw dashed path
+    for (double i = 0; i < 1.0; i += 0.1) {
+      final p1 = _getPathPoint(path, i);
+      final p2 = _getPathPoint(path, i + 0.05);
+      canvas.drawLine(p1, p2, paint);
     }
+  }
+
+  Offset _getPathPoint(Path path, double t) {
+    final metrics = path.computeMetrics().first;
+    return metrics.getExtractForPercent(t).getBounds().center;
   }
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+extension on PathMetric {
+  Path getExtractForPercent(double percent) {
+    return extractPath(0, length * percent);
+  }
 }
