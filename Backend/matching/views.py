@@ -20,11 +20,17 @@ class MatchViewSet(viewsets.ReadOnlyModelViewSet):
         """
         Apply the 'matching' scoped throttle (10/minute) to find_matches.
         That action runs 6+ DB queries so we guard it more strictly.
-        All other actions use default throttles from settings.
+        Falls back gracefully when the 'matching' scope is not configured
+        (e.g. in test_settings where throttling is disabled).
         """
         if self.action == "find_matches":
-            self.throttle_scope = "matching"
-            return [ScopedRateThrottle()]
+            from django.conf import settings as django_settings
+            rates = getattr(django_settings, "REST_FRAMEWORK", {}).get(
+                "DEFAULT_THROTTLE_RATES", {}
+            )
+            if "matching" in rates:
+                self.throttle_scope = "matching"
+                return [ScopedRateThrottle()]
         return super().get_throttles()
 
     def get_queryset(self):

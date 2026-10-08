@@ -22,10 +22,17 @@ class AuthViewSet(viewsets.GenericViewSet):
         """
         Apply the 'auth' scoped throttle (5/minute) to login and register.
         All other actions use the default throttles from settings.
+        Falls back gracefully when the 'auth' scope is not configured
+        (e.g. in test_settings where throttling is disabled).
         """
         if self.action in ("login", "register"):
-            self.throttle_scope = "auth"
-            return [ScopedRateThrottle()]
+            from django.conf import settings as django_settings
+            rates = getattr(django_settings, "REST_FRAMEWORK", {}).get(
+                "DEFAULT_THROTTLE_RATES", {}
+            )
+            if "auth" in rates:
+                self.throttle_scope = "auth"
+                return [ScopedRateThrottle()]
         return super().get_throttles()
 
     def list(self, request):
