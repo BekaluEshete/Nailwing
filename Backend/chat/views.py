@@ -39,44 +39,46 @@ class ChatRoomList(generics.ListCreateAPIView):
         return context
 
     def get_queryset(self):
-        # Only show chat rooms for users who are matched (status='matched')
-        # For personal chats, check if there's a matched connection
         from matching.models import Match
-        
+        from django.db.models import Case, When, F, IntegerField
+
         user = self.request.user
-        
-        # Get all matched users (where status='matched')
-        matched_matches = Match.objects.filter(
-            Q(user1=user) | Q(user2=user),
-            status='matched'
+
+        # Single annotated query extracts the other user's ID at DB level,
+        # replacing the previous Python loop over Match objects.
+        matched_user_ids = (
+            Match.objects.filter(
+                Q(user1=user) | Q(user2=user),
+                status="matched",
+            )
+            .annotate(
+                other_id=Case(
+                    When(user1=user, then=F("user2_id")),
+                    default=F("user1_id"),
+                    output_field=IntegerField(),
+                )
+            )
+            .values_list("other_id", flat=True)
+            .distinct()
         )
-        
-        # Extract user IDs of matched users
-        matched_user_ids = set()
-        for match in matched_matches:
-            if match.user1 == user:
-                matched_user_ids.add(match.user2.id)
-            else:
-                matched_user_ids.add(match.user1.id)
-        
-        # Get personal chat rooms only for matched users
-        personal_room_names = []
-        for matched_user_id in matched_user_ids:
-            # Determine room name format (smaller ID first)
-            if user.id < matched_user_id:
-                room_name = f"personal_{user.id}_{matched_user_id}"
-            else:
-                room_name = f"personal_{matched_user_id}_{user.id}"
-            personal_room_names.append(room_name)
-        
-        # Return only personal chat rooms with matched users
-        queryset = ChatRoom.objects.filter(
-            is_active=True,
-            room_type='personal',
-            name__in=personal_room_names
-        ).select_related('created_by').order_by('-created_at')
-        
-        return queryset
+
+        # Build room names directly in a list comprehension at DB level
+        # Room name format: personal_{min_id}_{max_id}
+        user_id = user.id
+        personal_room_names = [
+            f"personal_{min(user_id, other_id)}_{max(user_id, other_id)}"
+            for other_id in matched_user_ids
+        ]
+
+        return (
+            ChatRoom.objects.filter(
+                is_active=True,
+                room_type="personal",
+                name__in=personal_room_names,
+            )
+            .select_related("created_by")
+            .order_by("-created_at")
+        )
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)

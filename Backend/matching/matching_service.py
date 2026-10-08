@@ -540,16 +540,10 @@ class MatchingService:
 
     @staticmethod
     def _apply_user_filters(user, matches):
-        """Apply user's matching preferences/filters per documentation
+        """Apply user's matching preferences/filters.
 
-        Filters (exclude completely):
-        - Gender preference: Exclude if doesn't match
-        - Common interests: Exclude if require_common_interests and doesn't meet minimum
-
-        Score adjustments:
-        - Travel experience mismatch: ×0.8 multiplier
-        - Common interests: +0.2 per shared interest
-        - Guide matching: ×1.5 multiplier
+        Performance: batch-fetches interests for all candidate users in a single
+        query instead of one query per candidate pair (N+1 fix).
         """
         try:
             match_filter = user.match_filter
@@ -557,25 +551,40 @@ class MatchingService:
             match_filter = None
 
         filtered = []
+        if not matches:
+            return filtered
+
+        # --- Batch-fetch interests for the current user and all candidates ---
+        all_user_ids = {user.id} | {m["user"].id for m in matches}
+        interests_qs = UserInterest.objects.filter(
+            user_id__in=all_user_ids
+        ).values("user_id", "interest")
+
+        # Build a map: {user_id: [interest_str, ...]}
+        interests_map: dict = {}
+        for row in interests_qs:
+            interests_map.setdefault(row["user_id"], []).append(row["interest"])
+
+        user_interests = interests_map.get(user.id, [])
+        user_interests_normalized = {i.lower().strip() for i in user_interests if i}
 
         for match in matches:
             other_user = match["user"]
             score = 1.0
 
-            # Gender preference - EXCLUDE if doesn't match (per documentation)
+            # Gender preference — exclude if doesn't match
             if match_filter and match_filter.preferred_gender:
                 if (
                     other_user.gender
                     and other_user.gender != match_filter.preferred_gender
                 ):
-                    # Exclude this match (per documentation)
                     logger.debug(
                         "Gender filter: excluding %s (%s vs required %s)",
                         other_user.email, other_user.gender, match_filter.preferred_gender,
                     )
-                    continue  # Skip this match entirely
+                    continue
 
-            # Travel experience preferences - Adjust score only (×0.8 for mismatch)
+            # Travel experience preferences — adjust score only
             try:
                 other_pref = other_user.travel_preference
                 user_pref = user.travel_preference
@@ -586,15 +595,14 @@ class MatchingService:
                         and other_pref
                         and not other_pref.is_first_international
                     ):
-                        score *= 0.8  # Travel experience mismatch (per documentation)
+                        score *= 0.8
                     if (
                         match_filter.prefer_experienced_travelers
                         and other_pref
                         and other_pref.is_first_international
                     ):
-                        score *= 0.8  # Travel experience mismatch (per documentation)
+                        score *= 0.8
 
-                # Guide matching - Boost score
                 if user_pref and other_pref:
                     if user_pref.looking_for_guide and other_pref.offering_guidance:
                         score *= 1.5
@@ -604,15 +612,29 @@ class MatchingService:
             except TravelPreference.DoesNotExist:
                 pass
 
-            # Common interests - Boost score (case-insensitive comparison)
-            common_interests = MatchingService.calculate_common_interests(
-                user, other_user
-            )
+            # Common interests — use pre-fetched map (no extra DB query)
+            other_interests = interests_map.get(other_user.id, [])
+            other_interests_normalized = {i.lower().strip() for i in other_interests if i}
+            common_normalized = user_interests_normalized & other_interests_normalized
 
-            # Always set common_interests, even if empty
+            # Resolve to original casing from user1's list
+            common_interests = []
+            for norm in common_normalized:
+                for original in user_interests:
+                    if original and original.lower().strip() == norm:
+                        common_interests.append(original.strip())
+                        break
+                else:
+                    for original in other_interests:
+                        if original and original.lower().strip() == norm:
+                            common_interests.append(original.strip())
+                            break
+                    else:
+                        common_interests.append(norm.title())
+
             match["common_interests"] = common_interests
 
-            # Check if user requires common interests filter
+            # Common interests filter — exclude if minimum not met
             if match_filter and match_filter.require_common_interests:
                 min_interests = match_filter.min_common_interests or 1
                 if len(common_interests) < min_interests:
@@ -620,12 +642,12 @@ class MatchingService:
                         "Common interests filter: excluding %s (%d/%d)",
                         other_user.email, len(common_interests), min_interests,
                     )
-                    continue  # Skip this match entirely
+                    continue
 
             if common_interests:
                 score *= 1 + len(common_interests) * 0.2
                 logger.debug(
-                    "Common interests with %s: %s (score boost: %.1f)",
+                    "Common interests with %s: %s (boost: %.1f)",
                     other_user.email, common_interests, len(common_interests) * 0.2,
                 )
             else:
@@ -634,7 +656,6 @@ class MatchingService:
             match["match_score"] = score
             filtered.append(match)
 
-        # Sort by match score
         filtered.sort(key=lambda x: x["match_score"], reverse=True)
         return filtered
 
