@@ -1,13 +1,17 @@
 import json
+import logging
+
 import jwt
 from django.conf import settings
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 
+logger = logging.getLogger("chat")
+
 
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        print("🔌 WebSocket CONNECT called")
+        logger.debug("WebSocket CONNECT called")
         self.room_name = self.scope["url_route"]["kwargs"]["room_name"]
         self.room_group_name = f"chat_{self.room_name}"
 
@@ -24,30 +28,23 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 self.user_id = str(user.id)
                 self.username = user.username
 
-                # Check if user can access this room (for personal chats)
                 if await self.can_access_room():
                     try:
-                        # Join room group - CRITICAL for message broadcasting
                         await self.channel_layer.group_add(
                             self.room_group_name, self.channel_name
                         )
-                        print(f"✅ [ChatConsumer] Added to group: {self.room_group_name}")
-                    except Exception as e:
-                        print(f"❌ [ChatConsumer] Error joining group: {e}")
+                        logger.debug("Added to group: %s", self.room_group_name)
+                    except Exception as exc:
+                        logger.error("Error joining group %s: %s", self.room_group_name, exc)
                         await self.close()
                         return
 
                     await self.accept()
-                    print(f"✅ [ChatConsumer] WebSocket accepted for {self.username}")
+                    logger.info("WebSocket accepted for user %s in room %s", self.username, self.room_name)
 
-                    # Update user online status
                     await self.update_user_online_status(True)
-
-                    # Send last messages
                     await self.send_previous_messages()
 
-                    # Notify others that user joined (for both personal and group chats)
-                    # This enables online status updates
                     try:
                         await self.channel_layer.group_send(
                             self.room_group_name,
@@ -58,29 +55,24 @@ class ChatConsumer(AsyncWebsocketConsumer):
                                 "room_name": self.room_name,
                             },
                         )
-                        print(f"✅ [ChatConsumer] User joined notification sent")
-                    except Exception as e:
-                        print(f"⚠️ [ChatConsumer] Error sending user_joined: {e}")
+                        logger.debug("User joined notification sent for %s", self.username)
+                    except Exception as exc:
+                        logger.warning("Error sending user_joined for %s: %s", self.username, exc)
 
-                    print(f"✅ {self.username} connected to {self.room_name}")
                     return
                 else:
                     await self.close()
-                    print(f"❌ Access denied to personal room: {self.room_name}")
+                    logger.warning("Access denied to personal room %s for user %s", self.room_name, self.username)
                     return
 
-        # Reject connection if no valid token
         await self.close()
-        print("❌ Connection rejected - no valid token")
+        logger.warning("WebSocket connection rejected — no valid token for room %s", self.room_name)
 
     async def disconnect(self, close_code):
-        print("❌ WebSocket DISCONNECT called")
+        logger.debug("WebSocket DISCONNECT called (code=%s)", close_code)
         if hasattr(self, "user") and hasattr(self, "room_group_name"):
-            # Update user online status
             await self.update_user_online_status(False)
 
-            # Notify others that user left (for both personal and group chats)
-            # This enables offline status updates
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
@@ -96,7 +88,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             )
 
     async def receive(self, text_data):
-        print(f"📨 Received: {text_data}")
+        logger.debug("Received WebSocket data (len=%d)", len(text_data))
         try:
             data = json.loads(text_data)
             message_type = data.get("type", "message")
@@ -110,12 +102,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
             elif message_type == "call_signal":
                 await self.handle_call_signal(data)
 
-        except Exception as e:
-            print(f"Error processing message: {e}")
+        except Exception as exc:
+            logger.error("Error processing WebSocket message: %s", exc)
             await self.send(
-                text_data=json.dumps(
-                    {"type": "error", "error": "Failed to process message"}
-                )
+                text_data=json.dumps({"type": "error", "error": "Failed to process message"})
             )
 
     async def handle_message(self, data):
@@ -125,40 +115,34 @@ class ChatConsumer(AsyncWebsocketConsumer):
         if not message_content.strip():
             return
 
-        print(f"💬 [ChatConsumer] Handling message from {self.username}: {message_content[:50]}...")
+        logger.debug(
+            "Handling message from %s in room %s: %.50s",
+            self.username, self.room_name, message_content,
+        )
 
-        # Save message to database (this also caches it)
         message_obj = await self.save_message(message_content, message_type)
-        
-        print(f"💾 [ChatConsumer] Message saved to DB with ID: {message_obj.id}")
+        logger.debug("Message saved to DB with ID: %s", message_obj.id)
 
-        # Send message to room group - this broadcasts to ALL users in the room
-        # The "type": "chat_message" tells Channels to call the chat_message() method
-        # on ALL consumers connected to this room group
+        # Cache the message now that we're in async context
+        await self.cache_message(message_obj)
+
         event_data = {
-            "type": "chat_message",  # This must match the method name
+            "type": "chat_message",
             "message": message_content,
             "username": self.username,
             "user_id": self.user_id,
             "message_id": str(message_obj.id),
             "timestamp": message_obj.timestamp.isoformat(),
             "message_type": message_type,
-            "room_type": (
-                "personal" if self.room_name.startswith("personal_") else "group"
-            ),
-            "room_name": self.room_name,  # Include room name in event
+            "room_type": "personal" if self.room_name.startswith("personal_") else "group",
+            "room_name": self.room_name,
         }
-        
+
         try:
-            await self.channel_layer.group_send(
-                self.room_group_name,
-                event_data,
-            )
-            print(f"📡 [ChatConsumer] Message broadcasted to group: {self.room_group_name}")
-            print(f"📡 [ChatConsumer] Event data: {event_data}")
-        except Exception as e:
-            print(f"❌ [ChatConsumer] Error broadcasting message: {e}")
-            # Still send to current user as fallback
+            await self.channel_layer.group_send(self.room_group_name, event_data)
+            logger.debug("Message broadcasted to group: %s", self.room_group_name)
+        except Exception as exc:
+            logger.error("Error broadcasting message to group %s: %s", self.room_group_name, exc)
             await self.send(
                 text_data=json.dumps({
                     "type": "message",
@@ -181,7 +165,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 "user_id": self.user_id,
                 "username": self.username,
                 "typing": is_typing,
-                "room_name": self.room_name,  # Include room name for frontend routing
+                "room_name": self.room_name,
             },
         )
 
@@ -194,15 +178,15 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 "message_id": message_id,
                 "user_id": self.user_id,
                 "username": self.username,
-                "room_name": self.room_name,  # Include room name for frontend routing
+                "room_name": self.room_name,
             },
         )
 
     async def handle_call_signal(self, data):
         """Handle video/audio call signaling"""
-        signal_type = data.get("signal_type")  # offer, answer, hangup
+        signal_type = data.get("signal_type")
         is_video = data.get("is_video", False)
-        
+
         await self.channel_layer.group_send(
             self.room_group_name,
             {
@@ -217,8 +201,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     async def chat_message(self, event):
         """Broadcast message to all users in the room"""
-        # Send to all connected clients in this room (including sender)
-        # This ensures real-time updates for all users
         message_data = {
             "type": "message",
             "message": event["message"],
@@ -228,177 +210,147 @@ class ChatConsumer(AsyncWebsocketConsumer):
             "timestamp": event["timestamp"],
             "message_type": event["message_type"],
             "room_type": event["room_type"],
-            "room_name": event.get("room_name", self.room_name),  # Use room_name from event
+            "room_name": event.get("room_name", self.room_name),
         }
-        
         try:
             await self.send(text_data=json.dumps(message_data))
-            print(f"📤 [ChatConsumer] Sent message {event['message_id']} to client in room {self.room_name}")
-        except Exception as e:
-            print(f"❌ [ChatConsumer] Error sending message to client: {e}")
+            logger.debug("Sent message %s to client in room %s", event["message_id"], self.room_name)
+        except Exception as exc:
+            logger.error("Error sending message to client: %s", exc)
 
     async def user_joined(self, event):
-        """Handle user joined event - notify all users in room"""
         try:
             await self.send(
-                text_data=json.dumps(
-                    {
-                        "type": "user_joined",
-                        "username": event["username"],
-                        "user_id": event["user_id"],
-                        "room_name": event.get("room_name", self.room_name),
-                    }
-                )
+                text_data=json.dumps({
+                    "type": "user_joined",
+                    "username": event["username"],
+                    "user_id": event["user_id"],
+                    "room_name": event.get("room_name", self.room_name),
+                })
             )
-            print(f"👤 [ChatConsumer] User {event['username']} joined notification sent")
-        except Exception as e:
-            print(f"❌ [ChatConsumer] Error sending user_joined event: {e}")
+        except Exception as exc:
+            logger.error("Error sending user_joined event: %s", exc)
 
     async def user_left(self, event):
-        """Handle user left event - notify all users in room"""
         try:
             await self.send(
-                text_data=json.dumps(
-                    {
-                        "type": "user_left",
-                        "username": event["username"],
-                        "user_id": event["user_id"],
-                        "room_name": event.get("room_name", self.room_name),
-                    }
-                )
+                text_data=json.dumps({
+                    "type": "user_left",
+                    "username": event["username"],
+                    "user_id": event["user_id"],
+                    "room_name": event.get("room_name", self.room_name),
+                })
             )
-            print(f"👤 [ChatConsumer] User {event['username']} left notification sent")
-        except Exception as e:
-            print(f"❌ [ChatConsumer] Error sending user_left event: {e}")
+        except Exception as exc:
+            logger.error("Error sending user_left event: %s", exc)
 
     async def user_typing(self, event):
-        """Handle typing indicator event"""
         try:
             await self.send(
-                text_data=json.dumps(
-                    {
-                        "type": "typing",
-                        "username": event["username"],
-                        "user_id": event["user_id"],
-                        "typing": event["typing"],
-                        "room_name": self.room_name,
-                    }
-                )
+                text_data=json.dumps({
+                    "type": "typing",
+                    "username": event["username"],
+                    "user_id": event["user_id"],
+                    "typing": event["typing"],
+                    "room_name": self.room_name,
+                })
             )
-            print(f"⌨️ [ChatConsumer] Typing indicator sent: {event['username']} is {'typing' if event['typing'] else 'not typing'}")
-        except Exception as e:
-            print(f"❌ [ChatConsumer] Error sending typing event: {e}")
+        except Exception as exc:
+            logger.error("Error sending typing event: %s", exc)
 
     async def read_receipt(self, event):
-        """Handle read receipt event"""
         try:
             await self.send(
-                text_data=json.dumps(
-                    {
-                        "type": "read_receipt",
-                        "message_id": event["message_id"],
-                        "user_id": event["user_id"],
-                        "username": event["username"],
-                        "room_name": event.get("room_name", self.room_name),
-                    }
-                )
+                text_data=json.dumps({
+                    "type": "read_receipt",
+                    "message_id": event["message_id"],
+                    "user_id": event["user_id"],
+                    "username": event["username"],
+                    "room_name": event.get("room_name", self.room_name),
+                })
             )
-            print(f"✅ [ChatConsumer] Read receipt sent for message {event['message_id']}")
-        except Exception as e:
-            print(f"❌ [ChatConsumer] Error sending read_receipt event: {e}")
+        except Exception as exc:
+            logger.error("Error sending read_receipt event: %s", exc)
 
     async def call_signal(self, event):
-        """Handle call signal event"""
         try:
             await self.send(
-                text_data=json.dumps(
-                    {
-                        "type": "call_signal",
-                        "signal_type": event["signal_type"],
-                        "is_video": event["is_video"],
-                        "user_id": event["user_id"],
-                        "username": event["username"],
-                        "room_name": event.get("room_name", self.room_name),
-                    }
-                )
+                text_data=json.dumps({
+                    "type": "call_signal",
+                    "signal_type": event["signal_type"],
+                    "is_video": event["is_video"],
+                    "user_id": event["user_id"],
+                    "username": event["username"],
+                    "room_name": event.get("room_name", self.room_name),
+                })
             )
-            print(f"📞 [ChatConsumer] Call signal {event['signal_type']} sent")
-        except Exception as e:
-            print(f"❌ [ChatConsumer] Error sending call_signal event: {e}")
+        except Exception as exc:
+            logger.error("Error sending call_signal event: %s", exc)
 
     async def send_previous_messages(self):
         """Send cached messages when user connects"""
         try:
             from .redis_client import redis_client
-
             cached_messages = redis_client.get_list(f"messages_{self.room_name}", 0, 49)
-
             for message_data in cached_messages:
                 await self.send(
-                    text_data=json.dumps(
-                        {
-                            "type": "message",
-                            "message": message_data["content"],
-                            "username": message_data["username"],
-                            "user_id": message_data["user_id"],
-                            "message_id": message_data["message_id"],
-                            "timestamp": message_data["timestamp"],
-                            "message_type": message_data.get("message_type", "text"),
-                            "room_type": message_data.get("room_type", "group"),
-                            "cached": True,
-                        }
-                    )
+                    text_data=json.dumps({
+                        "type": "message",
+                        "message": message_data["content"],
+                        "username": message_data["username"],
+                        "user_id": message_data["user_id"],
+                        "message_id": message_data["message_id"],
+                        "timestamp": message_data["timestamp"],
+                        "message_type": message_data.get("message_type", "text"),
+                        "room_type": message_data.get("room_type", "group"),
+                        "cached": True,
+                    })
                 )
-        except Exception as e:
-            print(f"Error loading previous messages: {e}")
+        except Exception as exc:
+            logger.warning("Error loading previous messages for room %s: %s", self.room_name, exc)
 
     @database_sync_to_async
     def get_user_from_token(self, token):
-        """Get user from JWT token - LAZY IMPORT"""
+        """Get user from JWT token"""
         try:
             from authentication.models import CustomUser
             from rest_framework_simplejwt.tokens import UntypedToken
             from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
-            from django.contrib.auth import get_user_model
 
-            # Validate token using Simple JWT
             try:
                 UntypedToken(token)
-            except (InvalidToken, TokenError) as e:
-                print(f"Token validation failed: {e}")
+            except (InvalidToken, TokenError) as exc:
+                logger.warning("Token validation failed: %s", exc)
                 return None
 
-            # Decode token to get user_id
-            # Simple JWT uses SECRET_KEY for signing
             payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
             user_id = payload.get("user_id")
-            
+
             if not user_id:
-                print("No user_id in token payload")
+                logger.warning("No user_id in token payload")
                 return None
-                
+
             return CustomUser.objects.get(id=user_id)
-        except (jwt.ExpiredSignatureError, jwt.DecodeError, Exception) as e:
-            print(f"Token validation failed: {e}")
+        except (jwt.ExpiredSignatureError, jwt.DecodeError) as exc:
+            logger.warning("JWT decode error: %s", exc)
+            return None
+        except Exception as exc:
+            logger.error("Unexpected error in get_user_from_token: %s", exc)
             return None
 
     @database_sync_to_async
     def can_access_room(self):
         """Check if user can access the room (for personal chats)"""
-        # Allow all group chats (non-personal rooms)
         if not self.room_name.startswith("personal_"):
             return True
-
-        # For personal chats: check if user is a participant
         try:
-            # personal_1_2 format - check if current user is 1 or 2
             parts = self.room_name.split("_")
             if len(parts) == 3:
                 user1_id, user2_id = parts[1], parts[2]
                 return str(self.user.id) in [user1_id, user2_id]
             return False
-        except Exception as e:
-            print(f"Error checking room access: {e}")
+        except Exception as exc:
+            logger.error("Error checking room access for %s: %s", self.room_name, exc)
             return False
 
     @database_sync_to_async
@@ -407,34 +359,22 @@ class ChatConsumer(AsyncWebsocketConsumer):
         try:
             from .models import ChatRoom, Message
 
-            # Get or create room (optimized)
-            room, created = ChatRoom.objects.get_or_create(
+            room, _ = ChatRoom.objects.get_or_create(
                 name=self.room_name,
                 defaults={
                     "description": (
-                        f"Personal chat"
+                        "Personal chat"
                         if self.room_name.startswith("personal_")
                         else f"Group chat: {self.room_name}"
                     ),
                     "created_by": self.user,
                 },
             )
-            message = Message.objects.create(
+            return Message.objects.create(
                 room=room, user=self.user, content=content, message_type=message_type
             )
-            
-            # Cache message in Redis asynchronously (don't wait)
-            # This improves response time
-            try:
-                import asyncio
-                asyncio.create_task(self.cache_message(message))
-            except Exception as e:
-                print(f"⚠️ [ChatConsumer] Error scheduling cache task: {e}")
-            
-            return message
-        except Exception as e:
-            print(f"Error saving message: {e}")
-            # Return a mock message if DB save fails
+        except Exception as exc:
+            logger.error("Error saving message in room %s: %s", self.room_name, exc)
             import uuid
             from datetime import datetime
 
@@ -450,20 +390,19 @@ class ChatConsumer(AsyncWebsocketConsumer):
         """Update user online status"""
         try:
             from .models import UserProfile
-
-            profile, created = UserProfile.objects.get_or_create(user=self.user)
+            profile, _ = UserProfile.objects.get_or_create(user=self.user)
             profile.online = online
             profile.save()
-        except Exception as e:
-            print(f"Error updating online status: {e}")
+        except Exception as exc:
+            logger.warning("Error updating online status for %s: %s", self.username, exc)
 
     async def cache_message(self, message):
-        """Cache message in Redis asynchronously"""
+        """Cache message in Redis — called directly in async context after DB save."""
         try:
             from .redis_client import redis_client
 
             if not redis_client.available or not redis_client.redis_client:
-                return  # Skip caching if Redis is not available
+                return
 
             message_data = {
                 "message_id": str(message.id),
@@ -472,15 +411,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 "content": message.content,
                 "timestamp": message.timestamp.isoformat(),
                 "message_type": message.message_type,
-                "room_type": (
-                    "personal" if self.room_name.startswith("personal_") else "group"
-                ),
+                "room_type": "personal" if self.room_name.startswith("personal_") else "group",
             }
-            # Use async Redis operations if available, otherwise sync
             redis_client.add_to_list(f"messages_{self.room_name}", message_data)
-            # Keep only last 100 messages in cache
             if redis_client.redis_client:
                 redis_client.redis_client.ltrim(f"messages_{self.room_name}", 0, 99)
-        except Exception as e:
-            # Log error but don't fail - caching is not critical
-            print(f"⚠️ [ChatConsumer] Error caching message: {e}")
+        except Exception as exc:
+            logger.warning("Error caching message in room %s: %s", self.room_name, exc)

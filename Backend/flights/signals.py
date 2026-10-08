@@ -1,39 +1,45 @@
 """
-Signals for Flight model to handle match cancellation when flights are cancelled
+Signals for Flight model to handle match cancellation when flights are cancelled.
 """
+import logging
+
 from django.db.models.signals import pre_save
 from django.db.models import Q
 from django.dispatch import receiver
 from .models import Flight
 
+logger = logging.getLogger("flights")
+
 
 @receiver(pre_save, sender=Flight)
 def handle_flight_cancellation(sender, instance, **kwargs):
     """
-    Cancel matches when a flight is cancelled
+    Expire all pending/active matches when a flight is cancelled.
+    Only runs on updates (not new flight creation).
     """
-    # Check if this is an update (not a new flight)
-    if instance.pk:
-        try:
-            old_instance = Flight.objects.get(pk=instance.pk)
-            # If flight status changed to 'cancelled'
-            if old_instance.status != 'cancelled' and instance.status == 'cancelled':
-                # Cancel all matches related to this flight
-                from matching.models import Match
-                
-                # Cancel matches where this flight is flight1 or flight2
-                matches_to_cancel = Match.objects.filter(
-                    (Q(flight1=instance) | Q(flight2=instance)),
-                    status__in=['pending', 'viewed', 'connection_requested', 'matched']
-                )
-                
-                for match in matches_to_cancel:
-                    match.status = 'expired'
-                    match.save(update_fields=['status'])
-                    
-                print(f"✅ [Flight Signal] Cancelled {matches_to_cancel.count()} matches for cancelled flight {instance.flight_number}")
-                
-        except Flight.DoesNotExist:
-            # New flight, nothing to cancel
-            pass
+    if not instance.pk:
+        return
 
+    try:
+        old_instance = Flight.objects.get(pk=instance.pk)
+    except Flight.DoesNotExist:
+        return
+
+    if old_instance.status == "cancelled" or instance.status != "cancelled":
+        return
+
+    from matching.models import Match
+
+    matches_to_expire = Match.objects.filter(
+        Q(flight1=instance) | Q(flight2=instance),
+        status__in=["pending", "viewed", "connection_requested", "matched"],
+    )
+
+    count = matches_to_expire.count()
+    matches_to_expire.update(status="expired")
+
+    logger.info(
+        "Flight %s cancelled — expired %d related match(es)",
+        instance.flight_number,
+        count,
+    )

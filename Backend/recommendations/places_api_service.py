@@ -1,10 +1,13 @@
 """
 Service for fetching places (hotels, cafes, restaurants) from third-party APIs
 """
+import logging
 import requests
 import os
 import time
 from typing import List, Dict, Optional
+
+logger = logging.getLogger("recommendations")
 
 # In-memory cache for places results — keyed by airport+categories
 _places_cache: Dict[str, Dict] = {}
@@ -70,12 +73,12 @@ class PlacesAPIService:
                             if lat != 0.0 or lng != 0.0:
                                 result = {'lat': lat, 'lng': lng}
                                 _coords_cache[airport_code] = result
-                                print(f"✅ [PlacesAPI] Coords for {airport_code}: {lat}, {lng}")
+                                logger.debug("Coords for %s: %s, %s", airport_code, lat, lng)
                                 return result
                         except (ValueError, IndexError):
                             continue
         except Exception as e:
-            print(f"⚠️ [PlacesAPI] OpenFlights fetch failed: {e}")
+            logger.warning("OpenFlights fetch failed: %s", e)
 
         # Hardcoded fallback for major airports
         hardcoded = {
@@ -121,7 +124,7 @@ class PlacesAPIService:
             _coords_cache[airport_code] = hardcoded[airport_code]
             return hardcoded[airport_code]
 
-        print(f"⚠️ [PlacesAPI] No coordinates found for {airport_code}")
+        logger.warning("No coordinates found for airport %s", airport_code)
         _coords_cache[airport_code] = None
         return None
 
@@ -158,17 +161,17 @@ class PlacesAPIService:
             )
 
             if response.status_code != 200:
-                print(f"⚠️ [Google] HTTP {response.status_code}")
+                logger.warning("Google Places HTTP %d", response.status_code)
                 return []
 
             data = response.json()
             api_status = data.get('status', '')
 
             if api_status == 'REQUEST_DENIED':
-                print(f"❌ [Google] REQUEST_DENIED — {data.get('error_message', 'check API key and enabled APIs')}")
+                logger.error("Google Places REQUEST_DENIED: %s", data.get('error_message', 'check API key'))
                 return []
             if api_status not in ('OK', 'ZERO_RESULTS'):
-                print(f"⚠️ [Google] status={api_status} — {data.get('error_message', '')}")
+                logger.warning("Google Places status=%s: %s", api_status, data.get('error_message', ''))
                 return []
             if api_status == 'ZERO_RESULTS':
                 return []
@@ -199,7 +202,7 @@ class PlacesAPIService:
             return places
 
         except Exception as e:
-            print(f"❌ [Google] fetch error: {e}")
+            logger.error("Google Places fetch error: %s", e)
             return []
 
     # ─── Foursquare ───────────────────────────────────────────────────────────
@@ -258,7 +261,7 @@ class PlacesAPIService:
                 return places
 
         except Exception as e:
-            print(f"❌ [Foursquare] fetch error: {e}")
+            logger.error("Foursquare fetch error: %s", e)
 
         return []
 
@@ -321,7 +324,7 @@ out center;
                 return places
 
         except Exception as e:
-            print(f"❌ [Overpass] fetch error: {e}")
+            logger.error("Overpass fetch error: %s", e)
 
         return []
 
@@ -346,12 +349,12 @@ out center;
 
         cached = _places_cache.get(cache_key)
         if cached and (time.time() - cached['timestamp']) < _CACHE_TTL_SECONDS:
-            print(f"✅ [PlacesAPI] Cache hit for {airport_code}")
+            logger.debug("Cache hit for airport %s", airport_code)
             return cached['data']
 
         coords = PlacesAPIService.get_airport_coordinates(airport_code)
         if not coords:
-            print(f"⚠️ [PlacesAPI] No coords for {airport_code} — returning empty")
+            logger.warning("No coords for %s — returning empty results", airport_code)
             return {cat: [] for cat in categories}
 
         lat, lng = coords['lat'], coords['lng']
@@ -363,19 +366,19 @@ out center;
             if PlacesAPIService._google_key():
                 places = PlacesAPIService.fetch_places_from_google(lat, lng, category, limit_per_category)
                 if places:
-                    print(f"✅ [Google] {len(places)} {category}s for {airport_code}")
+                    logger.debug("Google: %d %ss for %s", len(places), category, airport_code)
 
             if not places and PlacesAPIService._foursquare_key():
                 places = PlacesAPIService.fetch_places_from_foursquare(lat, lng, category, limit_per_category)
                 if places:
-                    print(f"✅ [Foursquare] {len(places)} {category}s for {airport_code}")
+                    logger.debug("Foursquare: %d %ss for %s", len(places), category, airport_code)
 
             if not places:
-                print(f"⚠️ [PlacesAPI] Falling back to Overpass for {category}s at {airport_code}")
+                logger.debug("Falling back to Overpass for %ss at %s", category, airport_code)
                 places = PlacesAPIService.fetch_places_from_overpass(lat, lng, category, limit_per_category)
 
             results[category] = places
 
         _places_cache[cache_key] = {'data': results, 'timestamp': time.time()}
-        print(f"✅ [PlacesAPI] Cached {airport_code} results")
+        logger.debug("Cached places results for %s", airport_code)
         return results

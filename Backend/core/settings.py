@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework_simplejwt",
     "corsheaders",
+    "drf_spectacular",
     "authentication",
     "channels",
     "chat",
@@ -220,7 +221,8 @@ try:
     }
     # print(f"SUCCESS: Using Redis Channel Layer at {redis_host_port}")
 except (redis.ConnectionError, ValueError, AttributeError, Exception) as e:
-    print(f"WARNING: Redis not available, using InMemoryChannelLayer: {e}")
+    import logging as _logging
+    _logging.getLogger("core").warning("Redis not available, using InMemoryChannelLayer: %s", e)
     CHANNEL_LAYERS = {
         "default": {
             "BACKEND": "channels.layers.InMemoryChannelLayer",
@@ -248,7 +250,8 @@ try:
     }
     # print(f"SUCCESS: Using Redis Cache at {REDIS_URL}")
 except (redis.ConnectionError, ValueError, AttributeError, Exception) as e:
-    print(f"WARNING: Redis not available, using LocMemCache: {e}")
+    import logging as _logging
+    _logging.getLogger("core").warning("Redis not available, using LocMemCache: %s", e)
     CACHES = {
         "default": {
             "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
@@ -300,3 +303,87 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024 * 1024
 # DEFAULT PK
 # =========================
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# =========================
+# API DOCUMENTATION (drf-spectacular)
+# =========================
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Nailwing API",
+    "DESCRIPTION": "Real-time travel companion matching platform API",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+}
+
+# =========================
+# LOGGING
+# =========================
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "[{asctime}] [{levelname}] [{name}] {message}",
+            "style": "{",
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+        },
+        "simple": {
+            "format": "[{levelname}] {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "verbose",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "WARNING",
+    },
+    "loggers": {
+        # Django internals — only warnings and above in production
+        "django": {
+            "handlers": ["console"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+        # Show SQL queries only in DEBUG mode
+        "django.db.backends": {
+            "handlers": ["console"],
+            "level": "DEBUG" if DEBUG else "WARNING",
+            "propagate": False,
+        },
+        # App-level loggers — INFO in production, DEBUG when DEBUG=True
+        "authentication": {
+            "handlers": ["console"],
+            "level": "DEBUG" if DEBUG else "INFO",
+            "propagate": False,
+        },
+        "chat": {
+            "handlers": ["console"],
+            "level": "DEBUG" if DEBUG else "INFO",
+            "propagate": False,
+        },
+        "flights": {
+            "handlers": ["console"],
+            "level": "DEBUG" if DEBUG else "INFO",
+            "propagate": False,
+        },
+        "matching": {
+            "handlers": ["console"],
+            "level": "DEBUG" if DEBUG else "INFO",
+            "propagate": False,
+        },
+        "recommendations": {
+            "handlers": ["console"],
+            "level": "DEBUG" if DEBUG else "INFO",
+            "propagate": False,
+        },
+        "core": {
+            "handlers": ["console"],
+            "level": "DEBUG" if DEBUG else "INFO",
+            "propagate": False,
+        },
+    },
+}
