@@ -496,11 +496,11 @@ class MatchActionsAPITest(APITestCase):
         self.assertFalse(self.match.user1_liked)
 
     def test_like_unauthorized_user_forbidden(self):
-        # u3 has no relation to this match
+        # u3 has no relation to this match — queryset excludes it so 404 is returned
         u3 = make_user(email="u3@example.com", username="u3")
         self.client.credentials(HTTP_AUTHORIZATION=bearer(u3))
         res = self.client.post(f"{self.base_url}{self.match.id}/like/")
-        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_accept_connection_after_request(self):
         # u1 sends connection request
