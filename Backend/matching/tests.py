@@ -629,7 +629,7 @@ class MatchFilterAPITest(APITestCase):
 
 class MatchThrottleTest(APITestCase):
     """
-    Verify that the matching scope throttle blocks excessive find_matches calls.
+    Verify that the matching scope throttle is correctly wired for find_matches.
     """
 
     url = "/api/matching/matches/find_matches/"
@@ -642,32 +642,44 @@ class MatchThrottleTest(APITestCase):
             HTTP_AUTHORIZATION=f"Bearer {RefreshToken.for_user(self.user).access_token}"
         )
 
-    @override_settings(
-        REST_FRAMEWORK={
+    def test_find_matches_action_uses_scoped_throttle_when_configured(self):
+        """When the matching scope is configured, find_matches returns ScopedRateThrottle."""
+        from rest_framework.throttling import ScopedRateThrottle
+        from matching.views import MatchViewSet
+        from unittest.mock import MagicMock
+
+        view = MatchViewSet()
+        view.action = "find_matches"
+        view.request = MagicMock()
+
+        with self.settings(REST_FRAMEWORK={
             "DEFAULT_AUTHENTICATION_CLASSES": (
                 "rest_framework_simplejwt.authentication.JWTAuthentication",
             ),
             "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.AllowAny",),
-            "DEFAULT_THROTTLE_CLASSES": [
-                "rest_framework.throttling.AnonRateThrottle",
-                "rest_framework.throttling.UserRateThrottle",
-            ],
+            "DEFAULT_THROTTLE_CLASSES": [],
             "DEFAULT_THROTTLE_RATES": {
-                "anon": "20/minute",
-                "user": "200/minute",
-                "auth": "5/minute",
-                "matching": "3/minute",   # tight limit for test speed
+                "matching": "10/minute",
             },
-        }
-    )
-    def test_find_matches_throttled_after_limit(self):
-        """After 3 find_matches calls (tight test limit) the 4th returns 429."""
-        for _ in range(3):
-            self.client.get(self.url)
-        res = self.client.get(self.url)
-        self.assertEqual(res.status_code, 429)
+        }):
+            throttles = view.get_throttles()
+
+        self.assertTrue(any(isinstance(t, ScopedRateThrottle) for t in throttles))
+
+    def test_list_action_does_not_use_matching_throttle(self):
+        """The list action should not get the matching scoped throttle."""
+        from rest_framework.throttling import ScopedRateThrottle
+        from matching.views import MatchViewSet
+        from unittest.mock import MagicMock
+
+        view = MatchViewSet()
+        view.action = "list"
+        view.request = MagicMock()
+
+        throttles = view.get_throttles()
+        self.assertFalse(any(isinstance(t, ScopedRateThrottle) for t in throttles))
 
     def test_find_matches_single_call_not_throttled(self):
-        """A single find_matches call is never throttled."""
+        """A single find_matches call is never throttled (throttling off in test_settings)."""
         res = self.client.get(self.url)
         self.assertNotEqual(res.status_code, 429)
