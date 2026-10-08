@@ -16,6 +16,17 @@ class MatchViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = MatchSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_throttles(self):
+        """
+        Apply the 'matching' scoped throttle (10/minute) to find_matches.
+        That action runs 6+ DB queries so we guard it more strictly.
+        All other actions use default throttles from settings.
+        """
+        if self.action == "find_matches":
+            self.throttle_scope = "matching"
+            return [ScopedRateThrottle()]
+        return super().get_throttles()
+
     def get_queryset(self):
         """Get matches for current user"""
         user = self.request.user
@@ -25,8 +36,7 @@ class MatchViewSet(viewsets.ReadOnlyModelViewSet):
             .order_by("-match_score", "-created_at")
         )
 
-    @action(detail=False, methods=["get"],
-            throttle_classes=[ScopedRateThrottle], throttle_scope="matching")
+    @action(detail=False, methods=["get"])
     def find_matches(self, request):
         """Find new matches for the current user"""
         user = request.user
