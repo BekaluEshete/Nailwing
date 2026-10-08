@@ -23,9 +23,11 @@ from matching.models import Match
 
 def make_user(email="chat@example.com", password="Pass123!", **kwargs):
     username = kwargs.pop("username", email.split("@")[0])
+    first_name = kwargs.pop("first_name", "Test")
+    last_name = kwargs.pop("last_name", "User")
     return CustomUser.objects.create_user(
         username=username, email=email, password=password,
-        first_name="Test", last_name="User", **kwargs,
+        first_name=first_name, last_name=last_name, **kwargs,
     )
 
 

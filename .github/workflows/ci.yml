@@ -61,7 +61,7 @@ jobs:
 
       - name: Run tests
         working-directory: Backend
-        run: python manage.py test --settings=core.test_settings --verbosity=2 --parallel
+        run: python manage.py test --settings=core.test_settings --verbosity=2
 
   docker-build:
     name: Docker Build

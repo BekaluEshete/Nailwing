@@ -31,7 +31,7 @@ echo "   No missing migrations."
 
 echo ""
 echo "5. Running tests..."
-python manage.py test --settings=core.test_settings --verbosity=1 --parallel
+python manage.py test --settings=core.test_settings --verbosity=1
 echo "   All tests passed."
 
 echo ""
