@@ -1,4 +1,7 @@
 from rest_framework import viewsets, status, permissions
+import logging
+
+from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
@@ -6,6 +9,8 @@ from datetime import timedelta
 from .models import Flight, UserInterest, TravelPreference
 from .serializers import FlightSerializer, UserInterestSerializer, TravelPreferenceSerializer
 from authentication.models import CustomUser
+
+logger = logging.getLogger("flights")
 
 
 class FlightViewSet(viewsets.ModelViewSet):

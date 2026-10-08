@@ -1,4 +1,6 @@
 from rest_framework import viewsets, status, permissions
+import logging
+
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -10,6 +12,8 @@ from .models import Match, MatchFilter
 from .serializers import MatchSerializer, MatchFilterSerializer
 from .matching_service import MatchingService
 from flights.models import Flight
+
+logger = logging.getLogger("matching")
 
 
 class MatchViewSet(viewsets.ReadOnlyModelViewSet):
@@ -52,8 +56,9 @@ class MatchViewSet(viewsets.ReadOnlyModelViewSet):
         if flight_id:
             try:
                 flight = Flight.objects.get(id=flight_id, user=user)
-                print(
-                    f"🔍 [MatchViewSet] Using specified flight: {flight.flight_number} ({flight.departure_airport} → {flight.arrival_airport})"
+                logger.debug(
+                    "Using specified flight: %s (%s → %s)",
+                    flight.flight_number, flight.departure_airport, flight.arrival_airport,
                 )
             except Flight.DoesNotExist:
                 return Response(
@@ -71,10 +76,10 @@ class MatchViewSet(viewsets.ReadOnlyModelViewSet):
                 departure_datetime__lte=timezone.now() + timedelta(days=7),
             )
 
-            print(f"🔍 [MatchViewSet] User {user.email} has:")
-            print(f"   - Total flights: {all_flights.count()}")
-            print(f"   - Visible flights: {visible_flights.count()}")
-            print(f"   - Upcoming flights (for matching): {upcoming_flights.count()}")
+            logger.debug(
+                "User %s — total flights: %d, visible: %d, upcoming: %d",
+                user.email, all_flights.count(), visible_flights.count(), upcoming_flights.count(),
+            )
 
             if all_flights.count() == 0:
                 return Response(
@@ -105,7 +110,7 @@ class MatchViewSet(viewsets.ReadOnlyModelViewSet):
         # Find matches using matching service
         match_data_list = MatchingService.find_matches_for_user(user, flight)
 
-        print(f"🔍 [MatchViewSet] Found {len(match_data_list)} potential matches")
+        logger.debug("Found %d potential matches for user %s", len(match_data_list), user.email)
 
         if not flight:
             # Get the flight that was used for matching

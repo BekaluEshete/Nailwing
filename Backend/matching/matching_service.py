@@ -2,6 +2,7 @@
 Smart Matching Algorithm for Nilewing
 Implements all matching scenarios based on flight paths and user preferences
 """
+import logging
 
 from datetime import timedelta
 from django.utils import timezone
@@ -9,6 +10,8 @@ from django.db.models import Q
 from authentication.models import CustomUser
 from flights.models import Flight, UserInterest, TravelPreference
 from matching.models import Match, MatchFilter
+
+logger = logging.getLogger("matching")
 
 
 class MatchingService:
@@ -91,60 +94,57 @@ class MatchingService:
                 )
 
         if not flight:
-            print(f"❌ [MatchingService] No flight found for user {user.email}")
+            logger.debug("No flight found for user %s", user.email)
             return []
 
-        print(
-            f"🔍 [MatchingService] Finding matches for flight: {flight.flight_number} ({flight.departure_airport} → {flight.arrival_airport})"
+        logger.debug(
+            "Finding matches for flight: %s (%s → %s), departure: %s, layover: %s",
+            flight.flight_number,
+            flight.departure_airport,
+            flight.arrival_airport,
+            flight.departure_datetime,
+            f"{flight.layover_airport} ({flight.layover_start} - {flight.layover_end})"
+            if flight.has_layover else "none",
         )
-        print(f"   Departure: {flight.departure_datetime}")
-        print(f"   Has layover: {flight.has_layover}")
-        if flight.has_layover:
-            print(
-                f"   Layover: {flight.layover_airport} ({flight.layover_start} - {flight.layover_end})"
-            )
 
         matches = []
 
         # Scenario 1: Same Departure, Same Layover, Same Destination
         scenario1_matches = MatchingService._same_departure_layover_destination(flight)
         matches.extend(scenario1_matches)
-        print(f"   Scenario 1 (same route): {len(scenario1_matches)} matches")
+        logger.debug("Scenario 1 (same route): %d matches", len(scenario1_matches))
 
         # Scenario 2: Same Layover, Different Destinations
         scenario2_matches = MatchingService._same_layover_different_destination(flight)
         matches.extend(scenario2_matches)
-        print(f"   Scenario 2 (same layover): {len(scenario2_matches)} matches")
+        logger.debug("Scenario 2 (same layover): %d matches", len(scenario2_matches))
 
         # Scenario 3: Departure is Someone's Layover or Destination
         scenario3_matches = MatchingService._departure_is_layover(flight)
         matches.extend(scenario3_matches)
-        print(f"   Scenario 3 (departure is layover): {len(scenario3_matches)} matches")
+        logger.debug("Scenario 3 (departure is layover): %d matches", len(scenario3_matches))
 
         # Scenario 4: Same Departure, Different Layovers
         scenario4_matches = MatchingService._same_departure_different_layovers(flight)
         matches.extend(scenario4_matches)
-        print(f"   Scenario 4 (same departure): {len(scenario4_matches)} matches")
+        logger.debug("Scenario 4 (same departure): %d matches", len(scenario4_matches))
 
         # Scenario 5: Same Departure & Destination (Direct Flight)
         scenario5_matches = MatchingService._same_route_direct(flight)
         matches.extend(scenario5_matches)
-        print(f"   Scenario 5 (same route direct): {len(scenario5_matches)} matches")
+        logger.debug("Scenario 5 (same route direct): %d matches", len(scenario5_matches))
 
         # Scenario 6: Same Airport (any overlap) - More flexible fallback
-        # Always try this scenario, not just when others fail
         scenario6_matches = MatchingService._same_airport_flexible(flight)
         matches.extend(scenario6_matches)
-        print(
-            f"   Scenario 6 (same airport flexible): {len(scenario6_matches)} matches"
-        )
+        logger.debug("Scenario 6 (same airport flexible): %d matches", len(scenario6_matches))
 
         # Remove duplicates and filter by preferences
         unique_matches = MatchingService._deduplicate_matches(matches)
-        print(f"   After deduplication: {len(unique_matches)} unique matches")
+        logger.debug("After deduplication: %d unique matches", len(unique_matches))
 
         filtered_matches = MatchingService._apply_user_filters(user, unique_matches)
-        print(f"   After filtering: {len(filtered_matches)} final matches")
+        logger.debug("After filtering: %d final matches", len(filtered_matches))
 
         return filtered_matches
 
@@ -569,8 +569,9 @@ class MatchingService:
                     and other_user.gender != match_filter.preferred_gender
                 ):
                     # Exclude this match (per documentation)
-                    print(
-                        f"   ❌ Gender filter: Excluding {other_user.email} ({other_user.gender} vs required {match_filter.preferred_gender})"
+                    logger.debug(
+                        "Gender filter: excluding %s (%s vs required %s)",
+                        other_user.email, other_user.gender, match_filter.preferred_gender,
                     )
                     continue  # Skip this match entirely
 
@@ -615,29 +616,20 @@ class MatchingService:
             if match_filter and match_filter.require_common_interests:
                 min_interests = match_filter.min_common_interests or 1
                 if len(common_interests) < min_interests:
-                    # Exclude if doesn't meet minimum common interests requirement
-                    print(
-                        f"   ❌ Common interests filter: Excluding {other_user.email} (only {len(common_interests)} common interests, requires {min_interests})"
+                    logger.debug(
+                        "Common interests filter: excluding %s (%d/%d)",
+                        other_user.email, len(common_interests), min_interests,
                     )
                     continue  # Skip this match entirely
 
             if common_interests:
-                # Boost score: +0.2 per shared interest (per documentation)
-                # Formula: 1.0 × (1 + len(common_interests) × 0.2)
                 score *= 1 + len(common_interests) * 0.2
-                print(
-                    f"   ✅ Common interests with {other_user.email}: {common_interests} (score boost: {len(common_interests) * 0.2})"
+                logger.debug(
+                    "Common interests with %s: %s (score boost: %.1f)",
+                    other_user.email, common_interests, len(common_interests) * 0.2,
                 )
             else:
-                user_interests_list = list(
-                    user.interests.values_list("interest", flat=True)
-                )
-                other_interests_list = list(
-                    other_user.interests.values_list("interest", flat=True)
-                )
-                print(f"   ℹ️ No common interests with {other_user.email}")
-                print(f"      User interests: {user_interests_list}")
-                print(f"      Other interests: {other_interests_list}")
+                logger.debug("No common interests with %s", other_user.email)
 
             match["match_score"] = score
             filtered.append(match)

@@ -1,3 +1,5 @@
+import logging
+
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -9,6 +11,8 @@ from matching.models import Match
 from authentication.models import CustomUser
 from django.utils import timezone
 from datetime import timedelta
+
+logger = logging.getLogger("recommendations")
 
 
 class AirportPlaceViewSet(viewsets.ReadOnlyModelViewSet):
@@ -247,8 +251,8 @@ class RecommendationViewSet(viewsets.ModelViewSet):
                     }
                 )
 
-        except Exception as e:
-            print(f"Error fetching people matches: {e}")
+        except Exception as exc:
+            logger.error("Error fetching people matches for airport %s: %s", arrival_airport, exc)
 
         return Response(
             {

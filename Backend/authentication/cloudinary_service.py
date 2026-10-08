@@ -1,8 +1,12 @@
+import logging
+
 import cloudinary
 import cloudinary.uploader
 import cloudinary.api
 from django.conf import settings
 import os
+
+logger = logging.getLogger("authentication")
 
 
 def configure_cloudinary():
@@ -69,6 +73,6 @@ def delete_profile_image(public_id):
             cloudinary.uploader.destroy(public_id)
         return True
     except Exception as e:
-        print(f"Error deleting image from Cloudinary: {e}")
+        logger.error("Error deleting image from Cloudinary (public_id=%s): %s", public_id, e)
         return False
 
