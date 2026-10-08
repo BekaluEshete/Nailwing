@@ -5,7 +5,7 @@ Covers: MatchingService scenarios 1-6, common interests, scoring,
         connection_requests, find_matches endpoint
 """
 from datetime import timedelta
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
 from rest_framework import status
@@ -621,3 +621,51 @@ class MatchFilterAPITest(APITestCase):
         self.client.credentials()
         res = self.client.get(f"{self.base_url}my_filters/")
         self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+# ---------------------------------------------------------------------------
+# Integration Tests – Rate Limiting on find_matches
+# ---------------------------------------------------------------------------
+
+class MatchThrottleTest(APITestCase):
+    """
+    Verify that the matching scope throttle blocks excessive find_matches calls.
+    """
+
+    url = "/api/matching/matches/find_matches/"
+
+    def setUp(self):
+        self.user = make_user(email="throttle_match@example.com", username="throttlematch")
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f"Bearer {RefreshToken.for_user(self.user).access_token}"
+        )
+
+    @override_settings(
+        REST_FRAMEWORK={
+            "DEFAULT_AUTHENTICATION_CLASSES": (
+                "rest_framework_simplejwt.authentication.JWTAuthentication",
+            ),
+            "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.AllowAny",),
+            "DEFAULT_THROTTLE_CLASSES": [
+                "rest_framework.throttling.AnonRateThrottle",
+                "rest_framework.throttling.UserRateThrottle",
+            ],
+            "DEFAULT_THROTTLE_RATES": {
+                "anon": "20/minute",
+                "user": "200/minute",
+                "auth": "5/minute",
+                "matching": "3/minute",   # tight limit for test speed
+            },
+        }
+    )
+    def test_find_matches_throttled_after_limit(self):
+        """After 3 find_matches calls (tight test limit) the 4th returns 429."""
+        for _ in range(3):
+            self.client.get(self.url)
+        res = self.client.get(self.url)
+        self.assertEqual(res.status_code, 429)
+
+    def test_find_matches_single_call_not_throttled(self):
+        """A single find_matches call is never throttled."""
+        res = self.client.get(self.url)
+        self.assertNotEqual(res.status_code, 429)

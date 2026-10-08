@@ -105,6 +105,25 @@ REST_FRAMEWORK = {
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.AllowAny",),
+    # ---------------------------------------------------------------------------
+    # Rate Limiting
+    # Throttle counters are stored in the Django cache (Redis in production).
+    # Scopes:
+    #   anon     — unauthenticated requests (20/min default)
+    #   user     — authenticated requests (200/min default)
+    #   auth     — login & register endpoints (5/min — brute-force protection)
+    #   matching — find_matches endpoint (10/min — expensive multi-query operation)
+    # ---------------------------------------------------------------------------
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "20/minute",
+        "user": "200/minute",
+        "auth": "5/minute",
+        "matching": "10/minute",
+    },
 }
 
 SIMPLE_JWT = {

@@ -1,7 +1,9 @@
 from rest_framework import viewsets, status
+from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from .models import CustomUser
@@ -14,8 +16,6 @@ from .serializers import (
 
 class AuthViewSet(viewsets.GenericViewSet):
     permission_classes = [AllowAny]
-
-    # ADD THIS ONE LINE - Required by DRF ViewSet
     serializer_class = UserRegistrationSerializer
 
     def list(self, request):
@@ -34,7 +34,8 @@ class AuthViewSet(viewsets.GenericViewSet):
             status=status.HTTP_200_OK,
         )
 
-    @action(detail=False, methods=["post"], permission_classes=[AllowAny])
+    @action(detail=False, methods=["post"], permission_classes=[AllowAny],
+            throttle_classes=[ScopedRateThrottle], throttle_scope="auth")
     def register(self, request):
         serializer = UserRegistrationSerializer(data=request.data)
         if serializer.is_valid():
@@ -73,7 +74,8 @@ class AuthViewSet(viewsets.GenericViewSet):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    @action(detail=False, methods=["post"], permission_classes=[AllowAny])
+    @action(detail=False, methods=["post"], permission_classes=[AllowAny],
+            throttle_classes=[ScopedRateThrottle], throttle_scope="auth")
     def login(self, request):
         serializer = UserLoginSerializer(data=request.data)
         if serializer.is_valid():

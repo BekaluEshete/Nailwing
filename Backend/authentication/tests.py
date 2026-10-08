@@ -2,7 +2,7 @@
 Authentication App Tests
 Covers: registration, login, logout, profile CRUD, change_password, email backend
 """
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from rest_framework.test import APITestCase, APIClient
 from rest_framework import status
@@ -396,3 +396,96 @@ class ChangePasswordAPITest(APITestCase):
             format="json",
         )
         self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+# ---------------------------------------------------------------------------
+# Integration Tests – Rate Limiting (Throttling)
+# ---------------------------------------------------------------------------
+
+class AuthThrottleTest(APITestCase):
+    """
+    Verify that the auth scope throttle (5/minute) blocks excessive requests.
+    Uses override_settings to set a very tight limit for fast test execution.
+    """
+
+    register_url = "/api/auth/register/"
+    login_url = "/api/auth/login/"
+
+    def _reg_payload(self, n):
+        return {
+            "fullName": f"User{n} Test",
+            "email": f"throttle{n}@example.com",
+            "password": "StrongPass123!",
+            "password2": "StrongPass123!",
+        }
+
+    @override_settings(
+        REST_FRAMEWORK={
+            "DEFAULT_AUTHENTICATION_CLASSES": (
+                "rest_framework_simplejwt.authentication.JWTAuthentication",
+            ),
+            "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.AllowAny",),
+            "DEFAULT_THROTTLE_CLASSES": [
+                "rest_framework.throttling.AnonRateThrottle",
+                "rest_framework.throttling.UserRateThrottle",
+            ],
+            "DEFAULT_THROTTLE_RATES": {
+                "anon": "20/minute",
+                "user": "200/minute",
+                "auth": "3/minute",   # tight limit for test speed
+                "matching": "10/minute",
+            },
+        }
+    )
+    def test_register_throttled_after_limit(self):
+        """After 3 register attempts (tight test limit) the 4th returns 429."""
+        for i in range(3):
+            self.client.post(self.register_url, self._reg_payload(i), format="json")
+        # 4th request should be throttled
+        res = self.client.post(self.register_url, self._reg_payload(99), format="json")
+        self.assertEqual(res.status_code, 429)
+
+    @override_settings(
+        REST_FRAMEWORK={
+            "DEFAULT_AUTHENTICATION_CLASSES": (
+                "rest_framework_simplejwt.authentication.JWTAuthentication",
+            ),
+            "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.AllowAny",),
+            "DEFAULT_THROTTLE_CLASSES": [
+                "rest_framework.throttling.AnonRateThrottle",
+                "rest_framework.throttling.UserRateThrottle",
+            ],
+            "DEFAULT_THROTTLE_RATES": {
+                "anon": "20/minute",
+                "user": "200/minute",
+                "auth": "3/minute",
+                "matching": "10/minute",
+            },
+        }
+    )
+    def test_login_throttled_after_limit(self):
+        """After 3 login attempts (tight test limit) the 4th returns 429."""
+        make_user(email="throttle_login@example.com", password="Pass123!")
+        for _ in range(3):
+            self.client.post(
+                self.login_url,
+                {"email": "throttle_login@example.com", "password": "wrong"},
+                format="json",
+            )
+        res = self.client.post(
+            self.login_url,
+            {"email": "throttle_login@example.com", "password": "wrong"},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 429)
+
+    def test_normal_login_under_limit_succeeds(self):
+        """A single login attempt is never throttled."""
+        make_user(email="normal_login@example.com", password="Pass123!")
+        res = self.client.post(
+            self.login_url,
+            {"email": "normal_login@example.com", "password": "Pass123!"},
+            format="json",
+        )
+        self.assertNotEqual(res.status_code, 429)
+        self.assertEqual(res.status_code, 200)

@@ -1,6 +1,8 @@
 from rest_framework import viewsets, status, permissions
+from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from django.db.models import Q
 from django.utils import timezone
 from datetime import timedelta
@@ -23,7 +25,8 @@ class MatchViewSet(viewsets.ReadOnlyModelViewSet):
             .order_by("-match_score", "-created_at")
         )
 
-    @action(detail=False, methods=["get"])
+    @action(detail=False, methods=["get"],
+            throttle_classes=[ScopedRateThrottle], throttle_scope="matching")
     def find_matches(self, request):
         """Find new matches for the current user"""
         user = request.user
