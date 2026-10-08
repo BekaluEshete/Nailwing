@@ -1,6 +1,8 @@
 from rest_framework import viewsets, status, permissions
+from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from django.db.models import Q
 from django.utils import timezone
 from datetime import timedelta
@@ -13,6 +15,23 @@ from flights.models import Flight
 class MatchViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = MatchSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_throttles(self):
+        """
+        Apply the 'matching' scoped throttle (10/minute) to find_matches.
+        That action runs 6+ DB queries so we guard it more strictly.
+        Falls back gracefully when the 'matching' scope is not configured
+        (e.g. in test_settings where throttling is disabled).
+        """
+        if self.action == "find_matches":
+            from django.conf import settings as django_settings
+            rates = getattr(django_settings, "REST_FRAMEWORK", {}).get(
+                "DEFAULT_THROTTLE_RATES", {}
+            )
+            if "matching" in rates:
+                self.throttle_scope = "matching"
+                return [ScopedRateThrottle()]
+        return super().get_throttles()
 
     def get_queryset(self):
         """Get matches for current user"""

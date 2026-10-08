@@ -1,7 +1,9 @@
 from rest_framework import viewsets, status
+from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from .models import CustomUser
@@ -14,9 +16,24 @@ from .serializers import (
 
 class AuthViewSet(viewsets.GenericViewSet):
     permission_classes = [AllowAny]
-
-    # ADD THIS ONE LINE - Required by DRF ViewSet
     serializer_class = UserRegistrationSerializer
+
+    def get_throttles(self):
+        """
+        Apply the 'auth' scoped throttle (5/minute) to login and register.
+        All other actions use the default throttles from settings.
+        Falls back gracefully when the 'auth' scope is not configured
+        (e.g. in test_settings where throttling is disabled).
+        """
+        if self.action in ("login", "register"):
+            from django.conf import settings as django_settings
+            rates = getattr(django_settings, "REST_FRAMEWORK", {}).get(
+                "DEFAULT_THROTTLE_RATES", {}
+            )
+            if "auth" in rates:
+                self.throttle_scope = "auth"
+                return [ScopedRateThrottle()]
+        return super().get_throttles()
 
     def list(self, request):
         return Response(

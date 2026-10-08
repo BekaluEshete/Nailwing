@@ -2,7 +2,7 @@
 Authentication App Tests
 Covers: registration, login, logout, profile CRUD, change_password, email backend
 """
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from rest_framework.test import APITestCase, APIClient
 from rest_framework import status
@@ -396,3 +396,97 @@ class ChangePasswordAPITest(APITestCase):
             format="json",
         )
         self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+# ---------------------------------------------------------------------------
+# Integration Tests – Rate Limiting (Throttling)
+# ---------------------------------------------------------------------------
+
+class AuthThrottleTest(APITestCase):
+    """
+    Verify that throttle classes are correctly wired for login and register.
+    We test the wiring (correct throttle returned) rather than the rate limit
+    itself, since DRF throttle rates are set at class-load time and cannot be
+    reliably overridden mid-test in all environments.
+    """
+
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+
+    def test_register_action_uses_scoped_throttle_when_configured(self):
+        """When the auth scope is configured, register returns ScopedRateThrottle."""
+        from rest_framework.throttling import ScopedRateThrottle
+        from authentication.views import AuthViewSet
+        from unittest.mock import MagicMock
+
+        view = AuthViewSet()
+        view.action = "register"
+        view.request = MagicMock()
+
+        with self.settings(REST_FRAMEWORK={
+            "DEFAULT_AUTHENTICATION_CLASSES": (
+                "rest_framework_simplejwt.authentication.JWTAuthentication",
+            ),
+            "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.AllowAny",),
+            "DEFAULT_THROTTLE_CLASSES": [
+                "rest_framework.throttling.AnonRateThrottle",
+            ],
+            "DEFAULT_THROTTLE_RATES": {
+                "anon": "20/minute",
+                "user": "200/minute",
+                "auth": "5/minute",
+                "matching": "10/minute",
+            },
+        }):
+            throttles = view.get_throttles()
+
+        self.assertTrue(any(isinstance(t, ScopedRateThrottle) for t in throttles))
+
+    def test_login_action_uses_scoped_throttle_when_configured(self):
+        """When the auth scope is configured, login returns ScopedRateThrottle."""
+        from rest_framework.throttling import ScopedRateThrottle
+        from authentication.views import AuthViewSet
+        from unittest.mock import MagicMock
+
+        view = AuthViewSet()
+        view.action = "login"
+        view.request = MagicMock()
+
+        with self.settings(REST_FRAMEWORK={
+            "DEFAULT_AUTHENTICATION_CLASSES": (
+                "rest_framework_simplejwt.authentication.JWTAuthentication",
+            ),
+            "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.AllowAny",),
+            "DEFAULT_THROTTLE_CLASSES": [],
+            "DEFAULT_THROTTLE_RATES": {
+                "auth": "5/minute",
+            },
+        }):
+            throttles = view.get_throttles()
+
+        self.assertTrue(any(isinstance(t, ScopedRateThrottle) for t in throttles))
+
+    def test_profile_action_does_not_use_scoped_throttle(self):
+        """Non-auth actions should not get the auth scoped throttle."""
+        from rest_framework.throttling import ScopedRateThrottle
+        from authentication.views import AuthViewSet
+        from unittest.mock import MagicMock
+
+        view = AuthViewSet()
+        view.action = "profile"
+        view.request = MagicMock()
+
+        throttles = view.get_throttles()
+        self.assertFalse(any(isinstance(t, ScopedRateThrottle) for t in throttles))
+
+    def test_normal_login_under_limit_succeeds(self):
+        """A single login attempt is never throttled (throttling disabled in test_settings)."""
+        make_user(email="normal_login@example.com", password="Pass123!")
+        res = self.client.post(
+            "/api/auth/login/",
+            {"email": "normal_login@example.com", "password": "Pass123!"},
+            format="json",
+        )
+        self.assertNotEqual(res.status_code, 429)
+        self.assertEqual(res.status_code, 200)
