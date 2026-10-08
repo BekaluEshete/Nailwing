@@ -31,14 +31,19 @@ def make_user(email="user@example.com", password="Pass123!", **kwargs):
     )
 
 
+_flight_counter = 0
+
+
 def make_flight(user, dep="ADD", arr="DXB", dep_offset_days=3,
                 has_layover=False, layover_airport=None, layover_city=None,
                 layover_start=None, layover_end=None, **overrides):
+    global _flight_counter
+    _flight_counter += 1
     now = timezone.now()
     dep_dt = now + timedelta(days=dep_offset_days)
     arr_dt = dep_dt + timedelta(hours=5)
     defaults = dict(
-        flight_number=f"ET{dep}{arr}",
+        flight_number=overrides.pop("flight_number", f"ET{_flight_counter:04d}"),
         airline="Ethiopian Airlines",
         departure_airport=dep,
         departure_city=dep,
