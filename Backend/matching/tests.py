@@ -31,14 +31,19 @@ def make_user(email="user@example.com", password="Pass123!", **kwargs):
     )
 
 
+_flight_counter = 0
+
+
 def make_flight(user, dep="ADD", arr="DXB", dep_offset_days=3,
                 has_layover=False, layover_airport=None, layover_city=None,
                 layover_start=None, layover_end=None, **overrides):
+    global _flight_counter
+    _flight_counter += 1
     now = timezone.now()
     dep_dt = now + timedelta(days=dep_offset_days)
     arr_dt = dep_dt + timedelta(hours=5)
     defaults = dict(
-        flight_number=f"ET{dep}{arr}",
+        flight_number=overrides.pop("flight_number", f"ET{_flight_counter:04d}"),
         airline="Ethiopian Airlines",
         departure_airport=dep,
         departure_city=dep,
@@ -491,11 +496,11 @@ class MatchActionsAPITest(APITestCase):
         self.assertFalse(self.match.user1_liked)
 
     def test_like_unauthorized_user_forbidden(self):
-        # u3 has no relation to this match
+        # u3 has no relation to this match — queryset excludes it so 404 is returned
         u3 = make_user(email="u3@example.com", username="u3")
         self.client.credentials(HTTP_AUTHORIZATION=bearer(u3))
         res = self.client.post(f"{self.base_url}{self.match.id}/like/")
-        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_accept_connection_after_request(self):
         # u1 sends connection request

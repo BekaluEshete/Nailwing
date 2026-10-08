@@ -28,11 +28,16 @@ def make_user(email="pilot@example.com", password="Pass123!", **kwargs):
     )
 
 
+_flight_counter = 0
+
+
 def make_flight(user, **overrides):
     """Return a scheduled future flight with sensible defaults."""
+    global _flight_counter
+    _flight_counter += 1
     now = timezone.now()
     defaults = dict(
-        flight_number="ET101",
+        flight_number=overrides.pop("flight_number", f"ET{_flight_counter:04d}"),
         airline="Ethiopian Airlines",
         departure_airport="ADD",
         departure_city="Addis Ababa",
