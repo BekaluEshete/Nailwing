@@ -411,6 +411,11 @@ class AuthThrottleTest(APITestCase):
     register_url = "/api/auth/register/"
     login_url = "/api/auth/login/"
 
+    def setUp(self):
+        # Clear the cache so throttle counters from other tests don't bleed in
+        from django.core.cache import cache
+        cache.clear()
+
     def _reg_payload(self, n):
         return {
             "fullName": f"User{n} Test",

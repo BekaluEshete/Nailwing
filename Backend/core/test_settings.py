@@ -59,6 +59,17 @@ LOGGING = {
 }
 
 # ---------------------------------------------------------------------------
+# Rate Limiting — disable throttling in tests so functional tests are
+# never blocked by throttle counters from other test methods.
+# Throttle behaviour is tested separately using override_settings.
+# ---------------------------------------------------------------------------
+REST_FRAMEWORK = {
+    **REST_FRAMEWORK,  # noqa: F405
+    "DEFAULT_THROTTLE_CLASSES": [],
+    "DEFAULT_THROTTLE_RATES": {},
+}
+
+# ---------------------------------------------------------------------------
 # Security — relax for tests
 # ---------------------------------------------------------------------------
 SECRET_KEY = "test-secret-key-not-for-production"

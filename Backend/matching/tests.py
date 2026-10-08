@@ -635,6 +635,8 @@ class MatchThrottleTest(APITestCase):
     url = "/api/matching/matches/find_matches/"
 
     def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
         self.user = make_user(email="throttle_match@example.com", username="throttlematch")
         self.client.credentials(
             HTTP_AUTHORIZATION=f"Bearer {RefreshToken.for_user(self.user).access_token}"
