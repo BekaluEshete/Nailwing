@@ -1,4 +1,3 @@
-from rest_framework import viewsets, status, permissions
 import logging
 
 from rest_framework import viewsets, status, permissions
@@ -38,11 +37,12 @@ class MatchViewSet(viewsets.ReadOnlyModelViewSet):
         return super().get_throttles()
 
     def get_queryset(self):
-        """Get matches for current user"""
+        """Get matches for current user with all FK relations pre-fetched."""
         user = self.request.user
         return (
             Match.objects.filter(Q(user1=user) | Q(user2=user))
             .exclude(status="rejected")
+            .select_related("user1", "user2", "flight1", "flight2")
             .order_by("-match_score", "-created_at")
         )
 

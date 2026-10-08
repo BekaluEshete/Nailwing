@@ -1,9 +1,9 @@
-from rest_framework import viewsets, status, permissions
 import logging
 
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from django.db.models import Case, When, Value, CharField
 from django.utils import timezone
 from datetime import timedelta
 from .models import Flight, UserInterest, TravelPreference
@@ -18,18 +18,32 @@ class FlightViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     
     def get_queryset(self):
-        """Return flights for the current user"""
-        flights = Flight.objects.filter(user=self.request.user).order_by('-departure_datetime')
-        # Auto-update status for all flights based on datetime
-        for flight in flights:
-            calculated_status = flight.calculate_status_based_on_datetime()
-            # Only update if status needs to change (but don't save yet, let serializer handle it)
-            if calculated_status != flight.status and flight.status != 'cancelled':
-                # Update in memory for this response
-                flight.status = calculated_status
-                # Save to database in background
-                Flight.objects.filter(pk=flight.pk).update(status=calculated_status)
-        return flights
+        """Return flights for the current user, auto-updating status in bulk."""
+        now = timezone.now()
+        user = self.request.user
+
+        # Bulk-update statuses in a single SQL statement using Case/When.
+        # Only affects non-cancelled flights whose calculated status differs
+        # from what is stored. This replaces the previous per-flight UPDATE loop.
+        Flight.objects.filter(user=user).exclude(status="cancelled").update(
+            status=Case(
+                # Landed: arrival has passed
+                When(arrival_datetime__lt=now, then=Value("landed")),
+                # In flight: departed but not yet arrived
+                When(departure_datetime__lt=now, arrival_datetime__gt=now, then=Value("in_flight")),
+                # Boarding: departure within 2 hours
+                When(
+                    departure_datetime__lt=now + timedelta(hours=2),
+                    departure_datetime__gt=now,
+                    then=Value("boarding"),
+                ),
+                # Otherwise keep as scheduled
+                default=Value("scheduled"),
+                output_field=CharField(),
+            )
+        )
+
+        return Flight.objects.filter(user=user).order_by("-departure_datetime")
     
     def retrieve(self, request, *args, **kwargs):
         """Get a single flight detail and auto-update its status"""
@@ -81,11 +95,11 @@ class FlightViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def community_posts(self, request):
-        """Get community flight posts"""
+        """Get community flight posts — select_related prevents N+1 user queries."""
         flights = Flight.objects.filter(
             is_visible=True,
             departure_datetime__gte=timezone.now()
-        ).order_by('-created_at')[:20]
+        ).select_related("user").order_by('-created_at')[:20]
 
         posts = []
         for flight in flights:
