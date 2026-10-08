@@ -125,6 +125,7 @@ REST_FRAMEWORK = {
         "auth": "5/minute",
         "matching": "10/minute",
     },
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
 
 SIMPLE_JWT = {
