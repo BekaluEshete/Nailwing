@@ -310,6 +310,37 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024 * 1024
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # =========================
+# CELERY
+# =========================
+# Broker: reuse the existing Redis instance (db 2 to avoid collisions with
+# channel layers on db 0 and cache on db 1)
+CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", REDIS_URL.replace("/1", "/2").replace("/0", "/2"))
+CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", REDIS_URL.replace("/1", "/2").replace("/0", "/2"))
+
+# Serialization — JSON only (safe, human-readable)
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_ACCEPT_CONTENT = ["json"]
+
+# Timezone — must match Django's TIME_ZONE
+CELERY_TIMEZONE = "UTC"
+CELERY_ENABLE_UTC = True
+
+# Task time limits — prevent runaway tasks from stalling workers
+CELERY_TASK_SOFT_TIME_LIMIT = 30   # raises SoftTimeLimitExceeded after 30s
+CELERY_TASK_TIME_LIMIT = 60        # hard kill after 60s
+
+# Retry policy defaults
+CELERY_TASK_MAX_RETRIES = 3
+CELERY_TASK_DEFAULT_RETRY_DELAY = 5  # seconds
+
+# Result expiry — keep results for 1 hour then discard
+CELERY_RESULT_EXPIRES = 3600
+
+# Prevent tasks from running synchronously in tests unless explicitly enabled
+CELERY_TASK_ALWAYS_EAGER = False
+
+# =========================
 # API DOCUMENTATION (drf-spectacular)
 # =========================
 SPECTACULAR_SETTINGS = {
