@@ -70,6 +70,12 @@ REST_FRAMEWORK = {
 }
 
 # ---------------------------------------------------------------------------
+# Celery — run tasks synchronously in tests (no worker needed)
+# ---------------------------------------------------------------------------
+CELERY_TASK_ALWAYS_EAGER = True
+CELERY_TASK_EAGER_PROPAGATES = True  # surface exceptions immediately in tests
+
+# ---------------------------------------------------------------------------
 # Security — relax for tests
 # ---------------------------------------------------------------------------
 SECRET_KEY = "test-secret-key-not-for-production"

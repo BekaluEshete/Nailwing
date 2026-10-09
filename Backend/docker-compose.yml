@@ -5,7 +5,6 @@ services:
     build: .
     container_name: django_backend
     command: daphne -b 0.0.0.0 -p 8000 core.asgi:application
-
     volumes:
       - .:/app
     ports:
@@ -14,6 +13,34 @@ services:
       - .env
     depends_on:
       - redis
+
+  celery:
+    build: .
+    container_name: celery_worker
+    # 4 concurrent worker processes — tune to available CPU cores
+    command: celery -A core worker --loglevel=info --concurrency=4
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    depends_on:
+      - redis
+      - web
+    restart: unless-stopped
+
+  celery-beat:
+    build: .
+    container_name: celery_beat
+    # Periodic task scheduler — only one beat instance should ever run
+    command: celery -A core beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    depends_on:
+      - redis
+      - web
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
