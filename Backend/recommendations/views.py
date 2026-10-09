@@ -1,5 +1,6 @@
 import logging
 
+from django.core.cache import cache
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -13,6 +14,12 @@ from django.utils import timezone
 from datetime import timedelta
 
 logger = logging.getLogger("recommendations")
+
+CACHE_TTL_RECOMMENDATIONS = 60 * 10   # 10 minutes per airport
+
+
+def _recommendations_cache_key(airport_code):
+    return f"recommendations:airport:{airport_code.upper()}"
 
 
 class AirportPlaceViewSet(viewsets.ReadOnlyModelViewSet):
@@ -113,13 +120,22 @@ class RecommendationViewSet(viewsets.ModelViewSet):
         arrival_airport = flight.arrival_airport
         arrival_city = flight.arrival_city
 
-        # Fetch places from third-party APIs
-        places_api = PlacesAPIService()
-        places_data = places_api.get_places_near_airport(
-            airport_code=arrival_airport,
-            categories=["hotel", "cafe", "restaurant"],
-            limit_per_category=15,
-        )
+        # Cache-aside: check Redis before calling the external API
+        rec_cache_key = _recommendations_cache_key(arrival_airport)
+        cached_places = cache.get(rec_cache_key)
+
+        if cached_places is not None:
+            logger.debug("get_recommendations: places served from cache for %s", arrival_airport)
+            places_data = cached_places
+        else:
+            places_api = PlacesAPIService()
+            places_data = places_api.get_places_near_airport(
+                airport_code=arrival_airport,
+                categories=["hotel", "cafe", "restaurant"],
+                limit_per_category=15,
+            )
+            cache.set(rec_cache_key, places_data, CACHE_TTL_RECOMMENDATIONS)
+            logger.debug("get_recommendations: places cached for %s", arrival_airport)
 
         # Format hotels
         hotels = []
