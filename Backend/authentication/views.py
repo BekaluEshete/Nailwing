@@ -147,27 +147,10 @@ class AuthViewSet(viewsets.GenericViewSet):
         detail=True,
         methods=["get"],
         permission_classes=[IsAuthenticated],
-    )
-    def user_profile(self, request, pk=None):
-        """Get user profile by ID"""
-        try:
-            user = CustomUser.objects.get(id=pk)
-            serializer = UserProfileSerializer(user, context={"request": request})
-            return Response({"success": True, "data": serializer.data})
-        except CustomUser.DoesNotExist:
-            return Response(
-                {"success": False, "error": "User not found"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
-    @action(
-        detail=True,
-        methods=["get"],
-        permission_classes=[IsAuthenticated],
         url_path="user_profile",
     )
     def user_profile(self, request, pk=None):
-        """Get user profile by ID"""
+        """Get another user's public profile by their ID."""
         try:
             user = CustomUser.objects.get(id=pk)
             serializer = UserProfileSerializer(user, context={"request": request})

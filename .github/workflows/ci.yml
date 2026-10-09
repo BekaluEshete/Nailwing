@@ -59,6 +59,12 @@ jobs:
         working-directory: Backend
         run: python manage.py migrate --run-syncdb
 
+      - name: Check for missing migrations
+        working-directory: Backend
+        run: |
+          # Fails if any model change is missing a migration file
+          python manage.py makemigrations --check --dry-run
+
       - name: Run tests
         working-directory: Backend
         run: python manage.py test --settings=core.test_settings --verbosity=2
