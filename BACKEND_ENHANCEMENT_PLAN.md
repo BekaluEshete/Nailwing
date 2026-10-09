@@ -29,12 +29,12 @@ clear acceptance criteria, and test requirements.
 
 | # | Task | Branch | Priority | Status |
 |---|---|---|---|---|
-| 1 | Rate Limiting & API Throttling | `enhance/rate-limiting` | Critical | ⬜ Not started |
-| 2 | Structured Logging + Health Check | `enhance/logging-health` | High | ⬜ Not started |
-| 3 | Fix N+1 Queries | `enhance/query-optimization` | High | ⬜ Not started |
-| 4 | Redis Caching for API Responses | `enhance/api-caching` | Medium | ⬜ Not started |
-| 5 | Celery Configuration + Async Tasks | `enhance/celery-async` | Medium | ⬜ Not started |
-| 6 | WebSocket Hardening | `enhance/websocket-hardening` | High | ⬜ Not started |
+| 1 | Rate Limiting & API Throttling | `enhance/rate-limiting` | Critical | ✅ Done |
+| 2 | Structured Logging + Health Check | `enhance/logging-health` | High | ✅ Done |
+| 3 | Fix N+1 Queries | `enhance/query-optimization` | High | ✅ Done |
+| 4 | Redis Caching for API Responses | `enhance/api-caching` | Medium | ✅ Done |
+| 5 | Celery Configuration + Async Tasks | `enhance/celery-async` | Medium | ✅ Done |
+| 6 | WebSocket Hardening | `enhance/websocket-hardening` | High | ✅ Done |
 | 7 | DB Connection Pooling + Migration Safety | `enhance/db-pooling-cleanup` | Medium | ✅ Done |
 
 ---
