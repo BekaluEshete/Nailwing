@@ -113,12 +113,14 @@ class MessageList(generics.ListCreateAPIView):
         return context
 
     def perform_create(self, serializer):
-        """Create a message via HTTP (fallback when WebSocket fails)"""
+        """
+        Create a message via HTTP (fallback when WebSocket fails).
+        Idempotent: if client_msg_id already exists, return the existing message
+        instead of creating a duplicate.
+        """
         room_id = self.kwargs["room_id"]
         try:
             room = ChatRoom.objects.get(id=room_id, is_active=True)
-            # Verify user has access to this room
-            # For personal chats, check if user is a participant
             if room.room_type == "personal":
                 room_name_parts = room.name.split("_")
                 if len(room_name_parts) == 3:
@@ -126,7 +128,29 @@ class MessageList(generics.ListCreateAPIView):
                     if self.request.user.id not in [user1_id, user2_id]:
                         from rest_framework.exceptions import PermissionDenied
                         raise PermissionDenied("You don't have access to this chat room")
-            serializer.save(room=room, user=self.request.user)
+
+            client_msg_id = serializer.validated_data.get("client_msg_id")
+
+            if client_msg_id:
+                # Idempotent path — return existing message if already delivered
+                message, created = Message.objects.get_or_create(
+                    client_msg_id=client_msg_id,
+                    defaults={
+                        "room": room,
+                        "user": self.request.user,
+                        "content": serializer.validated_data["content"],
+                        "message_type": serializer.validated_data.get("message_type", "text"),
+                    },
+                )
+                if not created:
+                    # Raise so DRF returns the existing instance — view will
+                    # detect the saved instance via serializer.instance
+                    serializer.instance = message
+                    return
+                serializer.instance = message
+            else:
+                serializer.save(room=room, user=self.request.user)
+
         except ChatRoom.DoesNotExist:
             from rest_framework.exceptions import NotFound
             raise NotFound("Chat room not found")

@@ -68,10 +68,12 @@ class MessageSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
     room = serializers.PrimaryKeyRelatedField(read_only=True)
     is_read = serializers.SerializerMethodField()
+    # Accept client_msg_id on create; read-only otherwise
+    client_msg_id = serializers.UUIDField(required=False, allow_null=True)
 
     class Meta:
         model = Message
-        fields = ("id", "room", "user", "content", "timestamp", "message_type", "is_read")
+        fields = ("id", "room", "user", "content", "timestamp", "message_type", "is_read", "client_msg_id")
     
     def get_is_read(self, obj):
         """Check if current user has read this message"""
