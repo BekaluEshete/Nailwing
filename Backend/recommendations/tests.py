@@ -265,6 +265,9 @@ class GetRecommendationsAPITest(APITestCase):
     url = "/api/recommendations/recommendations/get_recommendations/"
 
     def setUp(self):
+        # Clear cache so place results from one test don't bleed into the next
+        from django.core.cache import cache
+        cache.clear()
         self.user = make_user()
         self.client.credentials(HTTP_AUTHORIZATION=bearer(self.user))
 

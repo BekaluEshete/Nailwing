@@ -1,5 +1,6 @@
 import logging
 
+from django.core.cache import cache
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -11,6 +12,10 @@ from .serializers import FlightSerializer, UserInterestSerializer, TravelPrefere
 from authentication.models import CustomUser
 
 logger = logging.getLogger("flights")
+
+# Cache key constants
+CACHE_KEY_COMMUNITY_POSTS = "flights:community_posts"
+CACHE_TTL_COMMUNITY_POSTS = 60 * 5   # 5 minutes
 
 
 class FlightViewSet(viewsets.ModelViewSet):
@@ -95,7 +100,12 @@ class FlightViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def community_posts(self, request):
-        """Get community flight posts — select_related prevents N+1 user queries."""
+        """Get community flight posts — cached for 5 minutes."""
+        cached = cache.get(CACHE_KEY_COMMUNITY_POSTS)
+        if cached is not None:
+            logger.debug("community_posts served from cache")
+            return Response(cached)
+
         flights = Flight.objects.filter(
             is_visible=True,
             departure_datetime__gte=timezone.now()
@@ -107,7 +117,7 @@ class FlightViewSet(viewsets.ModelViewSet):
             avatar = user.profile_image_url if user.profile_image_url else None
             if not avatar and user.profile_image:
                 avatar = user.profile_image.url
-                
+
             content = f"Hey everyone! I'll be flying from {flight.departure_city} to {flight.arrival_city} on {flight.departure_datetime.strftime('%b %d')}."
             full_content = content
             if flight.has_layover and flight.layover_city:
@@ -137,6 +147,9 @@ class FlightViewSet(viewsets.ModelViewSet):
                     "rating": 5
                 }
             })
+
+        cache.set(CACHE_KEY_COMMUNITY_POSTS, posts, CACHE_TTL_COMMUNITY_POSTS)
+        logger.debug("community_posts cached (%d posts)", len(posts))
         return Response(posts)
 
 

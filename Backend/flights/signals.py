@@ -1,12 +1,16 @@
 """
-Signals for Flight model to handle match cancellation when flights are cancelled.
+Signals for Flight model:
+- Expire related matches when a flight is cancelled (pre_save)
+- Invalidate the community_posts cache when any flight is created/updated (post_save)
 """
 import logging
 
-from django.db.models.signals import pre_save
+from django.core.cache import cache
+from django.db.models.signals import pre_save, post_save
 from django.db.models import Q
 from django.dispatch import receiver
 from .models import Flight
+from .views import CACHE_KEY_COMMUNITY_POSTS
 
 logger = logging.getLogger("flights")
 
@@ -43,3 +47,13 @@ def handle_flight_cancellation(sender, instance, **kwargs):
         instance.flight_number,
         count,
     )
+
+
+@receiver(post_save, sender=Flight)
+def invalidate_community_posts_cache(sender, instance, **kwargs):
+    """
+    Invalidate the community_posts cache whenever any flight is created or updated.
+    This ensures the community feed stays fresh after flight changes.
+    """
+    cache.delete(CACHE_KEY_COMMUNITY_POSTS)
+    logger.debug("community_posts cache invalidated after flight %s save", instance.flight_number)

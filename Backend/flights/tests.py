@@ -382,6 +382,8 @@ class FlightActionsAPITest(APITestCase):
     base_url = "/api/flights/flights/"
 
     def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
         self.user = make_user()
         self.client.credentials(
             HTTP_AUTHORIZATION=f"Bearer {RefreshToken.for_user(self.user).access_token}"

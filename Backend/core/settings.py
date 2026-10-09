@@ -247,6 +247,10 @@ try:
             "OPTIONS": {
                 "CLIENT_CLASS": "django_redis.client.DefaultClient",
             },
+            # Namespace all keys to avoid collisions with other apps on the same Redis
+            "KEY_PREFIX": "nailwing",
+            # Default TTL: 5 minutes — individual views override as needed
+            "TIMEOUT": 300,
         }
     }
     # print(f"SUCCESS: Using Redis Cache at {REDIS_URL}")

@@ -1,5 +1,6 @@
 import logging
 
+from django.core.cache import cache
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -13,6 +14,15 @@ from .matching_service import MatchingService
 from flights.models import Flight
 
 logger = logging.getLogger("matching")
+
+# Cache key helpers
+CACHE_TTL_FIND_MATCHES = 60 * 2   # 2 minutes
+
+
+def _matches_cache_key(user_id, flight_id=None):
+    if flight_id:
+        return f"matching:find_matches:{user_id}:{flight_id}"
+    return f"matching:find_matches:{user_id}"
 
 
 class MatchViewSet(viewsets.ReadOnlyModelViewSet):
@@ -48,9 +58,16 @@ class MatchViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=["get"])
     def find_matches(self, request):
-        """Find new matches for the current user"""
+        """Find new matches for the current user — results cached per user for 2 minutes."""
         user = request.user
         flight_id = request.query_params.get("flight_id")
+
+        # Check cache first
+        cache_key = _matches_cache_key(user.id, flight_id)
+        cached = cache.get(cache_key)
+        if cached is not None:
+            logger.debug("find_matches served from cache for user %s", user.email)
+            return Response(cached)
 
         flight = None
         if flight_id:
@@ -216,6 +233,8 @@ class MatchViewSet(viewsets.ReadOnlyModelViewSet):
                 },
             }
 
+        cache.set(cache_key, response_data, CACHE_TTL_FIND_MATCHES)
+        logger.debug("find_matches cached for user %s (key=%s)", user.email, cache_key)
         return Response(response_data)
 
     @action(detail=True, methods=["post"])
