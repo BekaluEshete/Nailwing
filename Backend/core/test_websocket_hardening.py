@@ -104,18 +104,20 @@ class DatabaseConnectionPoolingTest(TestCase):
 class AllowedHostsOriginValidatorTest(TestCase):
 
     def test_asgi_application_uses_origin_validator(self):
-        """The ASGI websocket handler must be wrapped with AllowedHostsOriginValidator."""
+        """The ASGI websocket handler must be wrapped with an origin validator."""
         from core.asgi import application
 
         ws_app = application.application_mapping.get("websocket")
         self.assertIsNotNone(ws_app, "No websocket handler registered in ProtocolTypeRouter")
 
-        # Use class name check to avoid isinstance issues with some channels versions
+        # AllowedHostsOriginValidator wraps OriginValidator internally.
+        # Depending on channels version the outer class name is either
+        # "AllowedHostsOriginValidator" or "OriginValidator".
         ws_class_name = type(ws_app).__name__
-        self.assertEqual(
+        self.assertIn(
+            "OriginValidator",
             ws_class_name,
-            "AllowedHostsOriginValidator",
-            f"WebSocket handler should be AllowedHostsOriginValidator, got {ws_class_name}",
+            f"WebSocket handler should be an OriginValidator, got {ws_class_name}",
         )
 
     def test_http_handler_is_django_asgi(self):
