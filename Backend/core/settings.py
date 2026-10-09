@@ -381,6 +381,55 @@ SPECTACULAR_SETTINGS = {
 }
 
 # =========================
+# SENTRY — Error Monitoring
+# =========================
+# Set SENTRY_DSN in your .env to enable error tracking.
+# Leave it empty to disable Sentry (e.g. local development).
+# Get your DSN from https://sentry.io → Project Settings → Client Keys.
+SENTRY_DSN = os.getenv("SENTRY_DSN", "")
+
+if SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+    from sentry_sdk.integrations.celery import CeleryIntegration
+    from sentry_sdk.integrations.redis import RedisIntegration
+    from sentry_sdk.integrations.logging import LoggingIntegration
+    import logging as _logging
+
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        # Capture environment tag — matches Docker / server environment
+        environment=os.getenv("SENTRY_ENVIRONMENT", "production" if not DEBUG else "development"),
+        # Tag releases by git commit SHA or a version string
+        release=os.getenv("SENTRY_RELEASE", "nailwing@1.0.0"),
+        integrations=[
+            DjangoIntegration(
+                # Capture request body in error reports (safe — Sentry scrubs passwords)
+                transaction_style="url",
+            ),
+            # Capture Celery task failures with full stack traces
+            CeleryIntegration(monitor_beat_tasks=False),
+            # Capture Redis errors
+            RedisIntegration(),
+            # Forward Python logging WARNING+ to Sentry as breadcrumbs
+            LoggingIntegration(
+                level=_logging.WARNING,
+                event_level=_logging.ERROR,
+            ),
+        ],
+        # Performance tracing — capture 5% of requests for latency analysis
+        # Increase to 1.0 in staging, decrease to 0.01 in high-traffic production
+        traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.05")),
+        # Don't send PII (email, IP) by default
+        send_default_pii=False,
+        # Ignore common non-actionable exceptions
+        ignore_errors=[
+            KeyboardInterrupt,
+            SystemExit,
+        ],
+    )
+
+# =========================
 # LOGGING
 # =========================
 LOGGING = {
