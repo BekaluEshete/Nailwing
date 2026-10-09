@@ -110,10 +110,12 @@ class RunMatchingTaskTest(TestCase):
         from django.core.cache import cache
         from matching.views import _matches_cache_key
 
+        # Create a flight so the task finds something to work with
+        make_flight(self.u1)
+
         cache_key = _matches_cache_key(self.u1.id)
         cache.set(cache_key, {"stale": True}, 120)
 
-        make_flight(self.u1)
         run_matching_for_user.delay(self.u1.id)
 
         # Cache should be cleared after task runs
@@ -127,7 +129,8 @@ class RunMatchingTaskRetryTest(TestCase):
         cache.clear()
         self.user = make_user(email="retry@example.com", username="retry")
 
-    @patch("matching.tasks.MatchingService.find_matches_for_user", side_effect=Exception("DB error"))
+    @patch("matching.matching_service.MatchingService.find_matches_for_user",
+           side_effect=Exception("DB error"))
     def test_task_retries_on_exception(self, mock_service):
         """Task raises Retry when matching service throws an exception."""
         make_flight(self.user)

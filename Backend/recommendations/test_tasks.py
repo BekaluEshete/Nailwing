@@ -24,7 +24,7 @@ class FetchAirportRecommendationsTaskTest(TestCase):
         from django.core.cache import cache
         cache.clear()
 
-    @patch("recommendations.tasks.PlacesAPIService")
+    @patch("recommendations.places_api_service.PlacesAPIService")
     def test_task_fetches_and_caches_places(self, MockAPI):
         """Task calls PlacesAPIService and stores result in cache."""
         from recommendations.views import _recommendations_cache_key
@@ -38,14 +38,13 @@ class FetchAirportRecommendationsTaskTest(TestCase):
 
         self.assertEqual(data["status"], "ok")
         self.assertEqual(data["airport"], "DXB")
-        self.assertEqual(data["total_places"], 1)  # 1 hotel, 0 cafe, 0 restaurant
+        self.assertEqual(data["total_places"], 1)
 
-        # Verify it's actually in cache
         cached = cache.get(_recommendations_cache_key("DXB"))
         self.assertIsNotNone(cached)
         self.assertIn("hotel", cached)
 
-    @patch("recommendations.tasks.PlacesAPIService")
+    @patch("recommendations.places_api_service.PlacesAPIService")
     def test_task_normalises_airport_code_to_uppercase(self, MockAPI):
         """Task converts lowercase airport code to uppercase."""
         from recommendations.views import _recommendations_cache_key
@@ -57,13 +56,13 @@ class FetchAirportRecommendationsTaskTest(TestCase):
         result = fetch_airport_recommendations.delay("dxb")
         result.get()
 
-        # Should be cached under uppercase key
         cached = cache.get(_recommendations_cache_key("DXB"))
         self.assertIsNotNone(cached)
 
-    @patch("recommendations.tasks.PlacesAPIService", side_effect=Exception("API error"))
+    @patch("recommendations.places_api_service.PlacesAPIService")
     def test_task_retries_on_api_failure(self, MockAPI):
         """Task raises Retry or Exception when the API service fails."""
+        MockAPI.return_value.get_places_near_airport.side_effect = Exception("API error")
         from celery.exceptions import Retry
         with self.assertRaises((Retry, Exception)):
             fetch_airport_recommendations("DXB")
