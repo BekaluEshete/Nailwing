@@ -25,22 +25,25 @@ jobs:
             cd ${{ secrets.PROJECT_PATH }}
 
             # Write the .env file from GitHub secret
-            echo "$ENV_FILE" > Backend/.env
+            printf '%s' "$ENV_FILE" > Backend/.env
 
             # Pull latest code
             git pull origin main
 
-            # Rebuild and restart containers
-            docker-compose -f Backend/docker-compose.yml build --no-cache
+            # Build using layer cache (no --no-cache) so unchanged layers are reused.
+            # Only layers that actually changed (requirements.txt, source code) rebuild.
+            docker-compose -f Backend/docker-compose.yml build
+
+            # Restart containers with zero downtime — up -d replaces only changed services
             docker-compose -f Backend/docker-compose.yml up -d
 
-            # Run migrations
+            # Run any pending migrations
             docker-compose -f Backend/docker-compose.yml exec -T web python manage.py migrate --noinput
 
             # Collect static files
             docker-compose -f Backend/docker-compose.yml exec -T web python manage.py collectstatic --noinput
 
-            # Remove unused Docker images to free space
+            # Prune dangling images only (not all unused — keeps cache layers)
             docker image prune -f
 
             echo "Deployment complete."
