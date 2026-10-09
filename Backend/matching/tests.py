@@ -545,6 +545,8 @@ class FindMatchesAPITest(APITestCase):
     url = "/api/matching/matches/find_matches/"
 
     def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
         self.u1 = make_user(email="fm1@example.com", username="fm1")
         self.u2 = make_user(email="fm2@example.com", username="fm2")
         self.client.credentials(HTTP_AUTHORIZATION=bearer(self.u1))
