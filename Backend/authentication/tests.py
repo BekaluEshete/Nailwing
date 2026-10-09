@@ -490,3 +490,94 @@ class AuthThrottleTest(APITestCase):
         )
         self.assertNotEqual(res.status_code, 429)
         self.assertEqual(res.status_code, 200)
+
+
+# ---------------------------------------------------------------------------
+# JWT Token Blacklist Tests
+# ---------------------------------------------------------------------------
+
+class JWTBlacklistTest(APITestCase):
+    """
+    Verify that the token_blacklist app is installed and logout correctly
+    blacklists the refresh token.
+    """
+
+    url_login = "/api/auth/login/"
+    url_logout = "/api/auth/logout/"
+
+    def setUp(self):
+        self.user = make_user(email="blacklist@example.com", password="Pass123!")
+
+    def _get_tokens(self):
+        res = self.client.post(
+            self.url_login,
+            {"email": "blacklist@example.com", "password": "Pass123!"},
+            format="json",
+        )
+        return res.data["data"]["tokens"]
+
+    def test_token_blacklist_app_installed(self):
+        """rest_framework_simplejwt.token_blacklist must be in INSTALLED_APPS."""
+        from django.conf import settings
+        self.assertIn(
+            "rest_framework_simplejwt.token_blacklist",
+            settings.INSTALLED_APPS,
+            "token_blacklist app missing from INSTALLED_APPS — logout will not work",
+        )
+
+    def test_blacklist_tables_exist(self):
+        """The blacklist DB tables must exist after migration."""
+        from django.db import connection
+        table_names = connection.introspection.table_names()
+        self.assertIn(
+            "token_blacklist_blacklistedtoken",
+            table_names,
+            "Blacklist table missing — run manage.py migrate",
+        )
+        self.assertIn(
+            "token_blacklist_outstandingtoken",
+            table_names,
+        )
+
+    def test_logout_blacklists_refresh_token(self):
+        """Logout endpoint blacklists the refresh token successfully."""
+        tokens = self._get_tokens()
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f"Bearer {tokens['access']}"
+        )
+        res = self.client.post(
+            self.url_logout,
+            {"refresh_token": tokens["refresh"]},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 205)
+        self.assertTrue(res.data["success"])
+
+    def test_logout_without_refresh_token_returns_400(self):
+        """Logout without a refresh_token body returns 400."""
+        tokens = self._get_tokens()
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f"Bearer {tokens['access']}"
+        )
+        res = self.client.post(self.url_logout, {}, format="json")
+        self.assertEqual(res.status_code, 400)
+        self.assertFalse(res.data["success"])
+
+    def test_blacklisted_token_cannot_be_used_again(self):
+        """After logout, the same refresh token is rejected on reuse."""
+        from rest_framework_simplejwt.tokens import RefreshToken as RT
+
+        tokens = self._get_tokens()
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f"Bearer {tokens['access']}"
+        )
+        # Logout — blacklist the token
+        self.client.post(
+            self.url_logout,
+            {"refresh_token": tokens["refresh"]},
+            format="json",
+        )
+        # Try to use the blacklisted refresh token
+        with self.assertRaises(Exception):
+            token = RT(tokens["refresh"])
+            token.blacklist()  # Should raise TokenError — already blacklisted

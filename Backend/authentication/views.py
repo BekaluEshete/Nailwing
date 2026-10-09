@@ -128,11 +128,20 @@ class AuthViewSet(viewsets.GenericViewSet):
 
     @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated])
     def logout(self, request):
+        """
+        Blacklist the provided refresh token so it cannot be used again.
+        The access token is short-lived (1 day) and will expire naturally.
+        The client must delete both tokens from local storage after calling this.
+        """
+        refresh_token = request.data.get("refresh_token")
+        if not refresh_token:
+            return Response(
+                {"success": False, "message": "refresh_token is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         try:
-            refresh_token = request.data.get("refresh_token")
-            if refresh_token:
-                token = RefreshToken(refresh_token)
-                token.blacklist()
+            token = RefreshToken(refresh_token)
+            token.blacklist()
             return Response(
                 {"success": True, "message": "Successfully logged out"},
                 status=status.HTTP_205_RESET_CONTENT,

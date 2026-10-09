@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "rest_framework",
     "rest_framework_simplejwt",
+    "rest_framework_simplejwt.token_blacklist",  # required for BLACKLIST_AFTER_ROTATION
     "corsheaders",
     "drf_spectacular",
     "authentication",
