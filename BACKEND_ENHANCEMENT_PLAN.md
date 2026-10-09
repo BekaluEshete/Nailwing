@@ -624,3 +624,145 @@ ssh -i "$env:USERPROFILE\.ssh\github_deploy" root@164.68.109.145 \
 git push -u origin enhance/<task-name>
 # Open PR on GitHub → wait for CI → merge
 ```
+
+---
+
+## Phase 2 — Production Readiness
+
+| # | Task | Branch | Priority | Status |
+|---|---|---|---|---|
+| 8 | Sentry Error Monitoring | `enhance/sentry` | High | ⬜ Not started |
+| 9 | PgBouncer Connection Pooler | `enhance/pgbouncer` | Medium | ⬜ Not started |
+| 10 | Offline Message Idempotency | `enhance/message-idempotency` | High | ⬜ Not started |
+| 11 | JWT Token Blacklist Fix | `enhance/jwt-blacklist` | Critical | ⬜ Not started |
+| 12 | Prometheus Metrics | `enhance/prometheus` | Medium | ⬜ Not started |
+
+---
+
+## Task 8 — Sentry Error Monitoring
+
+**Branch:** `enhance/sentry`
+**Blueprint reference:** Step 6 — Aggregated Logging & Alerting (Sentry)
+
+### Problem
+Unhandled exceptions in production are silent — they appear in stdout logs but no
+alert is sent, no stack trace is captured, and no issue tracking occurs. There is no
+way to know an endpoint is throwing 500s until a user reports it.
+
+### What to implement
+- Install `sentry-sdk[django]` (already in requirements? check first)
+- Add `SENTRY_DSN` env var support in `settings.py`
+- Initialize Sentry in `settings.py` with: DSN, environment, release, traces_sample_rate
+- Configure `integrations`: `DjangoIntegration`, `CeleryIntegration`, `RedisIntegration`
+- Add `SENTRY_DSN` to `.env` (placeholder) and GitHub `ENV_FILE` secret
+
+### Files to change
+```
+core/settings.py
+Backend/.env
+requirements.txt  (if sentry-sdk not present)
+```
+
+---
+
+## Task 9 — PgBouncer Connection Pooler
+
+**Branch:** `enhance/pgbouncer`
+**Blueprint reference:** Step 3 — PgBouncer
+
+### Problem
+Django's `CONN_MAX_AGE=60` reuses connections per worker thread, but each gunicorn/daphne
+worker still holds its own connection. Under 100+ concurrent workers the Postgres
+`max_connections` limit (default 100) is hit. PgBouncer pools connections at the proxy
+level, multiplexing hundreds of app connections onto a small number of real DB connections.
+
+### What to implement
+- Add `pgbouncer` service to `docker-compose.yml` using `bitnami/pgbouncer`
+- Route `DATABASE_URL` through PgBouncer's port
+- Set `PGBOUNCER_POOL_MODE=transaction` (best for Django REST APIs)
+- Set `PGBOUNCER_MAX_CLIENT_CONN=1000`, `PGBOUNCER_DEFAULT_POOL_SIZE=20`
+
+### Files to change
+```
+Backend/docker-compose.yml
+Backend/.env  (add PGBOUNCER_* vars)
+```
+
+---
+
+## Task 10 — Offline Message Idempotency
+
+**Branch:** `enhance/message-idempotency`
+**Blueprint reference:** Step 5 — Client-Side Offline Message Queue & Sync
+
+### Problem
+If a Flutter client sends a message, loses connectivity, and retries — the backend
+creates duplicate `Message` records. There is no `client_msg_id` field to detect
+and deduplicate retried sends.
+
+### What to implement
+- Add `client_msg_id` UUIDField (nullable, unique, indexed) to `Message` model
+- Create migration
+- Update `MessageList.perform_create` to use `get_or_create` on `client_msg_id`
+- Update `ChatConsumer.save_message` to accept and store `client_msg_id`
+- Return existing message on duplicate (idempotent — 200 not 201)
+
+### Files to change
+```
+chat/models.py
+chat/migrations/0004_message_client_msg_id.py  (new)
+chat/views.py
+chat/consumers.py
+```
+
+---
+
+## Task 11 — JWT Token Blacklist Fix
+
+**Branch:** `enhance/jwt-blacklist`
+**Blueprint reference:** Security hardening
+
+### Problem
+`SIMPLE_JWT` config has `BLACKLIST_AFTER_ROTATION=True` but
+`rest_framework_simplejwt.token_blacklist` is NOT in `INSTALLED_APPS`.
+The logout endpoint calls `token.blacklist()` which silently fails or raises
+an error depending on the JWT version. Refresh token rotation also silently
+fails to blacklist old tokens.
+
+### What to implement
+- Add `rest_framework_simplejwt.token_blacklist` to `INSTALLED_APPS`
+- Run `manage.py migrate` to create the blacklist tables
+- Add migration to CI
+
+### Files to change
+```
+core/settings.py
+```
+
+---
+
+## Task 12 — Prometheus Metrics
+
+**Branch:** `enhance/prometheus`
+**Blueprint reference:** Step 6 — Metrics Collection (Prometheus)
+
+### Problem
+No application metrics are collected. There is no way to monitor request
+throughput, response latency, cache hit rates, DB connection pool utilization,
+or active WebSocket connections without manually reading logs.
+
+### What to implement
+- Install `django-prometheus`
+- Add `PrometheusBeforeMiddleware` and `PrometheusAfterMiddleware` to `MIDDLEWARE`
+- Add `prometheus_django_models` to `INSTALLED_APPS`
+- Expose `/metrics` endpoint in `urls.py`
+- Add custom metric for active WebSocket connections in `ChatConsumer`
+- Document how to scrape with Prometheus + visualize in Grafana
+
+### Files to change
+```
+core/settings.py
+core/urls.py
+chat/consumers.py
+requirements.txt
+```
