@@ -90,7 +90,15 @@ ASGI_APPLICATION = "core.asgi.application"
 # =========================
 # DATABASE
 # =========================
-DATABASES = {"default": dj_database_url.config(default=os.getenv("DATABASE_URL"))}
+# CONN_MAX_AGE=60 enables persistent connections — Django reuses the same
+# TCP connection to Postgres for up to 60 seconds instead of opening a new
+# one per request. CONN_HEALTH_CHECKS ensures stale connections are dropped.
+_db_config = dj_database_url.config(default=os.getenv("DATABASE_URL"))
+_db_config.setdefault("CONN_MAX_AGE", 60)
+_db_config.setdefault("CONN_HEALTH_CHECKS", True)
+_db_config.setdefault("OPTIONS", {})
+_db_config["OPTIONS"].setdefault("connect_timeout", 10)
+DATABASES = {"default": _db_config}
 
 # =========================
 # AUTH / USER
@@ -171,32 +179,54 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 # Parse Redis URL for channels-redis
 # Format: redis://host:port/db or redis://:password@host:port/db
 def parse_redis_url(url):
-    """Parse Redis URL into (host, port, db) tuple"""
+    """
+    Parse a Redis URL into a dict suitable for channels-redis hosts config.
+
+    Supports formats:
+      redis://host:port/db
+      redis://:password@host:port/db
+      redis://username:password@host:port/db
+
+    Returns a dict: {"host": ..., "port": ..., "db": ..., "password": ...}
+    The password key is only included when present so channels-redis
+    does not attempt to authenticate against a server with no AUTH set.
+    """
     try:
-        # Remove redis:// prefix
-        url = url.replace("redis://", "").replace("rediss://", "")
+        original = url
+        password = None
 
-        # Handle password
+        # Strip scheme
+        url = url.replace("rediss://", "").replace("redis://", "")
+
+        # Extract credentials (everything before @)
         if "@" in url:
-            auth, rest = url.split("@", 1)
-            url = rest
+            auth_part, url = url.split("@", 1)
+            # auth_part may be "password" or "username:password"
+            if ":" in auth_part:
+                _, password = auth_part.split(":", 1)
+            else:
+                password = auth_part or None
 
-        # Split host:port/db
+        # Extract db number
         if "/" in url:
             host_port, db = url.split("/", 1)
         else:
             host_port, db = url, "0"
 
-        # Split host:port
+        # Extract host and port
         if ":" in host_port:
-            host, port = host_port.split(":", 1)
-            port = int(port)
+            host, port_str = host_port.split(":", 1)
+            port = int(port_str)
         else:
             host, port = host_port, 6379
 
-        return (host, port), int(db)
+        config = {"host": host, "port": port, "db": int(db)}
+        if password:
+            config["password"] = password
+
+        return config
     except Exception:
-        return ("localhost", 6379), 0
+        return {"host": "localhost", "port": 6379, "db": 0}
 
 
 # Try to use Redis channel layer, fallback to InMemory for local dev
@@ -208,15 +238,15 @@ try:
     # redis_client_test.ping()
     # redis_client_test.close()
 
-    redis_host_port, redis_db = parse_redis_url(REDIS_URL)
+    redis_host_config = parse_redis_url(REDIS_URL)
 
     CHANNEL_LAYERS = {
         "default": {
             "BACKEND": "channels_redis.core.RedisChannelLayer",
             "CONFIG": {
-                "hosts": [redis_host_port],
-                "capacity": 1500,  # Maximum number of messages to queue per channel
-                "expiry": 10,  # Message expiry in seconds
+                "hosts": [redis_host_config],
+                "capacity": 1500,
+                "expiry": 10,
             },
         },
     }
