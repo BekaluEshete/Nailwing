@@ -8,6 +8,24 @@ from channels.db import database_sync_to_async
 
 logger = logging.getLogger("chat")
 
+# ---------------------------------------------------------------------------
+# Prometheus metrics — active WebSocket connection counter
+# Incremented on connect, decremented on disconnect.
+# Scraped at /metrics by Prometheus.
+# ---------------------------------------------------------------------------
+try:
+    from prometheus_client import Gauge
+    _ws_connections = Gauge(
+        "nailwing_websocket_connections_active",
+        "Number of currently active WebSocket connections",
+    )
+except ImportError:
+    # prometheus_client not installed — create a no-op stub
+    class _NoOpGauge:
+        def inc(self): pass
+        def dec(self): pass
+    _ws_connections = _NoOpGauge()
+
 
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
@@ -41,6 +59,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
                     await self.accept()
                     logger.info("WebSocket accepted for user %s in room %s", self.username, self.room_name)
+                    _ws_connections.inc()
 
                     await self.update_user_online_status(True)
                     await self.send_previous_messages()
@@ -70,6 +89,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     async def disconnect(self, close_code):
         logger.debug("WebSocket DISCONNECT called (code=%s)", close_code)
+        _ws_connections.dec()
         if hasattr(self, "user") and hasattr(self, "room_group_name"):
             await self.update_user_online_status(False)
 
