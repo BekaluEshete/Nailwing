@@ -1,5 +1,19 @@
 version: "3.9"
 
+# =============================================================================
+# Connection Pooling Strategy
+# =============================================================================
+# This project uses Neon (cloud Postgres) as its database.
+# Neon provides a built-in PgBouncer-compatible pooler endpoint:
+#   ep-small-pine-aduu97k0-pooler.c-2.us-east-1.aws.neon.tech
+# The DATABASE_URL in .env already uses this pooler endpoint.
+#
+# The pgbouncer service below is included for environments where a
+# self-hosted PostgreSQL is used (e.g. staging, on-prem).
+# To activate it: set PGBOUNCER_DATABASE_URL in .env and point your
+# app's DATABASE_URL to postgresql://pgbouncer:5432/nailwing
+# =============================================================================
+
 services:
   web:
     build: .
@@ -13,11 +27,11 @@ services:
       - .env
     depends_on:
       - redis
+    restart: unless-stopped
 
   celery:
     build: .
     container_name: celery_worker
-    # 4 concurrent worker processes — tune to available CPU cores
     command: celery -A core worker --loglevel=info --concurrency=4
     volumes:
       - .:/app
@@ -31,8 +45,8 @@ services:
   celery-beat:
     build: .
     container_name: celery_beat
-    # Periodic task scheduler — only one beat instance should ever run
-    command: celery -A core beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    # Only one beat instance should ever run
+    command: celery -A core beat --loglevel=info
     volumes:
       - .:/app
     env_file:
@@ -49,6 +63,39 @@ services:
       - "6379:6379"
     volumes:
       - redisdata:/data
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # PgBouncer — connection pooler for self-hosted PostgreSQL
+  # Activate by setting PGBOUNCER_* vars in .env and pointing DATABASE_URL
+  # to postgresql://pgbouncer:5432/<db_name>
+  # ---------------------------------------------------------------------------
+  pgbouncer:
+    image: bitnami/pgbouncer:1.23.1
+    container_name: pgbouncer
+    environment:
+      # Source database (your self-hosted Postgres or a private Neon endpoint)
+      POSTGRESQL_HOST: ${PGBOUNCER_HOST:-localhost}
+      POSTGRESQL_PORT: ${PGBOUNCER_PORT:-5432}
+      POSTGRESQL_DATABASE: ${PGBOUNCER_DATABASE:-nailwing}
+      POSTGRESQL_USERNAME: ${PGBOUNCER_USER:-postgres}
+      POSTGRESQL_PASSWORD: ${PGBOUNCER_PASSWORD:-}
+      # Pooling config
+      PGBOUNCER_POOL_MODE: transaction      # best for Django REST APIs
+      PGBOUNCER_MAX_CLIENT_CONN: "1000"     # max app → pgbouncer connections
+      PGBOUNCER_DEFAULT_POOL_SIZE: "20"     # max pgbouncer → postgres connections
+      PGBOUNCER_MIN_POOL_SIZE: "5"
+      PGBOUNCER_RESERVE_POOL_SIZE: "5"
+      PGBOUNCER_IGNORE_STARTUP_PARAMETERS: extra_float_digits
+      # Auth
+      PGBOUNCER_AUTH_TYPE: scram-sha-256
+    ports:
+      - "5433:5432"   # expose on 5433 to avoid conflict with local postgres
+    profiles:
+      # Only starts when you explicitly run:
+      #   docker-compose --profile pgbouncer up
+      - pgbouncer
+    restart: unless-stopped
 
 volumes:
   redisdata:

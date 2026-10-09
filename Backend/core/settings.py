@@ -90,6 +90,11 @@ ASGI_APPLICATION = "core.asgi.application"
 # =========================
 # DATABASE
 # =========================
+# Connection pooling strategy:
+#   Production (Neon):     DATABASE_URL already uses Neon's built-in PgBouncer
+#                          pooler endpoint (*-pooler.*). No extra proxy needed.
+#   Self-hosted Postgres:  Start the pgbouncer Docker Compose profile and point
+#                          DATABASE_URL at postgresql://pgbouncer:5432/<db>
 DATABASES = {"default": dj_database_url.config(default=os.getenv("DATABASE_URL"))}
 
 # =========================
