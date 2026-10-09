@@ -1,6 +1,6 @@
 """
 Test settings — overrides production settings for fast, isolated test runs.
-Uses SQLite (in-memory), disables Redis channel layers, and skips Cloudinary.
+Uses SQLite (in-memory), forces LocMemCache (no Redis), and disables heavy ops.
 
 Usage:
     python manage.py test --settings=core.test_settings
@@ -14,6 +14,17 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": ":memory:",
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Cache — force LocMemCache so cache.clear() never tries to connect to Redis.
+# django-redis is configured in settings.py but CI has no Redis instance.
+# Both django-redis and the test-specific cache.clear() calls are safe here.
+# ---------------------------------------------------------------------------
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
     }
 }
 
