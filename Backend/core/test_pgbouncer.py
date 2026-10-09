@@ -38,11 +38,11 @@ class PgBouncerDockerComposeTest(TestCase):
         """MAX_CLIENT_CONN must be >= 100 to handle concurrent app connections."""
         content = self._read_compose()
         self.assertIn("PGBOUNCER_MAX_CLIENT_CONN", content)
-        # Extract the value
         for line in content.splitlines():
             if "PGBOUNCER_MAX_CLIENT_CONN" in line and ":" in line:
-                val = line.split(":")[-1].strip().strip('"')
-                self.assertGreaterEqual(int(val), 100)
+                # Strip inline YAML comments and quotes
+                raw = line.split(":")[-1].strip().strip('"').split("#")[0].strip().strip('"')
+                self.assertGreaterEqual(int(raw), 100)
                 break
 
     def test_pgbouncer_exposes_port(self):
