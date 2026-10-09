@@ -111,6 +111,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
     async def handle_message(self, data):
         message_content = data["message"]
         message_type = data.get("message_type", "text")
+        client_msg_id = data.get("client_msg_id")  # idempotency key from client
 
         if not message_content.strip():
             return
@@ -120,7 +121,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             self.username, self.room_name, message_content,
         )
 
-        message_obj = await self.save_message(message_content, message_type)
+        message_obj = await self.save_message(message_content, message_type, client_msg_id)
         logger.debug("Message saved to DB with ID: %s", message_obj.id)
 
         # Cache the message now that we're in async context
@@ -354,8 +355,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return False
 
     @database_sync_to_async
-    def save_message(self, content, message_type="text"):
-        """Save message to database"""
+    def save_message(self, content, message_type="text", client_msg_id=None):
+        """
+        Save message to database — idempotent when client_msg_id is provided.
+        If client_msg_id already exists (duplicate send), returns the existing
+        message instead of creating a new one.
+        """
         try:
             from .models import ChatRoom, Message
 
@@ -370,9 +375,27 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     "created_by": self.user,
                 },
             )
-            return Message.objects.create(
-                room=room, user=self.user, content=content, message_type=message_type
-            )
+
+            if client_msg_id:
+                # Idempotent: get existing or create new
+                message, created = Message.objects.get_or_create(
+                    client_msg_id=client_msg_id,
+                    defaults={
+                        "room": room,
+                        "user": self.user,
+                        "content": content,
+                        "message_type": message_type,
+                    },
+                )
+                if not created:
+                    logger.debug(
+                        "Duplicate message suppressed (client_msg_id=%s)", client_msg_id
+                    )
+                return message
+            else:
+                return Message.objects.create(
+                    room=room, user=self.user, content=content, message_type=message_type
+                )
         except Exception as exc:
             logger.error("Error saving message in room %s: %s", self.room_name, exc)
             import uuid
@@ -382,6 +405,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 def __init__(self):
                     self.id = uuid.uuid4()
                     self.timestamp = datetime.now()
+                    self.user = self
+
+                    @property
+                    def username(inner_self):
+                        return "unknown"
 
             return MockMessage()
 

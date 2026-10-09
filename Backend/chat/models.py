@@ -50,6 +50,17 @@ class Message(models.Model):
             ("location", "Location"),
         ],
     )
+    # Idempotency key sent by the client.
+    # The Flutter app assigns a UUID before sending; on retry the same UUID is
+    # sent again. The backend uses get_or_create on this field so duplicate
+    # sends never produce duplicate messages.
+    client_msg_id = models.UUIDField(
+        null=True,
+        blank=True,
+        unique=True,
+        db_index=True,
+        help_text="Client-generated UUID for idempotent message delivery.",
+    )
 
     class Meta:
         ordering = ["timestamp"]

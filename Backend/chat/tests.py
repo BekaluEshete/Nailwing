@@ -528,3 +528,80 @@ class UserSearchAPITest(APITestCase):
             )
         res = self.client.get(self.url, {"q": "bulk"})
         self.assertLessEqual(len(res.data), 10)
+
+
+# ---------------------------------------------------------------------------
+# Idempotency Tests — client_msg_id deduplication
+# ---------------------------------------------------------------------------
+
+class MessageIdempotencyTest(APITestCase):
+    """
+    Verify that sending the same client_msg_id twice does not create
+    duplicate messages — the second call returns the existing message.
+    """
+
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+        self.u1 = make_user(email="idem1@example.com", username="idem1")
+        self.u2 = make_user(email="idem2@example.com", username="idem2")
+        make_matched_pair(self.u1, self.u2)
+        self.room = make_personal_room(self.u1, self.u2)
+        self.url = f"/chat/api/rooms/{self.room.id}/messages/"
+        self.client.credentials(HTTP_AUTHORIZATION=bearer(self.u1))
+
+    def test_duplicate_client_msg_id_does_not_create_second_message(self):
+        """POSTing the same client_msg_id twice creates only one DB record."""
+        import uuid
+        msg_id = str(uuid.uuid4())
+
+        self.client.post(
+            self.url,
+            {"content": "Hello!", "client_msg_id": msg_id},
+            format="json",
+        )
+        self.client.post(
+            self.url,
+            {"content": "Hello!", "client_msg_id": msg_id},
+            format="json",
+        )
+
+        count = Message.objects.filter(room=self.room).count()
+        self.assertEqual(count, 1, "Duplicate client_msg_id should produce only 1 message")
+
+    def test_different_client_msg_ids_create_separate_messages(self):
+        """Two different client_msg_ids create two separate messages."""
+        import uuid
+        self.client.post(self.url, {"content": "Msg 1", "client_msg_id": str(uuid.uuid4())}, format="json")
+        self.client.post(self.url, {"content": "Msg 2", "client_msg_id": str(uuid.uuid4())}, format="json")
+        self.assertEqual(Message.objects.filter(room=self.room).count(), 2)
+
+    def test_message_without_client_msg_id_always_creates_new(self):
+        """Messages without client_msg_id are not deduplicated."""
+        self.client.post(self.url, {"content": "No ID"}, format="json")
+        self.client.post(self.url, {"content": "No ID"}, format="json")
+        self.assertEqual(Message.objects.filter(room=self.room).count(), 2)
+
+    def test_client_msg_id_field_in_response(self):
+        """Response includes the client_msg_id field."""
+        import uuid
+        msg_id = str(uuid.uuid4())
+        res = self.client.post(
+            self.url,
+            {"content": "With ID", "client_msg_id": msg_id},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 201)
+        self.assertIn("client_msg_id", res.data)
+
+    def test_client_msg_id_stored_in_db(self):
+        """client_msg_id is persisted on the Message model."""
+        import uuid
+        msg_id = uuid.uuid4()
+        self.client.post(
+            self.url,
+            {"content": "Stored", "client_msg_id": str(msg_id)},
+            format="json",
+        )
+        msg = Message.objects.get(room=self.room)
+        self.assertEqual(msg.client_msg_id, msg_id)
