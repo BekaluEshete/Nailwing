@@ -10,7 +10,7 @@ urlpatterns = [
     # Prometheus metrics — scraped by Prometheus server
     # Restrict access at the network/nginx level in production
     # (do not expose this to the public internet)
-    path("metrics/", include("django_prometheus.urls")),
+    path("", include("django_prometheus.urls")),
 
     # Health check — used by load balancers and uptime monitors
     path("health/", HealthCheckView.as_view(), name="health-check"),
