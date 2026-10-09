@@ -68,6 +68,9 @@ def run_matching_for_user(self, user_id: int, flight_id: int = None):
 
     if not match_data_list:
         logger.info("run_matching_for_user: no matches found for user %s", user_id)
+        # Still invalidate cache so stale data is not served
+        cache.delete(_matches_cache_key(user_id, flight_id))
+        cache.delete(_matches_cache_key(user_id))
         return {"status": "ok", "matches_found": 0}
 
     # Determine which flight was actually used (service may have auto-selected one)
